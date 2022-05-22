@@ -71,8 +71,10 @@ zar.read('mylens.zar')
 Python `pathlib.Path` objects can be used instead of strings.
 
 ## Online
-The latest version of the source code can be found on
+The latest version of the
+- source code can be found on
 [github: https://github.com/tttom/zmxtools](https://github.com/tttom/zmxtools)
+- API Documentation on https://zmxtools.readthedocs.io/
 
 ## License
 This code is distributed under the

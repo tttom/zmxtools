@@ -27,6 +27,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.7"
 tomlkit = { version = "^0.10", optional = true }
+coloredlogs = "^15.0.1"
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.950"
