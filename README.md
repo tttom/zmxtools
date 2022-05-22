@@ -1,9 +1,18 @@
-# ZmxTools
+# zmxtools
 
-[![Build Status](https://github.com/wemake-services/zmxtools/workflows/test/badge.svg?branch=master&event=push)](https://github.com/wemake-services/zmxtools/actions?query=workflow%3Atest)
-[![codecov](https://codecov.io/gh/wemake-services/zmxtools/branch/master/graph/badge.svg)](https://codecov.io/gh/wemake-services/zmxtools)
+[![Build Status](https://github.com/tttom/zmxtools/workflows/test/badge.svg?branch=master&event=push)](https://github.com/tttom/zmxtools/actions?query=workflow%3Atest)
 [![Python Version](https://img.shields.io/pypi/pyversions/zmxtools.svg)](https://pypi.org/project/zmxtools/)
 [![wemake-python-styleguide](https://img.shields.io/badge/style-wemake-000000.svg)](https://github.com/wemake-services/wemake-python-styleguide)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/zmxtools)](https://www.python.org/downloads)
+[![PyPI - License](https://img.shields.io/pypi/l/zmxtools)](https://opensource.org/licenses/AGPL-3.0)
+[![PyPI](https://img.shields.io/pypi/v/zmxtools?label=version&color=808000)](https://github.com/tttom/ZmxTools/tree/master/python)
+[![PyPI - Status](https://img.shields.io/pypi/status/zmxtools)](https://pypi.org/project/zmxtools/tree/master/python)
+[![PyPI - Wheel](https://img.shields.io/pypi/wheel/zmxtools?label=python%20wheel)](https://pypi.org/project/zmxtools/#files)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/zmxtools)](https://pypi.org/project/zmxtools/)
+[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/tttom/ZmxTools)](https://github.com/tttom/ZmxTools)
+[![GitHub last commit](https://img.shields.io/github/last-commit/tttom/ZmxTools)](https://github.com/tttom/ZmxTools)
+[![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/pypi/zmxtools)](https://libraries.io/pypi/zmxtools)
+[![Documentation Status](https://readthedocs.org/projects/zmxtools/badge/?version=latest)](https://readthedocs.org/projects/zmxtools)
 
 A toolkit to read Zemax files.
 

@@ -29,8 +29,8 @@ def _get_project_meta():
 
 pkg_meta = _get_project_meta()
 project = str(pkg_meta['name'])
-copyright = '2022, wemake-services'  # noqa: WPS125
-author = 'wemake-services'
+copyright = '2022'  # noqa: WPS125
+author = ''
 
 # The short X.Y version
 version = str(pkg_meta['version'])

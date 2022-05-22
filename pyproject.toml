@@ -26,6 +26,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.7"
+tomlkit = { version = "^0.10", optional = true }
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.950"
@@ -33,7 +34,6 @@ mypy = "^0.950"
 sphinx = { version = "^4.5",  optional = true }
 sphinx-autodoc-typehints = { version = "^1.18", optional = true }
 m2r2 = { version = "^0.3",  optional = true }
-tomlkit = { version = "^0.10", optional = true }
 coloredlogs = "^15.0.1"
 charset-normalizer = "^2.0.12"
 certifi = "^2022.5.18.1"
