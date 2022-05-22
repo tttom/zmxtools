@@ -1,14 +1,11 @@
 import coloredlogs
-import configparser
 import logging
-from pathlib import Path
+import pkg_resources
 
 
 formatter_class = coloredlogs.ColoredFormatter
 
-config_file_parser = configparser.ConfigParser()
-config_file_parser.read(Path(__file__).parent.parent / 'pyproject.toml')
-__version__ = config_file_parser['tool.poetry']['version'].strip("'\" ")
+__version__ = pkg_resources.get_distribution(__name__).version
 
 __all__ = ['zar']
 

@@ -8,16 +8,7 @@
 A toolkit to read Zemax files.
 
 Currently this is limited to unpacking ZAR archives. To parse the files contained within the archive, e.g. ZMX or AGF 
-glass files, please check out the following projects and packages:
-- [Optical ToolKit](https://github.com/draustin/otk) reads Zemax .zmx files.
-- [RayTracing](https://github.com/DCC-Lab/RayTracing) reads Zemax .zmx files.
-- [Zemax Glass](https://github.com/nzhagen/zemaxglass) reads Zemax .agf files.
-- [Zemax Glass](https://github.com/nzhagen/zemaxglass) reads Zemax .agf files.
-- [RayOptics](https://github.com/mjhoptics/ray-optics) reads Zemax .zmx and CODE-V .seq files.
-- [RayOpt](https://github.com/quartiq/rayopt) reads Zemax .zmx as well as OSLO files.
-- [OpticsPy](https://github.com/Sterncat/opticspy) does not read Zemax .zmx files but it reads CODE-V .seq files and 
-glass information from data downloaded from https://www.refractiveindex.info/.
-- [OpticalGlass](https://github.com/mjhoptics/opticalglass) Reads glass manufacturer Excel sheets.
+glass files, please check the [list of related software](#related-software) below.
 
 ## Features
 - Unpack a Zemax OpticStudio Archive ZAR file using the `unzar` command.
@@ -27,7 +18,7 @@ glass information from data downloaded from https://www.refractiveindex.info/.
 
 ## Installation
 ### Prerequisites
-- Python 3.6 (tested on Python 3.8)
+- Python 3.7 (tested on Python 3.8)
 - pip, the Python package manager
 
 To install `zmxtools`, just run the following command in a command shell:
@@ -82,3 +73,14 @@ This code is distributed under the
 - [Wouter Vermaelen](https://github.com/m9710797) for decoding the ZAR header and finding LZW compressed contents.
 - [Bertrand Bordage](https://github.com/BertrandBordage) for sharing this [gist](https://gist.github.com/BertrandBordage/611a915e034c47aa5d38911fc0bc7df9).
 - This project was generated with [`wemake-python-package`](https://github.com/wemake-services/wemake-python-package). Current template version is: [cfbc9ea21c725ba5b14c33c1f52d886cfde94416](https://github.com/wemake-services/wemake-python-package/tree/cfbc9ea21c725ba5b14c33c1f52d886cfde94416). See what is [updated](https://github.com/wemake-services/wemake-python-package/compare/cfbc9ea21c725ba5b14c33c1f52d886cfde94416...master) since then.
+
+## Related Software
+- [Optical ToolKit](https://github.com/draustin/otk) reads Zemax .zmx files.
+- [RayTracing](https://github.com/DCC-Lab/RayTracing) reads Zemax .zmx files.
+- [Zemax Glass](https://github.com/nzhagen/zemaxglass) reads Zemax .agf files.
+- [Zemax Glass](https://github.com/nzhagen/zemaxglass) reads Zemax .agf files.
+- [RayOptics](https://github.com/mjhoptics/ray-optics) reads Zemax .zmx and CODE-V .seq files.
+- [RayOpt](https://github.com/quartiq/rayopt) reads Zemax .zmx as well as OSLO files.
+- [OpticsPy](https://github.com/Sterncat/opticspy) does not read Zemax .zmx files but it reads CODE-V .seq files and
+  glass information from data downloaded from https://www.refractiveindex.info/.
+- [OpticalGlass](https://github.com/mjhoptics/opticalglass) Reads glass manufacturer Excel sheets.

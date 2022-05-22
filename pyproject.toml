@@ -10,7 +10,7 @@ style = "https://raw.githubusercontent.com/wemake-services/wemake-python-stylegu
 [tool.poetry]
 name = "zmxtools"
 description = "Toolkit to read Zemax OpticStudio files."
-version = "0.1.0"
+version = "0.1.1"
 license = "AGPL3"
 authors = ["Wouter Vermaelen", "Tom Vettenburg"]
 readme = "README.md"
@@ -27,6 +27,8 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.7"
 
+[tool.poetry.dev-dependencies]
+mypy = "^0.950"
 # Docs, optional, use `poetry install -E docs` to install them:
 sphinx = { version = "^4.5",  optional = true }
 sphinx-autodoc-typehints = { version = "^1.18", optional = true }
@@ -37,10 +39,6 @@ charset-normalizer = "^2.0.12"
 certifi = "^2022.5.18.1"
 idna = "^3.3"
 pyparsing = "^3.0.9"
-
-
-[tool.poetry.dev-dependencies]
-mypy = "^0.950"
 
 wemake-python-styleguide = "^0.16"
 flake8-pytest-style = "^1.6"
