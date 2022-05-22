@@ -30,7 +30,9 @@ def _get_project_meta():
 pkg_meta = _get_project_meta()
 project = str(pkg_meta['name'])
 copyright = '2022'  # noqa: WPS125
-author = ''
+author = ' '
+epub_author = ' '
+epub_publisher = ' '
 
 # The short X.Y version
 version = str(pkg_meta['version'])
@@ -148,9 +150,9 @@ html_sidebars = {
 
 # -- Extension configuration -------------------------------------------------
 
-napoleon_numpy_docstring = False
+napoleon_numpy_docstring = True
 
 # -- Options for todo extension ----------------------------------------------
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
-todo_include_todos = True
+todo_include_todos = False

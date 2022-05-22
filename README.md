@@ -1,6 +1,5 @@
 # zmxtools
 
-[![Build Status](https://github.com/tttom/zmxtools/workflows/test/badge.svg?branch=master&event=push)](https://github.com/tttom/zmxtools/actions?query=workflow%3Atest)
 [![Python Version](https://img.shields.io/pypi/pyversions/zmxtools.svg)](https://pypi.org/project/zmxtools/)
 [![wemake-python-styleguide](https://img.shields.io/badge/style-wemake-000000.svg)](https://github.com/wemake-services/wemake-python-styleguide)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/zmxtools)](https://www.python.org/downloads)
