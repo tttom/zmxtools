@@ -104,4 +104,4 @@ def test_repack():
 def test_unzar():
     """Tests the code that is called as a script."""
     exit_code = zar.unzar()
-    assert exit_code == 1, f'Unzar tool returned error code {exit_code}, though 1 expected without arguments.'
+    assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'

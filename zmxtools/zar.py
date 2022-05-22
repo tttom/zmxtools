@@ -147,12 +147,10 @@ def extract(input_file_path: Union[Path, str], output_path: Union[Path, str, Non
     # Make sure that the input arguments are both pathlib.Path-s
     if isinstance(input_file_path, str):
         input_file_path = Path(input_file_path)
-    # By default, just drop the .zar extension
-    if output_path is None:
-        output_path = input_file_path.name
-        if output_path.lower().endswith('.zar'):
-            output_path = output_path[:-4]
-        output_path = input_file_path.parent / output_path
+    if output_path is None:  # By default, just drop the .zar extension for the output names
+        output_path = input_file_path.parent / (
+            input_file_path.stem if input_file_path.suffix.lower() == '.zar' else input_file_path
+        )
     elif isinstance(output_path, str):
         output_path = Path(output_path)
     Path.mkdir(output_path, exist_ok=True, parents=True)
@@ -170,20 +168,18 @@ def repack(input_file_path: Union[Path, str], output_file_path: Union[Path, str,
     """
     Imports the data from a zar archive file and writes it as a regular zip file.
 
-    :param input_file_path: The path to zar-file.
-    :param output_file_path: The path to the zip file. Default: the same as the input_file_path but with the extension
-        changed to 'zip'.
+    :param input_file_path: The file path, including the file name, of the zar-file.
+    :param output_file_path: TThe file path, including the file name, of the destination zip-file.
+        Default: the same as `input_file_path` but with the extension changed to 'zip'.
     """
     # Make sure that the input arguments are both pathlib.Path-s
     if isinstance(input_file_path, str):
         input_file_path = Path(input_file_path)
-    # By default, just change .zar to .zip
-    if output_file_path is None:
-        output_file_name = input_file_path.name
-        if output_file_name.lower().endswith('.zar'):
-            output_file_name = output_file_name[:-4]
-        output_file_name += '.zip'
-        output_file_path = input_file_path.parent / output_file_name
+    if output_file_path is None:  # By default, just change .zar to .zip for the destination archive
+        if input_file_path.suffix.lower() == '.zar':
+            output_file_path = input_file_path.with_suffix('.zip')
+        else:  # or tag on .zip when it hasn't the .zar extension
+            output_file_path = input_file_path.parent / (input_file_path.name + '.zip')
     else:
         if isinstance(output_file_path, str):
             if not output_file_path.lower().endswith('.zip'):
@@ -195,7 +191,7 @@ def repack(input_file_path: Union[Path, str], output_file_path: Union[Path, str,
     log.debug(f'Converting {input_file_path} to zip archive {output_file_path}...')
 
     # Open the output archive and start storing unpacked files
-    repack_directory = output_file_path.name[:-4]  # all but the extension
+    repack_directory = output_file_path.stem  # all but the extension
     with zipfile.ZipFile(
         output_file_path,
         mode='a',
@@ -216,7 +212,8 @@ def unzar() -> int:
     try:
         input_parser = argparse.ArgumentParser(
             description='Zemax archive files (.zar) unpacker and zipper.',
-            usage="""
+            usage="""Zemax archive files (.zar) unpacker and zipper.
+
      Examples of usage:
     > unzar filename.zar
     > unzar filename.zar -z
@@ -228,7 +225,14 @@ def unzar() -> int:
         input_parser.add_argument(
             '-v',
             '--verbosity',
-            help='the path to the PNG image file describing the simulation structure',
+            help='the level of verbosity',
+            default=0,
+            action='count',
+        )
+        input_parser.add_argument(
+            '-q',
+            '--quiet',
+            help='suppress output partially or completely (-qqq)',
             default=0,
             action='count',
         )
@@ -245,13 +249,15 @@ def unzar() -> int:
             nargs='*',
             help='the input archive',
         )
-        input_parser.add_argument('-o', '--output', type=str, help='the output archive or directory')
+        input_parser.add_argument('-o', '--output', type=str, help='destination directory for the extracted archive')
+        input_parser.add_argument('-f', '--force', help='overwrite existing files if necessary', action='store_true')
         input_parser.add_argument('-z', '--zip', help='create an archive instead of a directory', action='store_true')
         input_parser.add_argument('archive_file_name', type=str, nargs='*', help='one or more names of input archives')
         input_args = input_parser.parse_args()
 
-        log_levels = [logging.FATAL, logging.ERROR, logging.WARNING, logging.DEBUG]
-        log.setLevel(log_levels[min(3, input_args.verbosity)])
+        verbosity_level = 2 + input_args.verbosity - input_args.quiet  # between -infinity and infinity, default WARNING
+        log_levels = [logging.FATAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]
+        log.setLevel(log_levels[max(0, min(len(log_levels), verbosity_level))])
         for _ in log.handlers:
             _.setLevel(log.level)
 
@@ -262,28 +268,46 @@ def unzar() -> int:
                            )
         log.debug(version_message)
         log.debug(version_message)
-        if input_args.version:
+        if input_args.version and verbosity_level >= 0:
             sys.stdout.write(version_message)  # i.e. a print that lints
 
-        all_input_files = input_args.input if input_args.input is not None else []
-        all_input_files += input_args.archive_file_name if input_args.archive_file_name is not None else []
-        if len(all_input_files) >= 1:
-            log.info(f'Unpacking {len(all_input_files)} archives...')
-            log.debug(f'File names {all_input_files}')
-            for input_file in all_input_files:
-                log.info(f'Loading {input_file}...')
+        combined_input_files = input_args.input if input_args.input is not None else []
+        combined_input_files += input_args.archive_file_name if input_args.archive_file_name is not None else []
+        if len(combined_input_files) >= 1:
+            log.info(f'Unpacking {len(combined_input_files)} archives...')
+            log.debug(f'File names {combined_input_files}')
+            for input_file in combined_input_files:
+                log.info(f'Processing {input_file}...')
                 input_file_path = Path(input_file)
-
-                if input_args.zip:
-                    repack(input_file_path, input_args.output)
+                if not input_file_path.suffix.lower() == '.zar':
+                    log.warning(f'Archive file "{input_file_path}" does not have the ".zar" extension!')
+                # Check for direction on where to send the output
+                if input_args.output is None:
+                    output_file_path = input_file_path.parent / (
+                        input_file_path.stem if input_file_path.suffix.lower() == '.zar' else input_file_path
+                    )
                 else:
-                    extract(input_file_path, input_args.output)
+                    output_file_path = Path(input_args.output) / input_file_path.name
+                    log.debug(f'Writing output to specified output directory: {output_file_path.parent}...')
+                # Delegate the actual work
+                if not input_args.zip:
+                    extract(input_file_path, output_file_path)
+                else:
+                    output_file_path = output_file_path.with_suffix('.zip')
+                    if not output_file_path.exists() or input_args.force:
+                        if output_file_path.exists():
+                            log.info(f'The file "{output_file_path}" already exists, but forcing an overwrite...')
+                            output_file_path.unlink()
+                        repack(input_file_path, output_file_path)
+                    else:
+                        log.warning(f'The file "{output_file_path}" already exists. Use unzar --force to overwrite.')
         else:
             log.error('No input zar archives specified.')
-            input_parser.print_help()
+            if verbosity_level >= 0:
+                input_parser.print_help()
             return 1
     except Exception as exc:
-        log.fatal(exc)
+        log.fatal(f'A fatal error occured: "{exc}"')
         log.info(traceback.format_exc())
         # raise exc
         return -1
