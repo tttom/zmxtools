@@ -1,15 +1,14 @@
 .. mdinclude:: ../README.md
 
-Contents
---------
+Welcome to the ZmxTools Documentation !
+---------------------------------------
 
 .. toctree::
   :maxdepth: 8
-  :caption: Modules
+  :caption: Contents:
 
   source/modules
-  source/zmxtools
-  source/changelog.rst
+  source/changelog
 
 
 Indices and tables
