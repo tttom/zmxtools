@@ -16,7 +16,7 @@
 A toolkit to read Zemax files.
 
 Currently this is limited to unpacking ZAR archives. To parse the files contained within the archive, e.g. ZMX or AGF 
-glass files, please check the [list of related software](#related-software) below.
+glass files. For further processing, please check the [list of related software](#related-software) below.
 
 ## Features
 - Unpack a Zemax OpticStudio Archive ZAR file using the `unzar` command.
@@ -88,9 +88,8 @@ This code is distributed under the
 - [Optical ToolKit](https://github.com/draustin/otk) reads Zemax .zmx files.
 - [RayTracing](https://github.com/DCC-Lab/RayTracing) reads Zemax .zmx files.
 - [Zemax Glass](https://github.com/nzhagen/zemaxglass) reads Zemax .agf files.
-- [Zemax Glass](https://github.com/nzhagen/zemaxglass) reads Zemax .agf files.
 - [RayOptics](https://github.com/mjhoptics/ray-optics) reads Zemax .zmx and CODE-V .seq files.
 - [RayOpt](https://github.com/quartiq/rayopt) reads Zemax .zmx as well as OSLO files.
-- [OpticsPy](https://github.com/Sterncat/opticspy) does not read Zemax .zmx files but it reads CODE-V .seq files and
+- [OpticsPy](https://github.com/Sterncat/opticspy) does not read Zemax .zmx files but reads CODE-V .seq files and
   glass information from data downloaded from https://www.refractiveindex.info/.
-- [OpticalGlass](https://github.com/mjhoptics/opticalglass) Reads glass manufacturer Excel sheets.
+- [OpticalGlass](https://github.com/mjhoptics/opticalglass) reads glass manufacturer Excel sheets.

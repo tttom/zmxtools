@@ -30,8 +30,9 @@ def test_version():
 
 def test_read():
     """Tests the zmxtools.zar.read function."""
-    assert len(paired_test_files) > 1, \
+    assert len(paired_test_files) > 1, (
         f'No zar files found with matching zmx files in {test_folder}! Make sure that the extensions are lower case.'
+    )
 
     for zar_file_path in paired_test_files.keys():
         log.info(zar_file_path)
@@ -41,8 +42,9 @@ def test_read():
             if packed_data.file_name.lower().endswith('.zmx'):
                 try:
                     with open(paired_test_files[zar_file_path], 'rb') as zmx_file:
-                        assert zmx_file.read() == packed_data.unpacked_contents, \
+                        assert zmx_file.read() == packed_data.unpacked_contents, (
                             f'Data in {packed_data.file_name} is not what is expected.'
+                        )
                 except AssertionError as exc:  # Write out the actual file for later reference
                     with open(
                         paired_test_files[zar_file_path].parent / (
@@ -52,21 +54,24 @@ def test_read():
                     ) as actual_zmx_file:
                         actual_zmx_file.write(packed_data.unpacked_contents)  # for debugging
                     raise exc
-        assert len(packed_files) >= MIN_FILES_IN_ARCHIVE, \
+        assert len(packed_files) >= MIN_FILES_IN_ARCHIVE, (
             f'Expected more files than {packed_files} in {repr(zar_file_path)}'
+        )
 
 
 def test_extract():
     """Tests the zmxtools.zar.extract function."""
-    assert len(test_files) > 1, \
+    assert len(test_files) > 1, (
         f'No zar files found in {test_folder}! Make sure that the extensions are lower case.'
+    )
 
     def check(zar_file_path: Path):
         extraction_dir = zar_file_path.parent / zar_file_path.name[:-4]
         assert extraction_dir.exists, f'Extraction of zar file {repr(zar_file_path)} to {extraction_dir} failed'
         files_in_archive = tuple(extraction_dir.glob('*'))
-        assert len(files_in_archive) >= MIN_FILES_IN_ARCHIVE, \
+        assert len(files_in_archive) >= MIN_FILES_IN_ARCHIVE, (
             f'Only found {files_in_archive} in {extraction_dir}. Expected {MIN_FILES_IN_ARCHIVE} files.'
+        )
 
         # Delete files again and remove sub-directory
         for _ in files_in_archive:
@@ -76,29 +81,26 @@ def test_extract():
     for zar_file_path in test_files.keys():
         zar.extract(zar_file_path)
         check(zar_file_path)
-
-    for zar_file_path in test_files.keys():
         zar.extract(zar_file_path.as_posix())  # Checking if str also work as argument
         check(zar_file_path)
 
 
 def test_repack():
     """Tests the zmxtools.zar.repack function."""
-    assert len(test_files) > 1, \
+    assert len(test_files) > 1, (
         f'No zar files found in {test_folder}! Make sure that the extensions are lower case.'
+    )
 
-    def check(zar_file_path: Path):
+    def check_and_clean(zar_file_path: Path):
         zip_file_path = zar_file_path.parent / (zar_file_path.name[:-4] + '.zip')
         assert zip_file_path.exists, f'Repacking of zar file {repr(zar_file_path)} as {zip_file_path} failed!'
         zip_file_path.unlink()
 
     for zar_file_path in test_files.keys():
         zar.repack(zar_file_path)
-        check(zar_file_path)
-
-    for zar_file_path in test_files.keys():
+        check_and_clean(zar_file_path)
         zar.repack(zar_file_path.as_posix())  # Checking if str also work as argument
-        check(zar_file_path)
+        check_and_clean(zar_file_path)
 
 
 def test_unzar():

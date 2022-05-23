@@ -31,6 +31,7 @@ coloredlogs = "^15.0.1"
 
 sphinx = { version = "^4.5",  optional = true }
 sphinx-autodoc-typehints = { version = "^1.18", optional = true }
+sphinx_rtd_theme = { version = "^0.4.3", optional = true  }
 tomlkit = { version = "^0.10", optional = true }
 m2r2 = "^0.3.2"
 
@@ -56,7 +57,7 @@ pytest-randomly = "^3.12"
 
 
 [tool.poetry.extras]
-docs = ["sphinx", "sphinx-autodoc-typehints", "m2r2", "tomlkit"]
+docs = ["sphinx", "sphinx-autodoc-typehints", "m2r2", "tomlkit", "sphinx_rtd_theme"]
 
 
 [tool.poetry.scripts]

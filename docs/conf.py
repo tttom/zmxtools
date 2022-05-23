@@ -10,6 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
+import datetime
 import os
 import sys
 
@@ -17,6 +18,7 @@ import tomlkit
 
 sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../..'))
 
 
 # -- Project information -----------------------------------------------------
@@ -30,10 +32,11 @@ def _get_project_meta():
 
 pkg_meta = _get_project_meta()
 project = str(pkg_meta['name'])
-copyright = '2022'  # noqa: WPS125
-author = ' '
-epub_author = ' '
-epub_publisher = ' '
+
+copyright = f'{datetime.datetime.now().year}, Tom Vettenburg'  # noqa: WPS125
+author = 'Tom Vettenburg'
+epub_author = 'Tom Vettenburg'
+epub_publisher = 'ReadTheDocs'
 
 # The short X.Y version
 version = str(pkg_meta['version'])
@@ -65,15 +68,26 @@ extensions = [
 
     # Used to insert typehints into the final docs:
     'sphinx_autodoc_typehints',
+
+    # Extra
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.ifconfig',
 ]
 
 autoclass_content = 'class'
-autodoc_member_order = 'bysource'
-autodoc_default_flags = {
-    'members': '',
-    'undoc-members': 'code,error_template',
-    'exclude-members': '__dict__,__weakref__',
+autodoc_default_options = {
+    'show-inheritance': True,
 }
+autodoc_default_options = {
+    'show-inheritance': True,
+    'member-order': 'bysource',
+    'undoc-members': True,
+    'special-members': True,
+    'exclude-members': '__weakref__, __module__, __dict__, __str__, __eq__,' +
+                       '__abstractmethods__, __orig_bases__, __parameters__',
+}
+autodoc_mock_imports = ['coloredlogs']
 
 # Set `typing.TYPE_CHECKING` to `True`:
 # https://pypi.org/project/sphinx-autodoc-typehints/
@@ -86,6 +100,8 @@ templates_path = ['_templates']
 # You can specify multiple suffix as a list of string:
 
 source_suffix = ['.rst', '.md']
+
+intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 
 # The master toctree document.
 master_doc = 'index'
@@ -107,24 +123,12 @@ pygments_style = 'sphinx'
 
 add_module_names = False
 
-autodoc_default_options = {
-    'show-inheritance': True,
-}
-
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = 'sphinx_rtd_theme'
-
-# Theme options are theme-specific and customize the look and feel of a theme
-# further.  For a list of options available for each theme, see the
-# documentation.
-# html_theme_options = {
-#     'sidebar_collapse': False,
-#     'show_powered_by': False,
-# }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

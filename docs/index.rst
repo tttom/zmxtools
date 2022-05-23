@@ -4,10 +4,12 @@ Contents
 --------
 
 .. toctree::
-  :maxdepth: 1
-  :caption: Changelog
+  :maxdepth: 8
+  :caption: Modules
 
-  pages/changelog.rst
+  source/modules
+  source/zmxtools
+  source/changelog.rst
 
 
 Indices and tables

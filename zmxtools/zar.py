@@ -13,6 +13,20 @@ log = logging.getLogger(__name__)
 
 __all__ = ['read', 'UnpackedData', 'extract', 'repack']
 
+ZAR = '.zar'
+ZIP = '.zip'
+ZAR_VERSION_LENGTH = 2  # in bytes
+EARLIER_CONTENT_OFFSET = 0x14C - ZAR_VERSION_LENGTH
+EARLIER_PACKED_FILE_SIZE_BEGIN = 0xC - ZAR_VERSION_LENGTH
+EARLIER_PACKED_FILE_SIZE_END = 0x10 - ZAR_VERSION_LENGTH
+EARLIER_PACKED_FILE_NAME_OFFSET = 0x20 - ZAR_VERSION_LENGTH
+EARLIER_VERSION = 0xEA00.to_bytes(2, 'big')
+LATEST_VERSION = 0xEC03.to_bytes(2, 'big')
+LATEST_CONTENT_OFFSET = 0x288 - ZAR_VERSION_LENGTH
+LATEST_PACKED_FILE_SIZE_BEGIN = 0x10 - ZAR_VERSION_LENGTH
+LATEST_PACKED_FILE_SIZE_END = 0x18 - ZAR_VERSION_LENGTH
+LATEST_PACKED_FILE_NAME_OFFSET = 0x30 - ZAR_VERSION_LENGTH
+
 
 def _decompress_lzw(compressed: bytes) -> bytes:
     """
@@ -83,45 +97,36 @@ def read(input_file_path: Union[Path, str]) -> Generator[UnpackedData, None, Non
     if isinstance(input_file_path, str):
         input_file_path = Path(input_file_path)
     with open(input_file_path, 'rb') as input_file:
-        version_length = 2
         while True:
-            version = input_file.read(version_length)
-            if len(version) < version_length:
+            version = input_file.read(ZAR_VERSION_LENGTH)
+            if len(version) < ZAR_VERSION_LENGTH:
                 break  # end of file
-            if version[0] == 0xEC:
-                header_length = 0x288 - version_length
-            elif version[0] == 0xEA:
-                header_length = 0x14C - version_length
+            if version[0] == LATEST_VERSION[0]:
+                header_length = LATEST_CONTENT_OFFSET
+            elif version[0] == EARLIER_VERSION[0]:
+                header_length = EARLIER_CONTENT_OFFSET
             else:
                 log.warning(f'Unknown ZAR header "{version.hex()}"!')
-                header_length = 0x288 - version_length
-                version = 0xEC03.to_bytes(2, 'big')  # override and cross fingers
+                header_length = LATEST_CONTENT_OFFSET
+                version = LATEST_VERSION  # override and cross fingers
 
             header = input_file.read(header_length)
 
-            # flag1 = int.from_bytes(header[0x4-version_length:0x8-version_length], byteorder='little', signed=False)
-            # flag2 = int.from_bytes(header[0x8-version_length:0x10-version_length], byteorder='little', signed=False)
-            # log.info(f'Header {flag1} {flag2} {header[0x20-version_length:0x30-version_length].hex()}')
-            if version[0] == 0xEC:
+            if version[0] == LATEST_VERSION[0]:
                 packed_file_size = int.from_bytes(
-                    header[0x10 - version_length:0x18 - version_length],
+                    header[LATEST_PACKED_FILE_SIZE_BEGIN:LATEST_PACKED_FILE_SIZE_END],
                     byteorder='little',
                     signed=False,
                 )
-                # unpacked_file_size = int.from_bytes(header[0x18 - version_length:0x20 - version_length],
-                #                                     byteorder='little', signed=False,
-                #                                     )
-                packed_file_name = header[0x30 - version_length:].decode('utf-16-le')
+                packed_file_name = header[LATEST_PACKED_FILE_NAME_OFFSET:].decode('utf-16-le')
                 packed_file_name = packed_file_name[:packed_file_name.find('\0')]  # ignore all 0's on the right
             else:
                 packed_file_size = int.from_bytes(
-                    header[0xC - version_length:0x10 - version_length],
+                    header[EARLIER_PACKED_FILE_SIZE_BEGIN:EARLIER_PACKED_FILE_SIZE_END],
                     byteorder='little',
                     signed=False,
                 )
-                # unpacked_file_size = int.from_bytes(header[0x10 - version_length:0x14 - version_length],
-                #                                     byteorder='little', signed=False)
-                packed_file_name_bytes = header[0x20 - version_length:]
+                packed_file_name_bytes = header[EARLIER_PACKED_FILE_NAME_OFFSET:]
                 packed_file_name_bytes = packed_file_name_bytes[:packed_file_name_bytes.find(0x0)]
                 packed_file_name = packed_file_name_bytes.decode('utf-8')
             log.debug(f'Version {version.hex()}. Packed file {packed_file_name} has size {packed_file_size} bytes.')
@@ -149,7 +154,7 @@ def extract(input_file_path: Union[Path, str], output_path: Union[Path, str, Non
         input_file_path = Path(input_file_path)
     if output_path is None:  # By default, just drop the .zar extension for the output names
         output_path = input_file_path.parent / (
-            input_file_path.stem if input_file_path.suffix.lower() == '.zar' else input_file_path
+            input_file_path.stem if input_file_path.suffix.lower() == ZAR else input_file_path
         )
     elif isinstance(output_path, str):
         output_path = Path(output_path)
@@ -176,17 +181,17 @@ def repack(input_file_path: Union[Path, str], output_file_path: Union[Path, str,
     if isinstance(input_file_path, str):
         input_file_path = Path(input_file_path)
     if output_file_path is None:  # By default, just change .zar to .zip for the destination archive
-        if input_file_path.suffix.lower() == '.zar':
-            output_file_path = input_file_path.with_suffix('.zip')
+        if input_file_path.suffix.lower() == ZAR:
+            output_file_path = input_file_path.with_suffix(ZIP)
         else:  # or tag on .zip when it hasn't the .zar extension
-            output_file_path = input_file_path.parent / (input_file_path.name + '.zip')
+            output_file_path = input_file_path.parent / (input_file_path.name + ZIP)
     else:
         if isinstance(output_file_path, str):
-            if not output_file_path.lower().endswith('.zip'):
-                output_file_path += '/' + input_file_path.name + '.zip'
+            if not output_file_path.lower().endswith(ZIP):
+                output_file_path += '/' + input_file_path.name + ZIP
             output_file_path = Path(output_file_path)
-        elif isinstance(output_file_path, Path) and not output_file_path.name.lower().endswith('.zip'):
-            output_file_path /= input_file_path.name + '.zip'
+        elif isinstance(output_file_path, Path) and not output_file_path.name.lower().endswith(ZIP):
+            output_file_path /= input_file_path.name + ZIP
         Path.mkdir(output_file_path.parent, exist_ok=True, parents=True)
     log.debug(f'Converting {input_file_path} to zip archive {output_file_path}...')
 
@@ -257,9 +262,9 @@ def unzar() -> int:
 
         verbosity_level = 2 + input_args.verbosity - input_args.quiet  # between -infinity and infinity, default WARNING
         log_levels = [logging.FATAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]
-        log.setLevel(log_levels[max(0, min(len(log_levels), verbosity_level))])
+        log.setLevel(log_levels[max(0, min(len(log_levels) - 1, verbosity_level))])
         for _ in log.handlers:
-            _.setLevel(log.level)
+            _.level = log.level
 
         log.debug(f'Parsed input arguments: {input_args}')
 
@@ -267,49 +272,46 @@ def unzar() -> int:
                            'More info at: https://github.com/tttom/zmxtools'
                            )
         log.debug(version_message)
-        log.debug(version_message)
         if input_args.version and verbosity_level >= 0:
             sys.stdout.write(version_message)  # i.e. a print that lints
 
         combined_input_files = input_args.input if input_args.input is not None else []
         combined_input_files += input_args.archive_file_name if input_args.archive_file_name is not None else []
-        if len(combined_input_files) >= 1:
-            log.info(f'Unpacking {len(combined_input_files)} archives...')
-            log.debug(f'File names {combined_input_files}')
-            for input_file in combined_input_files:
-                log.info(f'Processing {input_file}...')
-                input_file_path = Path(input_file)
-                if not input_file_path.suffix.lower() == '.zar':
-                    log.warning(f'Archive file "{input_file_path}" does not have the ".zar" extension!')
-                # Check for direction on where to send the output
-                if input_args.output is None:
-                    output_file_path = input_file_path.parent / (
-                        input_file_path.stem if input_file_path.suffix.lower() == '.zar' else input_file_path
-                    )
-                else:
-                    output_file_path = Path(input_args.output) / input_file_path.name
-                    log.debug(f'Writing output to specified output directory: {output_file_path.parent}...')
-                # Delegate the actual work
-                if not input_args.zip:
-                    extract(input_file_path, output_file_path)
-                else:
-                    output_file_path = output_file_path.with_suffix('.zip')
-                    if not output_file_path.exists() or input_args.force:
-                        if output_file_path.exists():
-                            log.info(f'The file "{output_file_path}" already exists, but forcing an overwrite...')
-                            output_file_path.unlink()
-                        repack(input_file_path, output_file_path)
-                    else:
-                        log.warning(f'The file "{output_file_path}" already exists. Use unzar --force to overwrite.')
-        else:
+        if len(combined_input_files) == 0:
             log.error('No input zar archives specified.')
             if verbosity_level >= 0:
                 input_parser.print_help()
             return 1
+        log.info(f'Unpacking {len(combined_input_files)} archives...')
+        log.debug(f'File names {combined_input_files}')
+        for input_file in combined_input_files:
+            log.info(f'Processing {input_file}...')
+            input_file_path = Path(input_file)
+            if input_file_path.suffix.lower() != ZAR:
+                log.warning(f'Archive file "{input_file_path}" does not have the ".zar" extension!')
+            # Check for direction on where to send the output
+            if input_args.output is None:
+                output_file_path = input_file_path.parent / (
+                    input_file_path.stem if input_file_path.suffix.lower() == ZAR else input_file_path
+                )
+            else:
+                output_file_path = Path(input_args.output) / input_file_path.name
+                log.debug(f'Writing output to specified output directory: {output_file_path.parent}...')
+            # Delegate the actual work
+            if input_args.zip:
+                output_file_path = output_file_path.with_suffix(ZIP)
+                if input_args.force and output_file_path.exists():
+                    log.info(f'The file "{output_file_path}" already exists, but forcing an overwrite...')
+                    output_file_path.unlink()
+                if output_file_path.exists():
+                    log.warning(f'The file "{output_file_path}" already exists. Use unzar --force to overwrite.')
+                else:
+                    repack(input_file_path, output_file_path)
+            else:
+                extract(input_file_path, output_file_path)
     except Exception as exc:
         log.fatal(f'A fatal error occured: "{exc}"')
         log.info(traceback.format_exc())
-        # raise exc
         return -1
     # No error
     return 0
