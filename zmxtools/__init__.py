@@ -1,7 +1,7 @@
-import coloredlogs
 import logging
 from importlib.metadata import PackageNotFoundError, version
 
+import coloredlogs
 
 formatter_class = coloredlogs.ColoredFormatter
 

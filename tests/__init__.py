@@ -1,6 +1,6 @@
-import coloredlogs
 import logging
 
+import coloredlogs
 
 formatter_class = coloredlogs.ColoredFormatter
 
