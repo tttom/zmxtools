@@ -5,7 +5,7 @@ import traceback
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator, List, Union
+from typing import Generator, List, Union, Sequence
 
 import zmxtools
 
@@ -211,11 +211,11 @@ def repack(input_file_path: Union[Path, str], output_file_path: Union[Path, str,
     log.info(f'Converted {input_file_path} to zip archive {output_file_path}.')
 
 
-def unzar() -> int:
+def unzar(*argv: Sequence[str]) -> int:
     """Function that can be called as a script."""
     # Parse the input arguments
     try:
-        input_parser = argparse.ArgumentParser(
+        input_parser: argparse.ArgumentParser = argparse.ArgumentParser(
             description='Zemax archive files (.zar) unpacker and zipper.',
             usage="""Zemax archive files (.zar) unpacker and zipper.
 
@@ -258,24 +258,24 @@ def unzar() -> int:
         input_parser.add_argument('-f', '--force', help='overwrite existing files if necessary', action='store_true')
         input_parser.add_argument('-z', '--zip', help='create an archive instead of a directory', action='store_true')
         input_parser.add_argument('archive_file_name', type=str, nargs='*', help='one or more names of input archives')
-        input_args = input_parser.parse_args()
+        input_args: argparse.Namespace = input_parser.parse_args(sys.argv[1:] + list(*argv))
 
-        verbosity_level = 2 + input_args.verbosity - input_args.quiet  # between -infinity and infinity, default WARNING
-        log_levels = [logging.FATAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]
+        verbosity_level: int = 2 + input_args.verbosity - input_args.quiet  # between -inf and +inf, default 2==WARNING
+        log_levels: List[int] = [logging.FATAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]
         log.setLevel(log_levels[max(0, min(len(log_levels) - 1, verbosity_level))])
         for _ in log.handlers:
             _.level = log.level
 
         log.debug(f'Parsed input arguments: {input_args}')
 
-        version_message = (f'Running zmxtools unzar version {zmxtools.__version__}. ' +
-                           'More info at: https://github.com/tttom/zmxtools'
-                           )
+        version_message: str = (f'Running zmxtools unzar version {zmxtools.__version__}. ' +
+                                'More info at: https://github.com/tttom/zmxtools'
+                                )
         log.debug(version_message)
         if input_args.version and verbosity_level >= 0:
             sys.stdout.write(version_message)  # i.e. a print that lints
 
-        combined_input_files = input_args.input if input_args.input is not None else []
+        combined_input_files: List[str] = input_args.input if input_args.input is not None else []
         combined_input_files += input_args.archive_file_name if input_args.archive_file_name is not None else []
         if len(combined_input_files) == 0:
             log.error('No input zar archives specified.')
@@ -295,8 +295,8 @@ def unzar() -> int:
                     input_file_path.stem if input_file_path.suffix.lower() == ZAR else input_file_path
                 )
             else:
-                output_file_path = Path(input_args.output) / input_file_path.name
-                log.debug(f'Writing output to specified output directory: {output_file_path.parent}...')
+                output_file_path = Path(input_args.output) / input_file_path.stem
+                log.debug(f'Writing output to specified output directory: {output_file_path}...')
             # Delegate the actual work
             if input_args.zip:
                 output_file_path = output_file_path.with_suffix(ZIP)

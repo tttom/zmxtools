@@ -85,7 +85,8 @@ autodoc_default_options = {
     'undoc-members': True,
     'special-members': True,
     'exclude-members': '__weakref__, __module__, __dict__, __str__, __eq__,' +
-                       '__abstractmethods__, __orig_bases__, __parameters__',
+                       '__abstractmethods__, __orig_bases__, __parameters__' +
+                       '__dataclass_fields__,  __dataclass_params__',
 }
 autodoc_mock_imports = ['coloredlogs']
 

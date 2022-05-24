@@ -36,6 +36,7 @@ pip install zmxtools
 
 ## Usage
 This package can be used directly from a terminal shell or from your own Python code.
+Example files can be found on manufacturer's sites such as [Thorlabs Inc](https://www.thorlabs.com).
 
 ### Command line shell
 The command `unzar` is added to the path upon installation. It permits the extraction of the zar-file to a sub-directory
@@ -47,15 +48,13 @@ Repacking the same zar-archive as a standard zip-archive `mylens.zip` is done wi
 ```console
 unzar mylens.zar -z
 ```
-Input and output can be specified. 
+Multiple input files and an alternative output directory can be specified: 
 ```console
-unzar -h
-unzar -i mylens.zar -o some/where/else/
+unzar -i *.zar -o some/where/else/
 ```
-More information and alternative options:
+Find out more information and alternative options using:
 ```console
 unzar -h
-unzar -i mylens.zar -o some/where/else/
 ```
 
 ### As a Python library

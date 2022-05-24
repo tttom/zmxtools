@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-from zmxtools import __version__, zar
+from zmxtools import zar
 
 log = logging.getLogger(__name__)
 
@@ -15,17 +15,6 @@ for _ in test_folder.glob('**/*.zmx'):
     if zar_file in test_files.keys():
         test_files[zar_file] = _
 paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_files.items() if zmx_path is not None}
-
-
-def test_version():
-    """Tests whether the version number is loaded correctly."""
-    version = __version__
-    log.info(f'Testing package version "{version}"...')
-    assert isinstance(version, str), f'Version number "{version}" not a character string.'
-    version_parts = version.split('-')
-    version_number = version_parts[0].split('.')
-    assert len(version_number) == 3, f'Version number "{version}" should consist of 3 numbers.'
-    assert all(int(_) >= 0 for _ in version_number), f'Version number "{version}" should consist of 3 positive numbers.'
 
 
 def test_read():
@@ -107,3 +96,25 @@ def test_unzar():
     """Tests the code that is called as a script."""
     exit_code = zar.unzar()
     assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'
+    exit_code = zar.unzar('-qq')
+    assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'
+    exit_code = zar.unzar('-q')
+    assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'
+    exit_code = zar.unzar('-v')
+    assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'
+    exit_code = zar.unzar('-vv')
+    assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'
+    exit_code = zar.unzar('-vvv')
+    assert exit_code != 0, f'Unzar tool returned error code {exit_code}, though -1 expected when running tests.'
+    # exit_code = zar.unzar('-vvv', '-i tests/data/*.zar', '-zo tests/data/tmp/')
+    # assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0.'
+    # exit_code = zar.unzar('-vvv', '-i tests/data/*.zar', '-zo tests/data/tmp/')
+    # assert exit_code == 2, f'Unzar tool returned error code {exit_code}, though expected 2 because the files already exist.'
+    # exit_code = zar.unzar('-vvv', '-i tests/data/*.zar', '-zfo tests/data/tmp/')
+    # assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0 because we used --force.'
+    # exit_code = zar.unzar('-vvv', '-i tests/data/*.zar', '-o tests/data/tmp/')
+    # assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0.'
+    # # clean up
+    # tmp_dir = Path('tests/data/tmp/')
+    # tmp_dir.unlink()
+
