@@ -1,7 +1,8 @@
-.. mdinclude:: ../README.md
-
 Welcome to the ZmxTools Documentation !
 ---------------------------------------
+
+.. mdinclude:: ../README.md
+
 
 .. toctree::
   :maxdepth: 8
@@ -9,7 +10,6 @@ Welcome to the ZmxTools Documentation !
 
   source/modules
   source/changelog
-
 
 Indices and tables
 ------------------

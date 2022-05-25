@@ -1,12 +1,7 @@
 import logging
 from typing import List
 
-from tests.zar import (
-    check_dir_and_remove,
-    check_zip_and_remove,
-    test_directory,
-    test_files,
-)
+from tests.zar import check_dir_and_remove, check_zip_and_remove, test_directory, test_files
 from zmxtools import cli
 
 log = logging.getLogger(__name__)
