@@ -1,6 +1,3 @@
-Welcome to the ZmxTools Documentation !
----------------------------------------
-
 .. mdinclude:: ../README.md
 
 
