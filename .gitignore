@@ -215,3 +215,6 @@ fabric.properties
 
 # pyenv
 .python-version
+
+# poetry
+/poetry.lock
