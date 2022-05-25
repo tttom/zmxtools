@@ -4,6 +4,14 @@ zmxtools package
 Submodules
 ----------
 
+zmxtools.cli module
+-------------------
+
+.. automodule:: zmxtools.cli
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 zmxtools.zar module
 -------------------
 

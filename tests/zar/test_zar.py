@@ -1,19 +1,17 @@
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
 
-from zmxtools import zar
+from tests.zar import (
+    MIN_FILES_IN_ARCHIVE,
+    check_dir_and_remove,
+    check_zip_and_remove,
+    test_directory,
+    test_files,
+)
+from zmxtools import cli, zar
 
 log = logging.getLogger(__name__)
 
-MIN_FILES_IN_ARCHIVE = 3
-
-test_directory = Path(__file__).resolve().parent.parent / 'data'
-test_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.glob('**/*.zar')}
-for _ in test_directory.glob('**/*.zmx'):
-    zar_file = _.parent / (_.stem + '.zar')
-    if zar_file in test_files.keys():
-        test_files[zar_file] = _
 paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_files.items() if zmx_path is not None}
 
 
@@ -48,22 +46,6 @@ def test_read():
         )
 
 
-def _check_dir_and_remove(extraction_dir: Path):
-    """Checks of the directory exists and removes it."""
-    assert extraction_dir.exists, f'Extraction of zar file to {extraction_dir} failed'
-    files_in_archive = tuple(extraction_dir.glob('*'))
-    assert len(files_in_archive) >= MIN_FILES_IN_ARCHIVE, (
-        f'Only found {files_in_archive} in {extraction_dir}. Expected {MIN_FILES_IN_ARCHIVE} files.'
-    )
-
-    # Delete files again and remove sub-directory
-    log.debug(f'Deleting directory {extraction_dir} with the extracted contents...')
-    for _ in files_in_archive:
-        _.unlink()
-    extraction_dir.rmdir()
-    log.info(f'Deleted directory {extraction_dir} with the extracted contents.')
-
-
 def test_extract():
     """Tests the zmxtools.zar.extract function."""
     assert len(test_files) > 1, (
@@ -73,20 +55,11 @@ def test_extract():
     for zar_full_file in test_files.keys():
         zar.extract(zar_full_file)
         output_dir = zar_full_file.parent / zar_full_file.stem
-        _check_dir_and_remove(output_dir)
+        check_dir_and_remove(output_dir)
         zar.extract(zar_full_file.as_posix())  # Checking if str also work as input argument
-        _check_dir_and_remove(output_dir)
+        check_dir_and_remove(output_dir)
         zar.extract(zar_full_file, output_path=output_dir.as_posix())  # also with str output argument?
-        _check_dir_and_remove(output_dir)
-
-
-def _check_zip_and_remove(zip_full_file: Path, remove: bool = True):
-    """Checks if the zip file exists and deletes it unless otherwise specified."""
-    assert zip_full_file.exists, f'Repacking of zar file as {zip_full_file} failed!'
-    if remove:
-        log.debug(f'Deleting file {zip_full_file}...')
-        zip_full_file.unlink()
-        log.info(f'Deleted file {zip_full_file}.')
+        check_dir_and_remove(output_dir)
 
 
 def test_repack():
@@ -98,12 +71,12 @@ def test_repack():
     for zar_full_file in test_files.keys():
         zip_full_file = zar_full_file.with_suffix('.zip')
         zar.repack(zar_full_file)
-        _check_zip_and_remove(zip_full_file)
+        check_zip_and_remove(zip_full_file)
         zar.repack(zar_full_file.as_posix())  # Checking if str also work as argument
-        _check_zip_and_remove(zip_full_file)
+        check_zip_and_remove(zip_full_file)
         # also with str output argument
         zar.repack(zar_full_file, zip_full_file.as_posix())  # remove extension on purpose
-        _check_zip_and_remove(zip_full_file)
+        check_zip_and_remove(zip_full_file)
 
 
 def test_unzar_basic():
@@ -112,8 +85,8 @@ def test_unzar_basic():
     test_args: List[List[str]] = [['-vv'], no_argv, ['-qq'], ['-q'], ['-v'], ['-vv'], ['-vvv'], ['-V'], ['--FATAL']]
     for argv in test_args:
         log.info(f'checking unzar{tuple(argv)}...')
-        exit_code = zar.unzar(argv)
-        assert exit_code == 2, f'unzar{tuple(argv)} returned error code {exit_code}, though 2 expected.'
+        exit_code = cli.unzar(argv)
+        assert exit_code == 2, f'cli.unzar{tuple(argv)} returned error code {exit_code}, though 2 expected.'
 
 
 def test_unzar_full():
@@ -124,25 +97,25 @@ def test_unzar_full():
 
     log.info(f'Unpacking {zar_full_file}...')
 
-    exit_code = zar.unzar(['-vvv', f'-i {zar_full_file}', '-z'])
+    exit_code = cli.unzar(['-vvv', f'-i {zar_full_file}', '-z'])
     assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0.'
-    _check_zip_and_remove(zar_full_file.with_suffix('.zip'))
+    check_zip_and_remove(zar_full_file.with_suffix('.zip'))
 
-    exit_code = zar.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}', '-z'])
+    exit_code = cli.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}', '-z'])
     assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0.'
-    _check_zip_and_remove(output_zip_full_file, remove=False)
+    check_zip_and_remove(output_zip_full_file, remove=False)
 
-    exit_code = zar.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}', '-z'])
+    exit_code = cli.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}', '-z'])
     assert exit_code == 1, f'Unzar tool returned error code {exit_code}, though expected 1 since file already exist.'
-    _check_zip_and_remove(output_zip_full_file, remove=False)
+    check_zip_and_remove(output_zip_full_file, remove=False)
 
-    exit_code = zar.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}', '-z', '-f'])
+    exit_code = cli.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}', '-z', '-f'])
     assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0 because we used --force.'
-    _check_zip_and_remove(output_zip_full_file)
+    check_zip_and_remove(output_zip_full_file)
 
-    exit_code = zar.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}'])
+    exit_code = cli.unzar(['-vvv', f'-i {zar_full_file}', f'-o {output_path}'])
     assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0.'
-    _check_dir_and_remove(output_path / zar_full_file.stem)
+    check_dir_and_remove(output_path / zar_full_file.stem)
 
     log.debug(f'Deleting {output_path} directory...')
     output_path.rmdir()
