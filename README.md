@@ -1,4 +1,4 @@
-# Welcome to the ZmxTools Documentation !
+# ZmxTools
 
 [![Build Status](https://github.com/tttom/zmxtools/workflows/test/badge.svg?branch=main)](https://github.com/tttom/zmxtools/actions?query=workflow%3Atest)
 [![Documentation Status](https://readthedocs.org/projects/zmxtools/badge/?version=latest)](https://readthedocs.org/projects/zmxtools)
@@ -27,7 +27,7 @@ glass files. For further processing, please check the [list of related software]
 
 ## Installation
 ### Prerequisites
-- Python 3.7 (tested on Python 3.8)
+- Python 3.7 or higher
 - pip, the Python package manager
 
 To install `zmxtools`, just run the following command in a command shell:
