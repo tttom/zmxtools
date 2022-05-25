@@ -27,7 +27,7 @@ glass files. For further processing, please check the [list of related software]
 
 ## Installation
 ### Prerequisites
-- Python 3.7 or higher
+- Python 3.8 or higher
 - pip, the Python package manager
 
 To install `zmxtools`, just run the following command in a command shell:
