@@ -28,7 +28,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.7"
 coloredlogs = "^15.0.1"
-importlib_metadata = { version = "^4.11", python = "3.7" }
+importlib_metadata = { version = "^4.11", python = "~3.7" }
 
 sphinx = { version = "^4.5",  optional = true }
 sphinx-autodoc-typehints = { version = "^1.18", optional = true }
