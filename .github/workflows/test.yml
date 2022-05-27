@@ -35,7 +35,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        poetry lock
+        poetry update
         poetry config virtualenvs.in-project true
         poetry install
 
