@@ -16,8 +16,8 @@
 
 A toolkit to read Zemax files.
 
-Currently this is limited to unpacking ZAR archives. To parse the files contained within the archive, e.g. ZMX or AGF 
-glass files. For further processing, please check the [list of related software](#related-software) below.
+Currently this is limited to unpacking ZAR archives. For further processing of the archive's contents, e.g. ZMX or AGF 
+glass files, please check the [list of related software](#related-software) below.
 
 ## Features
 - Unpack a Zemax OpticStudio Archive ZAR file using the `unzar` command.
