@@ -5,7 +5,7 @@
   :maxdepth: -1
   :caption: Contents:
 
-  source/api/modules
+  source/api/zmxtools
   source/changelog
   source/contributing
   modindex

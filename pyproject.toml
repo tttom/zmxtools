@@ -35,6 +35,7 @@ sphinx-autodoc-typehints = { version = "^1.22", optional = true }
 sphinx_rtd_theme = { version = "^1.2", optional = true  }
 tomlkit = { version = "^0.10", optional = true }
 m2r2 = "^0.3.2"
+pathlib = "^1.0.1"
 
 
 [tool.poetry.dev-dependencies]

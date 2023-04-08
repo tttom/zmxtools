@@ -55,7 +55,7 @@ def test_unzar_full():
 def test_unzar_non_zar_extension():
     """Checks whether the command line interface is happy to take zar files with a different extension."""
     zar_full_file = list(test_files.keys())[0]
-    non_zar_full_file = zar_full_file.with_stem(zar_full_file.stem + '_zar_rename').with_suffix('.nzr')
+    non_zar_full_file = zar_full_file.with_name(zar_full_file.name[:-4] + '_zar_rename.nzr')
     shutil.copyfile(zar_full_file, non_zar_full_file)
     log.debug(f'Trying to read a zar file with the wrong extension {non_zar_full_file} as a .zar file...')
     exit_code = cli.unzar(['-vvv', f'-i {non_zar_full_file}', '-zf'])
@@ -67,7 +67,7 @@ def test_unzar_non_zar_extension():
 def test_unzar_non_zar():
     """Test robustness of command line interface when a corrupted .zar file is presented."""
     zmx_full_file = list(test_directory.glob('**/LA1116-Zemax.zmx'))[0]
-    non_zar_full_file = zmx_full_file.with_stem(zmx_full_file.stem + '_zmx_rename').with_suffix('.zar')
+    non_zar_full_file = zmx_full_file.with_name(zmx_full_file.name[:-4] + '_zmx_rename.zar')
     shutil.copyfile(zmx_full_file, non_zar_full_file)
     log.debug(f'Trying to read a zar file with the wrong extension {non_zar_full_file} as a .zar file...')
     exit_code = cli.unzar(['-vvv', f'-i {non_zar_full_file}', '-zf'])
