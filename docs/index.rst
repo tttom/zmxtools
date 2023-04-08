@@ -10,10 +10,3 @@
   source/contributing
   modindex
   genindex
-
-Indices and tables
-------------------
-
-* :ref:`modindex`
-* :ref:`genindex`
-* :ref:`search`
