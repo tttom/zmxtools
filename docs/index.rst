@@ -2,15 +2,18 @@
 
 
 .. toctree::
-  :maxdepth: 8
+  :maxdepth: -1
   :caption: Contents:
 
   source/modules
   source/changelog
+  source/contributing
+  modindex
+  genindex
 
 Indices and tables
 ------------------
 
-* :ref:`genindex`
 * :ref:`modindex`
+* :ref:`genindex`
 * :ref:`search`

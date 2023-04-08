@@ -2,6 +2,6 @@ zmxtools
 ========
 
 .. toctree::
-   :maxdepth: 8
+   :maxdepth: -1
 
    zmxtools

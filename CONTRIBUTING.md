@@ -59,18 +59,18 @@ development (we also sometimes call it `wemake-git-flow`).
 
 What the point of this method?
 
-1. We use protected `master` branch,
+1. We use protected `main` branch,
    so the only way to push your code is via pull request
 2. We use issue branches: to implement a new feature or to fix a bug
    create a new branch named `issue-$TASKNUMBER`
-3. Then create a pull request to `master` branch
+3. Then create a pull request to `main` branch
 4. We use `git tag`s to make releases, so we can track what has changed
    since the latest release
 
 So, this way we achieve an easy and scalable development process
 which frees us from merging hell and long-living branches.
 
-In this method, the latest version of the app is always in the `master` branch.
+In this method, the latest version of the app is always in the `main` branch.
 
 ### Before submitting
 
@@ -81,10 +81,11 @@ Before submitting your code please do the following steps:
 3. Add tests for the new changes
 4. Edit documentation if you have changed something significant
 5. Update `CHANGELOG.md` with a quick summary of your changes
-6. Run `pytest` again to make sure it is still working
-7. Run `mypy` to ensure that types are correct
-8. Run `flake8` to ensure that style is correct
-9. Run `doc8` to ensure that docs are correct
+6. Run `make test` to:
+   1. check code behaviour with `pytest`
+   2. ensure that types are correct with `mypy`
+   3. enforce code style using `flake8`
+   4. verify the documentation with `doc8`
 
 
 ## Other help
