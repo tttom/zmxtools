@@ -56,6 +56,8 @@ pytest = "^7.1"
 pytest-cov = "^3.0"
 pytest-randomly = "^3.12"
 
+requests_cache = "^1.0.0"
+
 
 [tool.poetry.extras]
 docs = ["sphinx", "sphinx-autodoc-typehints", "m2r2", "tomlkit", "sphinx_rtd_theme"]

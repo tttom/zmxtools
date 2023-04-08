@@ -11,14 +11,14 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
 import datetime
-import os
+from pathlib import Path
 import sys
 
 import tomlkit
 
-sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('../..'))
+code_path = Path(__file__).parent.absolute()
+sys.path.insert(0, code_path.as_posix())  # To generate documentation locally
+sys.path.insert(0, code_path.parent.as_posix())  # ReadTheDocs seems to require the repository root instead
 
 
 # -- Project information -----------------------------------------------------
@@ -33,9 +33,9 @@ def _get_project_meta():
 pkg_meta = _get_project_meta()
 project = str(pkg_meta['name'])
 
-copyright = f'{datetime.datetime.now().year}, Tom Vettenburg'  # noqa: WPS125
 author = 'Tom Vettenburg'
-epub_author = 'Tom Vettenburg'
+copyright = f'{datetime.datetime.now().year}, {author}'  # noqa: WPS125
+epub_author = author
 epub_publisher = 'ReadTheDocs'
 
 # The short X.Y version
