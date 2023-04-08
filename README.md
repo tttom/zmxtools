@@ -14,7 +14,7 @@
 [![wemake-python-styleguide](https://img.shields.io/badge/style-wemake-000000.svg)](https://github.com/wemake-services/wemake-python-styleguide)
 [![codecov](https://codecov.io/gh/tttom/zmxtools/branch/main/graph/badge.svg)](https://codecov.io/gh/tttom/zmxtools)
 
-A toolkit to read Zemax files.
+### A toolkit to read Zemax files.
 
 Currently, this is limited to unpacking ZAR archives. For further processing of the archive's contents, e.g. ZMX or AGF 
 glass files, please check the [list of related software](#related-software) below.
