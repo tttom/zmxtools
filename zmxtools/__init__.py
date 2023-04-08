@@ -1,9 +1,11 @@
 import logging
 from importlib.metadata import PackageNotFoundError, version
 
-import coloredlogs
-
-formatter_class = coloredlogs.ColoredFormatter
+try:
+    import coloredlogs
+    formatter_class = coloredlogs.ColoredFormatter
+except ImportError:
+    formatter_class = logging.Formatter
 
 try:
     __version__ = version(__name__)
@@ -14,7 +16,7 @@ __all__ = ['__version__', 'zar']
 
 # create logger
 log = logging.getLogger(__name__)
-log.level = logging.INFO
+log.level = logging.WARNING
 
 # create formatter and add it to the handlers
 _formatter = formatter_class('%(asctime)s|%(name)s-%(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S.%f')

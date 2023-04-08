@@ -16,11 +16,11 @@
 
 A toolkit to read Zemax files.
 
-Currently this is limited to unpacking ZAR archives. For further processing of the archive's contents, e.g. ZMX or AGF 
+Currently, this is limited to unpacking ZAR archives. For further processing of the archive's contents, e.g. ZMX or AGF 
 glass files, please check the [list of related software](#related-software) below.
 
 ## Features
-- Unpack a Zemax OpticStudio Archive ZAR file using the `unzar` command.
+- Unpack a Zemax OpticStudio® Archive ZAR file using the `unzar` command.
 - Repack a ZAR file as a standard zip file using the `unzar -z` command.
 - Use as a pure Python 3 library.
 - Fully typed with annotations and checked with mypy, [PEP561 compatible](https://www.python.org/dev/peps/pep-0561/)
@@ -33,6 +33,11 @@ glass files, please check the [list of related software](#related-software) belo
 To install `zmxtools`, just run the following command in a command shell:
 ```bash
 pip install zmxtools
+```
+The `zmxtools` library will color-code test output when the `coloredlogs` package is installed. You can optionally 
+install it with
+```bash
+pip install coloredlogs
 ```
 
 ## Usage

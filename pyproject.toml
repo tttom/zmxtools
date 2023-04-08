@@ -10,7 +10,7 @@ style = "https://raw.githubusercontent.com/wemake-services/wemake-python-stylegu
 [tool.poetry]
 name = "zmxtools"
 description = "Toolkit to read Zemax OpticStudio files."
-version = "0.1.4"
+version = "0.1.5"
 license = "AGPL3"
 authors = ["Tom Vettenburg <tom.vettenburg@gmail.com>", "Wouter Vermaelen"]
 readme = "README.md"
@@ -27,16 +27,14 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-coloredlogs = "^15.0.1"
 importlib_metadata = { version = "^4.11", python = "~3.7" }
+coloredlogs = { version = "^15.0.1", optional = true }
 
 sphinx = { version = "^5.3",  optional = true }
 sphinx-autodoc-typehints = { version = "^1.22", optional = true }
 sphinx_rtd_theme = { version = "^1.2", optional = true  }
 tomlkit = { version = "^0.10", optional = true }
 m2r2 = "^0.3.2"
-pathlib = "^1.0.1"
-
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.950"
@@ -59,7 +57,7 @@ pytest-randomly = "^3.12"
 
 
 [tool.poetry.extras]
-docs = ["sphinx", "sphinx-autodoc-typehints", "m2r2", "tomlkit", "sphinx_rtd_theme"]
+docs = ["coloredlogs", "sphinx", "sphinx-autodoc-typehints", "m2r2", "tomlkit", "sphinx_rtd_theme"]
 
 
 [tool.poetry.scripts]
