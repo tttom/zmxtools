@@ -88,7 +88,7 @@ Before submitting your code:
    4. verify the documentation with `doc8`
 7. Run `make clean html` in the `docs` folder and check for documentation errors. 
 8. Commit the changes with a descriptive message.
-9. Tag the release with the version number in `pyproject.toml` using `git tag -a v0.0.0`.
+9. Tag the release with the version number in `pyproject.toml` using `git tag 0.0.0`.
 10. Raise a pull-request.
 
 
