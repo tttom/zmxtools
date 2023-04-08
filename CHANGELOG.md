@@ -3,6 +3,10 @@
 We follow [Semantic Versions](https://semver.org/).
 
 
+## Version 0.1.4
+- Security update of dependencies.
+- Automated API-documentation generation.
+
 ## Version 0.1.3
 - Refactored command-line interface code and the unit tests.
 

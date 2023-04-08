@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import tomlkit
+from sphinx.ext import apidoc
 
 code_path = Path(__file__).parent.absolute()
 sys.path.insert(0, code_path.as_posix())  # To generate documentation locally
@@ -163,3 +164,11 @@ napoleon_use_ivar = True
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
+
+# -- API documentation building ----------------------------------------------
+# Building the API Documentation...
+code_path = Path(__file__).parent.parent.resolve()
+docs_path = code_path / 'docs'
+apidoc_path = docs_path / 'source/api'  # a temporary directory
+# Build api-doc scaffolding
+apidoc.main(['-f', '-d', '-1', '-M', '-o', f'{apidoc_path}', f"{code_path / 'zmxtools'}"])

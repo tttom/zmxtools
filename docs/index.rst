@@ -5,7 +5,7 @@
   :maxdepth: -1
   :caption: Contents:
 
-  source/modules
+  source/api/modules
   source/changelog
   source/contributing
   modindex

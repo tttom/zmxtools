@@ -74,18 +74,22 @@ In this method, the latest version of the app is always in the `main` branch.
 
 ### Before submitting
 
-Before submitting your code please do the following steps:
+Before submitting your code:
 
-1. Run `pytest` to make sure everything was working before
-2. Add any changes you want
-3. Add tests for the new changes
-4. Edit documentation if you have changed something significant
-5. Update `CHANGELOG.md` with a quick summary of your changes
+1. Add tests for code changes
+2. Include or update the inline documentation.
+3. Update [README.md](README.md) as necessary.
+4. Increase the version number in `pyproject.toml` under the `[tool.poetry]` header
+5. Update [CHANGELOG.md](CHANGELOG.md) with a quick summary of your changes
 6. Run `make test` to:
    1. check code behaviour with `pytest`
    2. ensure that types are correct with `mypy`
    3. enforce code style using `flake8`
    4. verify the documentation with `doc8`
+7. Run `make clean html` in the `docs` folder and check for documentation errors. 
+8. Commit the changes with a descriptive message.
+9. Tag the release with the version number in `pyproject.toml` using `git tag -a v0.0.0`.
+10. Raise a pull-request.
 
 
 ## Other help
