@@ -135,7 +135,7 @@ def unzar(argv: Optional[Sequence[str]] = None) -> int:
         log.fatal(clae)
         return 2
     except Exception as exc:
-        log.fatal(f'An unexpected fatal error occured: "{exc}"')
+        log.fatal(f'An unexpected fatal error occurred: "{repr(exc)}"')
         log.info(traceback.format_exc())
         return -1
 

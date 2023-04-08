@@ -1,4 +1,6 @@
 import logging
+import os
+import shutil
 from typing import List
 
 from tests.zar import check_dir_and_remove, check_zip_and_remove, test_directory, test_files
@@ -48,3 +50,29 @@ def test_unzar_full():
     log.debug(f'Deleting {output_path} directory...')
     output_path.rmdir()
     log.info(f'Deleted {output_path} directory.')
+
+
+def test_unzar_non_zar_extension():
+    """Checks whether the command line interface is happy to take zar files with a different extension."""
+    zar_full_file = list(test_files.keys())[0]
+    non_zar_full_file = zar_full_file.with_stem(zar_full_file.stem + '_zar_rename').with_suffix('.nzr')
+    shutil.copyfile(zar_full_file, non_zar_full_file)
+    log.debug(f'Trying to read a zar file with the wrong extension {non_zar_full_file} as a .zar file...')
+    exit_code = cli.unzar(['-vvv', f'-i {non_zar_full_file}', '-zf'])
+    os.remove(non_zar_full_file)
+    os.remove(non_zar_full_file.with_suffix('.zip'))
+    assert exit_code == 0, f'Unzar tool returned error code {exit_code}, though expected 0.'
+
+
+def test_unzar_non_zar():
+    """Test robustness of command line interface when a corrupted .zar file is presented."""
+    zmx_full_file = list(test_directory.glob('**/LA1116-Zemax.zmx'))[0]
+    non_zar_full_file = zmx_full_file.with_stem(zmx_full_file.stem + '_zmx_rename').with_suffix('.zar')
+    shutil.copyfile(zmx_full_file, non_zar_full_file)
+    log.debug(f'Trying to read a zar file with the wrong extension {non_zar_full_file} as a .zar file...')
+    exit_code = cli.unzar(['-vvv', f'-i {non_zar_full_file}', '-zf'])
+    os.remove(non_zar_full_file)
+    os.remove(non_zar_full_file.with_suffix('.zip'))
+    assert exit_code == -1, ('Unzar tool was expected to encounter an unexpected MemoryError and return with -1,' +
+                             f' not {exit_code}.'
+                             )
