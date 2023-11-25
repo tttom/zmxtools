@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 import traceback
 from pathlib import Path
@@ -7,7 +6,9 @@ from typing import List, Optional, Sequence
 
 from zmxtools import __version__, zar
 
-log = logging.getLogger(__name__)
+from . import log
+
+log = log.getChild(__name__)
 
 __all__ = ['unzar']
 
