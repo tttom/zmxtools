@@ -3,6 +3,15 @@
 We follow [Semantic Versions](https://semver.org/).
 
 
+## Releases 0.2
+
+### Version 0.2.0
+- Breaking changes to the API:
+  - `zar.load` is renamed to `zar.unpack` and yields `BytesFile` objects instead
+  - all functions now take file-like objects
+- Added new module to interpret `.zmx` files
+
+
 ## Releases 0.1
 The first release series provides basic decompression and conversion tools,
 both as command line tool and as a Python3 library.

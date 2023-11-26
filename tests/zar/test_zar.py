@@ -1,16 +1,17 @@
-import logging
 from typing import List
 
 from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_files
 from zmxtools import cli, zar
 
-log = logging.getLogger(__name__)
+from tests import log
+log = log.getChild(__name__)
+
 
 paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_files.items() if zmx_path is not None}
 
 
-def test_read():
-    """Tests the zmxtools.zar.read function."""
+def test_unpack():
+    """Tests the zmxtools.zar.unpack function."""
     assert len(paired_test_files) > 1, (
         f'No zar files found with matching zmx files in {test_directory}! Make sure that the extensions are lower case.'
     )
@@ -18,13 +19,13 @@ def test_read():
     for zar_full_file in paired_test_files.keys():
         log.info(zar_full_file)
         packed_files = []
-        for packed_data in zar.read(zar_full_file.as_posix()):  # Use a str as argument, others already use pathlib.Path
-            packed_files.append(packed_data.file_name)
-            if packed_data.file_name.lower().endswith('.zmx'):
+        for packed_data in zar.unpack(zar_full_file.as_posix()):  # Use a str as argument, others already use pathlib.Path
+            packed_files.append(packed_data.name)
+            if packed_data.name.lower().endswith('.zmx'):
                 try:
                     with open(paired_test_files[zar_full_file], 'rb') as zmx_file:
-                        assert zmx_file.read() == packed_data.unpacked_contents, (
-                            f'Data in {packed_data.file_name} is not what is expected.'
+                        assert zmx_file.read() == packed_data.read(), (
+                            f'Data in {packed_data.name} is not what is expected.'
                         )
                 except AssertionError as exc:  # Write out the actual file for later reference
                     with open(
@@ -33,7 +34,7 @@ def test_read():
                         ),
                         'wb',
                     ) as actual_zmx_file:
-                        actual_zmx_file.write(packed_data.unpacked_contents)  # for debugging
+                        actual_zmx_file.write(packed_data.contents)  # for debugging
                     raise exc
         assert len(packed_files) >= MIN_FILES_IN_ARCHIVE, (
             f'Expected more files than {packed_files} in {repr(zar_full_file)}'

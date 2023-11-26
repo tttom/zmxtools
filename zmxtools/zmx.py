@@ -1,22 +1,19 @@
-import io
 import math
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Sequence, Dict, Union
+from typing import List, Dict, Union
 from collections import defaultdict
 from lark import Lark, tree, lexer, Transformer
 
-from .agf import Material
-from . import log
+from zmxtools.definitions import Material, MaterialLibrary, Surface, OpticalSystem, FileLike, PathLike
+from zmxtools import log
 
 log = log.getChild(__name__)
 
-__all__ = ["OpticalSystem", "read"]
+__all__ = ["read", "OpticalSystem", "Surface"]
 
 
 __GRAMMAR = r"""
     optical_system: WS* (descriptor NEWLINE)+
-    
+
     ?descriptor: version | mode | name | note
         | pfil
         | unit
@@ -25,11 +22,14 @@ __GRAMMAR = r"""
         | ray_aim
         | push
         | sdma | ftyp | ropd | picb
-        | fln
-        | fwgn
-        | vdn
-        | vcn
-        | vann
+        | xfln | yfln | xfld | yfld
+        | fwgn | fwgt
+        | vcxn | vcyn
+        | vdxn | vdyn
+        | vann | zvan
+        | zvcx | zvcy| zvdx | zvdy
+        | wavelengths | wavelengths_n
+        | wavelength_weights | wavelength_weights_n
         | wavelength
         | pwav
         | polarization
@@ -39,13 +39,13 @@ __GRAMMAR = r"""
         | tolerance
         | tcmm | mnum | moff
         | unknown_descriptor
-    
+
     version: "VERS" STRING
     mode: "MODE" CNAME
     name: "NAME" " " STRING
     note: ("NOTE" INT " " STRING)+
     pfil: "PFIL" INT+
-    unit: "UNIT" unit_symbol STRING*
+    unit: "UNIT" WS+ unit_symbol WS+ STRING*
     enpd: "ENPD" NUMBER
     envd: "ENVD" NUMBER INT INT
     gfac: "GFAC" INT INT
@@ -56,11 +56,26 @@ __GRAMMAR = r"""
     ftyp: "FTYP" INT+
     ropd: "ROPD" INT
     picb: "PICB" INT
-    fln: "XFLN" NUMBER+ NEWLINE "YFLN" NUMBER+
+    xfln: "XFLN" NUMBER+
+    yfln: "YFLN" NUMBER+
+    xfld: "XFLD" NUMBER+
+    yfld: "YFLD" NUMBER+
     fwgn: "FWGN" NUMBER+
-    vdn: "VDXN" NUMBER+ NEWLINE "VDYN" NUMBER+
-    vcn: "VCXN" NUMBER+ NEWLINE "VCYN" NUMBER+
+    fwgt: "FWGT" NUMBER+
+    vdxn: "VDXN" NUMBER+
+    vdyn: "VDYN" NUMBER+
+    vcxn: "VCXN" NUMBER+
+    vcyn: "VCYN" NUMBER+
     vann: "VANN" NUMBER+
+    zvan: "ZVAN" NUMBER+
+    zvcx: "ZVCX" NUMBER+
+    zvcy: "ZVCY" NUMBER+
+    zvdx: "ZVDX" NUMBER+
+    zvdy: "ZVDY" NUMBER+
+    wavelengths: "WAVL" NUMBER+
+    wavelengths_n: "WAVN" NUMBER+
+    wavelength_weights: "WWGT" NUMBER+
+    wavelength_weights_n: "WWGN" NUMBER+
     wavelength: "WAVM" INT NUMBER INT
     pwav: "PWAV" INT
     polarization: "POLS" INT+
@@ -74,10 +89,11 @@ __GRAMMAR = r"""
     mnum: "MNUM" INT+
     moff: "MOFF" INT INT ESCAPED_STRING NUMBER+ ESCAPED_STRING
     unknown_descriptor.-1: STRING
-        
+
     unit_symbol: "MM" | "CM" | "DM" | "M" | "IN" | CNAME
     ?surface_property: surface_type
             | surface_stop
+            | surface_name
             | surface_curvature
             | surface_mirror
             | surface_distance_z
@@ -86,28 +102,29 @@ __GRAMMAR = r"""
             | surface_coating
             | surface_glass
             | surface_unknown_property
-                    
-    tolerance_type: "COMP" | "TWAV" | "TRAD" | "TTHI" | "TSDX" | "TSDY" | "TSTX" | "TSTY" | "TIRR" | "TIND" | "TABB"
+
+    tolerance_type: "COMP" | "TWAV" | "TRAD" | "TTHI" | "TSDX" | "TSDY" | "TSTX" | "TSTY" | "TIRR" | "TIND" | "TABB" | "TOFF"
     filename: CNAME ("." CNAME)+
-    
+
     surface_stop: "STOP"
+    surface_name: "COMM" " " STRING
     surface_type: "TYPE" " " STRING
     surface_curvature: "CURV" NUMBER+ ESCAPED_STRING
     surface_hide: "HIDE" NUMBER+
     surface_mirror: "MIRR" NUMBER NUMBER
     surface_slab: "SLAB" INT
-    surface_distance_z: "DISZ" number_or_infinity 
+    surface_distance_z: "DISZ" number_or_infinity
     surface_diameter: "DIAM" NUMBER+ ESCAPED_STRING
     surface_pops: "POPS" NUMBER+
     surface_coating: "COAT" " " STRING
     surface_glass: "GLAS" " " STRING NUMBER*
     surface_flap: "FLAP" NUMBER+
     surface_unknown_property.-1: STRING
-    
+
     ?number_or_infinity: NUMBER | "INFINITY" -> infinity
-    
+
     STRING: /.+/
-    
+
     %import common.INT
     %import common.CNAME
     %import common.ESCAPED_STRING
@@ -119,25 +136,6 @@ __GRAMMAR = r"""
 """
 
 
-@dataclass
-class Surface:
-    index: int = -1
-    stop: bool = False
-    curvature: float = 0.0
-    distance: float = 0.0
-    radius: float = 0.0
-    glass: Material = None
-
-
-@dataclass
-class OpticalSystem:
-    version: str = ""
-    name: str = ""
-    description: str = ""
-    surfaces: List[Surface] = field(default_factory=list)
-    unit: float = 1.0
-
-
 class ZmxTransformer(Transformer):
     def optical_system(self, descriptors) -> OpticalSystem:
         optical_system = OpticalSystem()
@@ -146,7 +144,7 @@ class ZmxTransformer(Transformer):
 
         for descriptor in descriptors:
             if isinstance(descriptor, Surface):
-                log.error(f"Found {descriptor} Surface")
+                log.error(f"Found {descriptor}")
                 optical_system.surfaces.append(descriptor)
             elif descriptor is not None and isinstance(descriptor, tree.Tree):
                 match descriptor.data:
@@ -163,7 +161,7 @@ class ZmxTransformer(Transformer):
                     case "name":
                         optical_system.name = descriptor.children[0].value
                     case "unit":
-                        match descriptor.children[0].value.upper():
+                        match descriptor.children[0].value.strip().upper():
                             case "UM":
                                 unit = 1e-6
                             case "MM":
@@ -179,6 +177,20 @@ class ZmxTransformer(Transformer):
                             case _:
                                 unit = 1.0
                         optical_system.unit = unit
+                    case "glass_catalog":
+                        optical_system.material_library = MaterialLibrary(descriptor.children[0].value.strip())
+                    case "coating_filename":
+                        optical_system.coating_filename = ".".join(_.value.strip() for _ in descriptor.children[0].children)
+                    case "wavelengths":
+                        optical_system.wavelengths = [float(_.value.strip()) for _ in descriptor.children]
+                    case "wavelength_weights":
+                        optical_system.wavelength_weights = [float(_.value.strip()) for _ in descriptor.children]
+                    case desc if desc in ("enpd", "envd", "gfac", "ray_aim", "push", "sdma", "ftyp", "ropd", "picb",
+                                          "pwav", "glrs", "gstd", "nscd", "fwgn", "mnum", "moff",
+                                          "xfld", "yfld", "xfln", "yfln", "vcxn", "vcyn", "vdxn", "vdyn",
+                                          "fwgt", "zvcx", "zvcy", "zvdx", "zvdy", "zvan", "vann", "polarization",
+                                          "wavelength", "wavelengths_n", "wavelength_weights_n", "tolerance"):
+                        log.info(f"Ignoring descriptor: '{descriptor.data}' with values {descriptor.children}!")
                     case _:
                         log.error(f"Unknown descriptor: '{descriptor.data}' with values {descriptor.children}!")
             elif isinstance(descriptor, lexer.Token) and descriptor.value.strip() == "":
@@ -192,7 +204,8 @@ class ZmxTransformer(Transformer):
         return optical_system
 
     def surface(self, _) -> Surface:
-        print(f"surface() {_}")
+        for x in _:
+            print(repr(x))
         surface = Surface()
 
         for surface_property in _:
@@ -200,6 +213,8 @@ class ZmxTransformer(Transformer):
                 match surface_property.data:
                     case "surface_stop":
                         surface.stop = True
+                    case "surface_name":
+                        surface.name = surface_property.children[0].strip()
                     case "surface_type":
                         surface_type = surface_property.children[0]
                         if surface_type.upper() != "STANDARD":
@@ -213,6 +228,8 @@ class ZmxTransformer(Transformer):
                         surface.curvature = float(surface_property.children[0])
                     case "surface_diameter":
                         surface.radius = float(surface_property.children[0]) / 2.0
+                    case "surface_glass":
+                        surface.glass = surface_property.children[0].split(" ")[0]
                     case "surface_mirror":
                         mirror_type = surface_property.children[0]
                         if int(mirror_type) != 2:
@@ -229,6 +246,7 @@ def __parse_zmx_str(contents: str) -> OpticalSystem:
     """Parse the str contents of a .zmx file."""
     parser = Lark(__GRAMMAR, start='optical_system')  #, ambiguity='explicit')
     parse_tree = parser.parse(contents)
+    print(parse_tree.pretty())
     optical_system = ZmxTransformer().transform(parse_tree)
     return optical_system
 
@@ -243,17 +261,22 @@ def __parse_zmx_bytes(content_bytes: bytes) -> OpticalSystem:
             pass
 
 
-def read(input_file_or_path: Union[io.IOBase, io.BytesIO, Path, str]) -> OpticalSystem:
+def read(input_path_or_stream: Union[FileLike, PathLike]) -> OpticalSystem:
     """
     Reads a zmx file.
 
-    :param input_file_or_path: The file to read the optical system from, or its file-path.
+    :param input_path_or_stream: The file to read the optical system from, or its file-path.
 
     :return: A representation of the optical system.
     """
-    if isinstance(input_file_or_path, Union[io.IOBase, io.BytesIO]):
-        content_bytes = input_file_or_path.read()
+    if isinstance(input_path_or_stream, PathLike):
+        input_file = open(input_path_or_stream, 'rb')
     else:
-        with open(input_file_or_path, 'rb') as input_file:
-            content_bytes = input_file.read()
-    return __parse_zmx_bytes(content_bytes)
+        input_file = input_path_or_stream
+    with input_file:
+        contents = input_file.read()
+        assert len(contents) > 0, f"Empty .zmx file: 0 bytes read from {input_file.name}."
+        if isinstance(contents, str):
+            return __parse_zmx_str(contents)
+        else:
+            return __parse_zmx_bytes(contents)

@@ -1,14 +1,13 @@
-import io
 import zipfile
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator, List, Union
+from typing import Generator, List, Optional, Union
 
-from . import log
+from zmxtools.definitions import BinaryFileLike, BytesFile, PathLike
+from zmxtools import log
 
 log = log.getChild(__name__)
 
-__all__ = ['read', 'UnpackedData', 'extract', 'repack']
+__all__ = ['unpack', 'extract', 'repack']
 
 ZAR = '.zar'
 ZIP = '.zip'
@@ -68,22 +67,9 @@ def _decompress_lzw(compressed: bytes) -> bytes:
     return b''.join(decompressed)  # convert to bytes
 
 
-@dataclass
-class UnpackedData(object):
-    """A structure to represent the file blocks in a zar-archive.
-
-    Parameters:
-        name: A string with the name of the file contained in the archive.
-        contents: The unpacked (decompressed) bytes of this file.
+def unpack(input_path_or_stream: Union[BinaryFileLike, PathLike]) -> Generator[BytesFile, None, None]:
     """
-
-    name: str
-    contents: io.BytesIO
-
-
-def read(input_file_stream: Union[io.IOBase, io.BytesIO, Path, str]) -> Generator[UnpackedData, None, None]:
-    """
-    Reads a zar archive file and generates a series of UnpackedData objects that hold the unpacked file name and contents.
+    Unpacks a zar archive file and generates a series of BytesFile objects that hold the unpacked file name and contents.
 
     The returned Generator produces tuples in the order found in the archive.
     Usage:
@@ -91,16 +77,18 @@ def read(input_file_stream: Union[io.IOBase, io.BytesIO, Path, str]) -> Generato
     from zmxtools import zar
 
     for _ in zar.read("file.zar"):
-        print(_.name)
+        print(f"{_.name} has {len(_.read())} unpacked bytes.")
     ```
 
-    :param input_file_stream: The archive or the path to the archive.
+    :param input_path_or_stream: The archive or the path to the archive.
     :return: A Generator of name-data tuples.
     """
     # Make sure that the input arguments are both pathlib.Path-s
-    if isinstance(input_file_stream, str):
-        input_file_stream = Path(input_file_stream.strip())
-    with open(input_file_stream, "rb") as input_file:
+    if isinstance(input_path_or_stream, PathLike):
+        input_file = open(input_path_or_stream, "rb")
+    else:
+        input_file = input_path_or_stream
+    with input_file:
         while True:
             version = input_file.read(ZAR_VERSION_LENGTH)
             if len(version) < ZAR_VERSION_LENGTH:
@@ -142,26 +130,26 @@ def read(input_file_stream: Union[io.IOBase, io.BytesIO, Path, str]) -> Generato
                 packed_file_name = packed_file_name[:-4]
 
             # Yield a series of tuples from the Generator
-            yield UnpackedData(name=packed_file_name, contents=io.BytesIO(archive_data))
+            yield BytesFile(path=packed_file_name, contents=archive_data)
 
 
-def extract(input_file_or_path: Union[io.IOBase, io.BytesIO, Path, str], output_path: Union[Path, str, None] = None) -> None:
+def extract(input_path_or_stream: Union[BinaryFileLike, PathLike], output_path: Optional[PathLike] = None) -> None:
     """
     Imports the data from a zar archive file and writes it as a regular directory.
 
-    :param input_file_or_path: The path to zar-file or its bytes stream.
+    :param input_path_or_stream: The path to zar-file or its bytes stream.
     :param output_path: The path where the files should be saved. Default: the same as the input_full_file but
         without the extension.
     """
     # Make sure that the input arguments are both pathlib.Path-s
-    if isinstance(input_file_or_path, str):
-        input_file_or_path = Path(input_file_or_path.strip())
-    input_description: str = f" {input_file_or_path}" if isinstance(input_file_or_path, Path) else ""
+    if not isinstance(input_path_or_stream, Path):
+        input_path_or_stream = Path(input_path_or_stream.strip())
+    input_description: str = f" {input_path_or_stream}" if isinstance(input_path_or_stream, Path) else ""
     if output_path is None:  # By default, just drop the .zar extension for the output names
-        if not isinstance(input_file_or_path, Path):
+        if not isinstance(input_path_or_stream, Path):
             raise TypeError("The output_path should be specified if input_file_or_path is not a path.")
-        output_path = input_file_or_path.parent / (
-            input_file_or_path.stem if input_file_or_path.suffix.lower() == ZAR else input_file_or_path
+        output_path = input_path_or_stream.parent / (
+            input_path_or_stream.stem if input_path_or_stream.suffix.lower() == ZAR else input_path_or_stream
         )
     elif isinstance(output_path, str):
         output_path = Path(output_path.strip())
@@ -169,55 +157,57 @@ def extract(input_file_or_path: Union[io.IOBase, io.BytesIO, Path, str], output_
     log.debug(f'Extracting{input_description} to directory {output_path}/...')
 
     # Unpack and store the recovered data
-    for unpacked_data in read(input_file_or_path):
+    for unpacked_data in unpack(input_path_or_stream):
         with open(output_path / unpacked_data.name, 'wb') as unpacked_file:
-            unpacked_file.write(unpacked_data.contents.read())
+            unpacked_file.write(unpacked_data.read())
 
     log.info(f'Extracted{input_description} to directory {output_path}/.')
 
 
-def repack(input_file_or_path: Union[io.IOBase, io.BytesIO, Path, str],
-           output_file_or_path: Union[io.IOBase, io.BytesIO, Path, str, None] = None) -> None:
+def repack(input_path_or_stream: Union[BinaryFileLike, PathLike],
+           output_path_or_stream: Union[BinaryFileLike, PathLike, None] = None) -> None:
     """
     Imports the data from a zar archive file and writes it to a regular zip file.
 
-    :param input_file_or_path: The file path, including the file name, of the zar-file.
-    :param output_file_or_path: TThe file path, including the file name, of the destination zip-file.
+    :param input_path_or_stream: The file path, including the file name, of the zar-file.
+    :param output_path_or_stream: TThe file path, including the file name, of the destination zip-file.
         Default: the same as `input_full_file` but with the extension changed to 'zip'.
     """
     # Make sure that the input arguments are both pathlib.Path-s
-    if isinstance(input_file_or_path, str):
-        input_file_or_path = Path(input_file_or_path.strip())
-    input_description: str = f" {input_file_or_path}" if isinstance(input_file_or_path, Path) else ""
-    if output_file_or_path is None:  # By default, just change .zar to .zip for the destination archive
-        if not isinstance(input_file_or_path, Path):
+    if not isinstance(input_path_or_stream, Path):
+        input_path_or_stream = Path(input_path_or_stream.strip())
+    input_description: str = f" {input_path_or_stream}" if isinstance(input_path_or_stream, Path) else ""
+    if output_path_or_stream is None:  # By default, just change .zar to .zip for the destination archive
+        if not isinstance(input_path_or_stream, Path):
             raise TypeError("The output_file_or_path should be specified if input_file_or_path is not a path.")
-        if input_file_or_path.suffix.lower() == ZAR:
-            output_file_or_path = input_file_or_path.with_suffix(ZIP)
+        if input_path_or_stream.suffix.lower() == ZAR:
+            output_path_or_stream = input_path_or_stream.with_suffix(ZIP)
         else:  # or tag on .zip when it hasn't the .zar extension
-            output_file_or_path = input_file_or_path.parent / (input_file_or_path.name + ZIP)
+            output_path_or_stream = input_path_or_stream.parent / (input_path_or_stream.name + ZIP)
     else:
-        if isinstance(output_file_or_path, str):
-            if not output_file_or_path.lower().endswith(ZIP):
-                output_file_or_path += '/' + input_file_or_path.name + ZIP
-            output_file_or_path = Path(output_file_or_path.strip())
-        elif isinstance(output_file_or_path, Path) and not output_file_or_path.name.lower().endswith(ZIP):
-            output_file_or_path /= input_file_or_path.name + ZIP
-        Path.mkdir(output_file_or_path.parent, exist_ok=True, parents=True)
-    output_description: str = f" {output_file_or_path}" if isinstance(output_file_or_path, Path) else ""
+        if isinstance(output_path_or_stream, str):
+            if not output_path_or_stream.lower().endswith(ZIP):
+                output_path_or_stream += '/' + input_path_or_stream.name + ZIP
+            output_path_or_stream = Path(output_path_or_stream.strip())
+        elif isinstance(output_path_or_stream, Path) and not output_path_or_stream.name.lower().endswith(ZIP):
+            output_path_or_stream /= input_path_or_stream.name + ZIP
+        Path.mkdir(output_path_or_stream.parent, exist_ok=True, parents=True)
+    output_description: str = f" {output_path_or_stream}" if isinstance(output_path_or_stream, Path) else ""
     log.debug(f'Converting{input_description} to zip archive{output_description}...')
 
     # Open the output archive and start storing unpacked files
-    repack_directory = output_file_or_path.stem  # all but the extension
+    if isinstance(output_path_or_stream, Path):
+        repack_directory = output_path_or_stream.stem  # all but the extension
+    else:
+        repack_directory = Path(output_path_or_stream.name).stem  # An in-memory, BinaryFileLike, only has a name: str
     with zipfile.ZipFile(
-        output_file_or_path,
-        mode='a',
+        output_path_or_stream,
+        mode='w',
         compression=zipfile.ZIP_DEFLATED,
-        allowZip64=False,
         compresslevel=9,
     ) as archive_file:
         # Unpack and store the recovered data
-        for unpacked_data in read(input_file_or_path):
-            archive_file.writestr(f'{repack_directory}/{unpacked_data.name}', unpacked_data.contents.read())
+        for unpacked_data in unpack(input_path_or_stream):
+            archive_file.writestr(f'{repack_directory}/{unpacked_data.name}', unpacked_data.read())
 
     log.info(f'Converted{input_description} to zip archive{output_description}.')

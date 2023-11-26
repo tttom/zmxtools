@@ -1,26 +1,25 @@
 import io
-import math
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Sequence, Union
 from lark import Lark, tree, lexer, Transformer
 
-from . import log
+from zmxtools.definitions import Material, MaterialLibrary
+from zmxtools import log
 
 log = log.getChild(__name__)
 
-__all__ = ["Material", "MaterialLibrary", "read"]
+__all__ = ["read"]
 
 
 __GRAMMAR = r"""
     material_library: WS* (descriptor NEWLINE)+
-    
+
     ?descriptor: version | mode | name
-    
+
     ?number_or_infinity: NUMBER | "INFINITY" -> infinity
-    
+
     STRING: /.+/
-    
+
     %import common.INT
     %import common.CNAME
     %import common.ESCAPED_STRING
@@ -30,18 +29,6 @@ __GRAMMAR = r"""
     %import common.WS_INLINE
     %ignore WS_INLINE
 """
-
-
-@dataclass
-class Material:
-    name: str
-
-
-@dataclass
-class MaterialLibrary:
-    name: str = ""
-    description: str = ""
-    materials: Sequence[Material] = field(default_factory=list)
 
 
 class AgfTransformer(Transformer):
