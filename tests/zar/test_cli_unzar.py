@@ -5,7 +5,7 @@ from typing import List
 from tests.zar import check_dir_and_remove, check_zip_and_remove, test_directory, test_files
 from zmxtools import cli
 
-from tests import log
+from tests.zar import log
 log = log.getChild(__name__)
 
 

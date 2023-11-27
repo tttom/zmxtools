@@ -1,253 +1,209 @@
 import math
 from typing import List, Dict, Union
 from collections import defaultdict
-from lark import Lark, tree, lexer, Transformer
+from lark import Lark, tree, lexer, Transformer, Discard
+from lark.indenter import Indenter
 
 from zmxtools.definitions import Material, MaterialLibrary, Surface, OpticalSystem, FileLike, PathLike
 from zmxtools import log
 
 log = log.getChild(__name__)
 
-__all__ = ["read", "OpticalSystem", "Surface"]
-
-
-__GRAMMAR = r"""
-    optical_system: WS* (descriptor NEWLINE)+
-
-    ?descriptor: version | mode | name | note
-        | pfil
-        | unit
-        | enpd | envd | gfac
-        | glass_catalog
-        | ray_aim
-        | push
-        | sdma | ftyp | ropd | picb
-        | xfln | yfln | xfld | yfld
-        | fwgn | fwgt
-        | vcxn | vcyn
-        | vdxn | vdyn
-        | vann | zvan
-        | zvcx | zvcy| zvdx | zvdy
-        | wavelengths | wavelengths_n
-        | wavelength_weights | wavelength_weights_n
-        | wavelength
-        | pwav
-        | polarization
-        | glrs | gstd | nscd
-        | coating_filename
-        | surface
-        | tolerance
-        | tcmm | mnum | moff
-        | unknown_descriptor
-
-    version: "VERS" STRING
-    mode: "MODE" CNAME
-    name: "NAME" " " STRING
-    note: ("NOTE" INT " " STRING)+
-    pfil: "PFIL" INT+
-    unit: "UNIT" WS+ unit_symbol WS+ STRING*
-    enpd: "ENPD" NUMBER
-    envd: "ENVD" NUMBER INT INT
-    gfac: "GFAC" INT INT
-    glass_catalog: "GCAT" STRING
-    ray_aim: "RAIM" NUMBER+
-    push: "PUSH" INT+
-    sdma: "SDMA" INT+
-    ftyp: "FTYP" INT+
-    ropd: "ROPD" INT
-    picb: "PICB" INT
-    xfln: "XFLN" NUMBER+
-    yfln: "YFLN" NUMBER+
-    xfld: "XFLD" NUMBER+
-    yfld: "YFLD" NUMBER+
-    fwgn: "FWGN" NUMBER+
-    fwgt: "FWGT" NUMBER+
-    vdxn: "VDXN" NUMBER+
-    vdyn: "VDYN" NUMBER+
-    vcxn: "VCXN" NUMBER+
-    vcyn: "VCYN" NUMBER+
-    vann: "VANN" NUMBER+
-    zvan: "ZVAN" NUMBER+
-    zvcx: "ZVCX" NUMBER+
-    zvcy: "ZVCY" NUMBER+
-    zvdx: "ZVDX" NUMBER+
-    zvdy: "ZVDY" NUMBER+
-    wavelengths: "WAVL" NUMBER+
-    wavelengths_n: "WAVN" NUMBER+
-    wavelength_weights: "WWGT" NUMBER+
-    wavelength_weights_n: "WWGN" NUMBER+
-    wavelength: "WAVM" INT NUMBER INT
-    pwav: "PWAV" INT
-    polarization: "POLS" INT+
-    glrs: "GLRS" INT INT
-    gstd: "GSTD" INT NUMBER+ INT+
-    nscd: "NSCD" NUMBER+
-    coating_filename: "COFN QF" ESCAPED_STRING* | "COFN" filename*
-    surface: ( "SURF" INT NEWLINE (surface_property NEWLINE)+ )+ "BLNK"
-    tolerance: "TOL" tolerance_type INT INT NUMBER NUMBER INT INT INT
-    tcmm: "TCMM" STRING
-    mnum: "MNUM" INT+
-    moff: "MOFF" INT INT ESCAPED_STRING NUMBER+ ESCAPED_STRING
-    unknown_descriptor.-1: STRING
-
-    unit_symbol: "MM" | "CM" | "DM" | "M" | "IN" | CNAME
-    ?surface_property: surface_type
-            | surface_stop
-            | surface_name
-            | surface_curvature
-            | surface_mirror
-            | surface_distance_z
-            | surface_diameter
-            | surface_hide | surface_slab | surface_pops | surface_flap
-            | surface_coating
-            | surface_glass
-            | surface_unknown_property
-
-    tolerance_type: "COMP" | "TWAV" | "TRAD" | "TTHI" | "TSDX" | "TSDY" | "TSTX" | "TSTY" | "TIRR" | "TIND" | "TABB" | "TOFF"
-    filename: CNAME ("." CNAME)+
-
-    surface_stop: "STOP"
-    surface_name: "COMM" " " STRING
-    surface_type: "TYPE" " " STRING
-    surface_curvature: "CURV" NUMBER+ ESCAPED_STRING
-    surface_hide: "HIDE" NUMBER+
-    surface_mirror: "MIRR" NUMBER NUMBER
-    surface_slab: "SLAB" INT
-    surface_distance_z: "DISZ" number_or_infinity
-    surface_diameter: "DIAM" NUMBER+ ESCAPED_STRING
-    surface_pops: "POPS" NUMBER+
-    surface_coating: "COAT" " " STRING
-    surface_glass: "GLAS" " " STRING NUMBER*
-    surface_flap: "FLAP" NUMBER+
-    surface_unknown_property.-1: STRING
-
-    ?number_or_infinity: NUMBER | "INFINITY" -> infinity
-
-    STRING: /.+/
-
-    %import common.INT
-    %import common.CNAME
-    %import common.ESCAPED_STRING
-    %import common.SIGNED_NUMBER    -> NUMBER
-    %import common.NEWLINE
-    %import common.WS
-    %import common.WS_INLINE
-    %ignore WS_INLINE
-"""
-
-
-class ZmxTransformer(Transformer):
-    def optical_system(self, descriptors) -> OpticalSystem:
-        optical_system = OpticalSystem()
-
-        notes: Dict[int, str] = defaultdict[int, str](str)
-
-        for descriptor in descriptors:
-            if isinstance(descriptor, Surface):
-                log.error(f"Found {descriptor}")
-                optical_system.surfaces.append(descriptor)
-            elif descriptor is not None and isinstance(descriptor, tree.Tree):
-                match descriptor.data:
-                    case "version":
-                        optical_system.version = descriptor.children[0].value.strip()
-                    case "mode":
-                        mode_str = descriptor.children[0].value
-                        is_sequential = mode_str.upper().startswith("SEQ")
-                        if not is_sequential:
-                            log.warning(f"This does not seem to be a sequential model because the MODE is specified as '{mode_str}'.")
-                    case "note":
-                        note_idx = int(descriptor.children[0].value)
-                        notes[note_idx] += descriptor.children[1].value
-                    case "name":
-                        optical_system.name = descriptor.children[0].value
-                    case "unit":
-                        match descriptor.children[0].value.strip().upper():
-                            case "UM":
-                                unit = 1e-6
-                            case "MM":
-                                unit = 1e-3
-                            case "CM":
-                                unit = 10e-3
-                            case "DM":
-                                unit = 100e-3
-                            case unit_str if unit_str in ("IN" or "INCH"):
-                                unit = 25.4e-3
-                            case "FT":
-                                unit = 304.8e-3
-                            case _:
-                                unit = 1.0
-                        optical_system.unit = unit
-                    case "glass_catalog":
-                        optical_system.material_library = MaterialLibrary(descriptor.children[0].value.strip())
-                    case "coating_filename":
-                        optical_system.coating_filename = ".".join(_.value.strip() for _ in descriptor.children[0].children)
-                    case "wavelengths":
-                        optical_system.wavelengths = [float(_.value.strip()) for _ in descriptor.children]
-                    case "wavelength_weights":
-                        optical_system.wavelength_weights = [float(_.value.strip()) for _ in descriptor.children]
-                    case desc if desc in ("enpd", "envd", "gfac", "ray_aim", "push", "sdma", "ftyp", "ropd", "picb",
-                                          "pwav", "glrs", "gstd", "nscd", "fwgn", "mnum", "moff",
-                                          "xfld", "yfld", "xfln", "yfln", "vcxn", "vcyn", "vdxn", "vdyn",
-                                          "fwgt", "zvcx", "zvcy", "zvdx", "zvdy", "zvan", "vann", "polarization",
-                                          "wavelength", "wavelengths_n", "wavelength_weights_n", "tolerance"):
-                        log.info(f"Ignoring descriptor: '{descriptor.data}' with values {descriptor.children}!")
-                    case _:
-                        log.error(f"Unknown descriptor: '{descriptor.data}' with values {descriptor.children}!")
-            elif isinstance(descriptor, lexer.Token) and descriptor.value.strip() == "":
-                pass  # Ignore white-space
-            else:
-                log.error(f"Not recognized as descriptor: _{descriptor.value.strip()}_")
-
-        sorted_notes: List[str] = [v for k, v in sorted(notes.items(), key=lambda _: _[0])]
-        optical_system.description = "\n".join(sorted_notes)
-
-        return optical_system
-
-    def surface(self, _) -> Surface:
-        for x in _:
-            print(repr(x))
-        surface = Surface()
-
-        for surface_property in _:
-            if isinstance(surface_property, tree.Tree):
-                match surface_property.data:
-                    case "surface_stop":
-                        surface.stop = True
-                    case "surface_name":
-                        surface.name = surface_property.children[0].strip()
-                    case "surface_type":
-                        surface_type = surface_property.children[0]
-                        if surface_type.upper() != "STANDARD":
-                            log.warning(f"Unrecognized surface type '{surface_type}'")
-                    case "surface_distance_z":
-                        distance_z = surface_property.children[0]
-                        if isinstance(distance_z, tree.Tree) and distance_z.data == "infinity":
-                            distance_z = math.inf
-                        surface.distance = float(distance_z) / 2.0
-                    case "surface_curvature":
-                        surface.curvature = float(surface_property.children[0])
-                    case "surface_diameter":
-                        surface.radius = float(surface_property.children[0]) / 2.0
-                    case "surface_glass":
-                        surface.glass = surface_property.children[0].split(" ")[0]
-                    case "surface_mirror":
-                        mirror_type = surface_property.children[0]
-                        if int(mirror_type) != 2:
-                            log.warning(f"Unrecognized mirror type '{mirror_type}'")
-                    case s_prop if s_prop in ("surface_hide", "surface_slab", "surface_pops", "surface_flap"):
-                        log.debug(f"Ignoring surface property: '{surface_property.data}' with values {surface_property.children}!")
-                    case _:
-                        log.error(f"Unknown surface property: '{surface_property.data}' with values {surface_property.children}!")
-
-        return surface
+__all__ = ["read"]
 
 
 def __parse_zmx_str(contents: str) -> OpticalSystem:
-    """Parse the str contents of a .zmx file."""
-    parser = Lark(__GRAMMAR, start='optical_system')  #, ambiguity='explicit')
-    parse_tree = parser.parse(contents)
-    print(parse_tree.pretty())
-    optical_system = ZmxTransformer().transform(parse_tree)
+    """Parses the text extracted from a .zmx file into an `OpticalSystem`."""
+    # Parse into a Tree with root 'start'
+    zmx_grammar = r"""
+            ?start: _NL* node*
+
+            ?node: property _NL | surface
+
+            ?property: version | mode | name | note | unit | glass_catalog | wavelength | wavelength_weight | wavelength_with_weight
+                | enpd | envd | nscd | vann
+                | field_type | field_x | field_y | field_n_x | field_n_y | vignetting_cx | vignetting_cy | vignetting_dx | vignetting_dy
+                | vignetting_zcx | vignetting_zcy | vignetting_zdx | vignetting_zdy
+                | polarization | blank | coating_filename | unknown_property
+
+            version: "VERS" STRING
+            mode: "MODE" STRING
+            name: "NAME" STRING
+            note: "NOTE" INT STRING
+            unit: "UNIT" CNAME STRING
+            glass_catalog: "GCAT" STRING
+            wavelength: "WAVL" NUMBER+
+            wavelength_weight: "WWGT" NUMBER+
+            wavelength_with_weight: "WAVM" NUMBER+
+            field_type: "FTYP" NUMBER+
+            field_x: "XFLD" NUMBER
+            field_n_x: "XFLN" NUMBER+
+            field_y: "YFLD" NUMBER
+            field_n_y: "YFLN" NUMBER+
+            vignetting_zcx: "ZVCX" NUMBER
+            vignetting_cx: "VCXN" NUMBER+
+            vignetting_zcy: "ZVCY" NUMBER
+            vignetting_cy: "VCYN" NUMBER+
+            vignetting_zdx: "ZVDX" NUMBER
+            vignetting_dx: "VDXN" NUMBER+
+            vignetting_zdy: "ZVDY" NUMBER
+            vignetting_dy: "VDYN" NUMBER+
+            enpd: "ENPD" NUMBER
+            envd: "ENVD" NUMBER+
+            nscd: "NSCD" NUMBER+
+            vann: "VANN" NUMBER+
+            blank: "BLNK"
+            polarization: "POLS" NUMBER+
+            coating_filename: "COFN" STRING* | "COFN QF" ESCAPED_STRING*
+            unknown_property.-1: CNAME STRING*
+
+            surface: "SURF" INT _NL _INDENT (surface_property _NL)+ _DEDENT
+            ?surface_property: surface_stop | surface_name
+                | surface_type | surface_curvature | surface_diameter | surface_floating_aperture
+                | surface_coating | surface_mirror | surface_distance_z | surface_glass
+                | surface_parameter | surface_data | unknown_surface_property
+
+            surface_stop: "STOP"
+            surface_type: "TYPE" STRING*
+            surface_curvature: "CURV" NUMBER+ ESCAPED_STRING
+            surface_diameter: "DIAM" NUMBER+ ESCAPED_STRING
+            surface_floating_aperture: "FLAP" NUMBER+
+            surface_coating: "COAT" STRING
+            surface_mirror: "MIRR" NUMBER+
+            surface_parameter: "PARM" INT NUMBER+
+            surface_data: "XDAT" INT NUMBER+ ESCAPED_STRING
+            surface_name: "COMM" STRING*
+            surface_distance_z: "DISZ" NUMBER
+            surface_glass: "GLAS" STRING_WITHOUT_SPACES NUMBER+
+            unknown_surface_property.-1: CNAME STRING*
+
+            _WS: /[ \t]/
+            STRING: /.+/
+            STRING_WITHOUT_SPACES: /[^ \t]+/
+            NUMBER: SIGNED_NUMBER | "INFINITY"
+
+            %import common.ESCAPED_STRING
+            %import common.CNAME
+            %import common.INT
+            %import common.SIGNED_NUMBER
+            %import common.WS_INLINE
+            %declare _INDENT _DEDENT
+            %ignore WS_INLINE
+
+            _NL: /(\r?\n[\t ]*)+/
+        """
+
+    class TreeIndenter(Indenter):
+        NL_type = '_NL'
+        OPEN_PAREN_types = []
+        CLOSE_PAREN_types = []
+        INDENT_type = '_INDENT'
+        DEDENT_type = '_DEDENT'
+        tab_len = 8
+
+    parser = Lark(zmx_grammar, parser="lalr", postlex=TreeIndenter())
+    parsed_tree = parser.parse(contents)
+
+    # Remove unknown items (strictly not needed, though these would be flagged otherwise)
+
+    class RemoveUnknownTransformer(Transformer):
+        def unknown_property(self, _):
+            return Discard
+
+        def unknown_surface_property(self, _):
+            return Discard
+
+    # parsed_tree = RemoveUnknownTransformer().transform(parsed_tree)  # To clean up the unknown items from the tree
+
+    # Go through tree to construct an OpticalSystem with multiple Surfaces.
+    optical_system = OpticalSystem()
+    notes = defaultdict(str)
+    surfaces = dict()
+    for c in parsed_tree.children:
+        match c.data:
+            case "version":
+                optical_system.version = c.children[0].value
+            case "mode":
+                mode_str = c.children[0].value
+                is_sequential = mode_str.upper().startswith("SEQ")
+                if not is_sequential:
+                    log.warning(f"This does not seem to be a sequential model because the MODE is specified as '{mode_str}'.")
+            case "name":
+                optical_system.name = c.children[0].value
+            case "note":
+                note_idx = int(c.children[0].value)
+                notes[note_idx] += c.children[1].value
+            case "unit":
+                unit_str = c.children[0].value.strip().upper()
+                if len(unit_str) > 2:
+                    unit_str = unit_str[:2]
+                unit_dict = {"UM": 1e-6, "MM": 1e-3, "CM": 1e-2, "DM": 100e-3, "DA": 10.0, "HM": 100.0, "KM": 1e3, "GM": 1e9, "TM": 1e12,
+                             "IN": 25.4e-3, "FT": 304.8e-3, "FE": 304.8e-3, "FO": 304.8e-3}
+                optical_system.unit = unit_dict[unit_str] if unit_str in unit_dict else 1.0
+            case "glass_catalog":
+                optical_system.material_library = MaterialLibrary(c.children[0].value.strip())
+            case "coating_filename":
+                optical_system.coating_filename = ".".join(_.value.strip() for _ in c.children)
+            case "wavelengths":
+                optical_system.wavelengths = [float(_.value.strip()) for _ in c.children]
+            case "wavelength_weights":
+                optical_system.wavelength_weights = [float(_.value.strip()) for _ in c.children]
+            case "surface":
+                surface_idx = int(c.children[0].value)
+                surface = Surface()
+                surface_parameters = dict()
+                surface_data = dict()
+                for sc in c.children[1:]:
+                    match sc.data:
+                        case "surface_stop":
+                            surface.stop = True
+                        case "surface_type":
+                            surface.type = sc.children[0].value
+                        case "surface_curvature":
+                            surface.curvature = float(sc.children[0].value)
+                        case "surface_diameter":
+                            surface.radius = float(sc.children[0].value) / 2.0
+                        case "surface_coating":
+                            surface.coating = sc.children[0].value
+                        case "surface_mirror":
+                            surface.mirror = int(sc.children[0].value) != 2
+                        case "surface_parameter":
+                            surface_parameters[int(sc.children[0].value)] = float(sc.children[1].value)
+                        case "surface_data":
+                            surface_data[int(sc.children[0].value)] = " ".join(_.value for _ in sc.children)
+                        case "surface_name":
+                            surface.name = " ".join(_.value for _ in sc.children)
+                        case "surface_distance_z":
+                            surface.distance = float(sc.children[0].value)
+                        case "surface_glass":
+                            surface.material = Material(sc.children[0].value.strip())
+                        case s_prop if s_prop in ("surface_hide", "surface_slab", "surface_pops", "surface_flap"):
+                            log.debug(f"Ignoring surface property: '{sc.data}' with values {sc.children}!")
+                        case _:
+                            log.warning(f"Unknown surface property '{sc}'.")
+                surface.parameters = [_[1] for _ in sorted(surface_parameters.items(), key=lambda _: _[0])]
+                surface.data = [_[1] for _ in sorted(surface_data.items(), key=lambda _: _[0])]
+                surfaces[surface_idx] = surface
+            case "wavelength":
+                optical_system.wavelengths = [float(_.value) * 1e-6 for _ in c.children]  # TODO: Always in micrometer?
+            case "wavelength_weight":
+                optical_system.wavelength_weights = [float(_.value) for _ in c.children]
+            case "coating_filename":
+                optical_system.coating_filename = c.children[0].value
+            case desc if desc in ("enpd", "envd", "gfac", "ray_aim", "push", "sdma", "ftyp", "ropd", "picb",
+                                      "pwav", "glrs", "gstd", "nscd", "fwgn", "mnum", "moff",
+                                      "xfld", "yfld", "xfln", "yfln", "vcxn", "vcyn", "vdxn", "vdyn",
+                                      "fwgt", "zvcx", "zvcy", "zvdx", "zvdy", "zvan", "vann", "polarization",
+                                      "wavelength", "wavelengths_n", "wavelength_weights_n", "tolerance", "blank", ):
+                log.info(f"Ignoring descriptor: '{c.data}' with values {c.children}!")
+            case _:
+                log.warning(f"Unknown descriptor: '{c.data}' with values {c.children}!")
+
+    # Put everything together
+    # Sort the dictionaries by key and add to the OpticalSystem
+    optical_system.description = "\n".join(_[1] for _ in sorted(notes.items(), key=lambda _: _[0]))
+    optical_system.surfaces = [_[1].using_unit(optical_system.unit) for _ in sorted(surfaces.items(), key=lambda _: _[0])]
+
     return optical_system
 
 

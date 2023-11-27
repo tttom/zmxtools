@@ -1,8 +1,8 @@
-import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-log = logging.getLogger(__name__)
+from tests import log
+log = log.getChild(__name__)
 
 __all__ = ['MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_files', 'check_dir_and_remove', 'check_zip_and_remove']
 

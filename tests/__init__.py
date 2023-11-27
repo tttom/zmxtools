@@ -1,6 +1,7 @@
 import logging
 
-import zmxtools
+from zmxtools import log
 
-log = zmxtools.log.getChild(__name__)
-log.level = logging.INFO
+log.level = logging.DEBUG
+log = log.getChild(__name__)
+

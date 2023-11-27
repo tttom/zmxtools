@@ -75,13 +75,25 @@ class MaterialLibrary:
 @dataclass
 class Surface:
     """A class to represent a thin surface between two volumes."""
-    index: int = -1
     stop: bool = False
+    type: str = ""
     curvature: float = 0.0
     radius: float = 0.0
-    distance: float = 0.0
+    coating: str = ""
+    mirror: bool = False
+    parameters: List[float] = field(default_factory=float)
+    data: List[str] = field(default_factory=str)
+
     name: str = ""  # The common name of the lens element
-    glass: Material = field(default_factory=lambda: vacuum)
+    distance: float = 0.0
+    material: Material = field(default_factory=lambda: vacuum)
+
+    def using_unit(self, unit: float) -> Self:
+        """Change from the specified unit to SI units."""
+        self.curvature /= unit
+        self.distance *= unit
+        self.radius *= unit
+        return self
 
 
 @dataclass
