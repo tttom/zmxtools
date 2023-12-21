@@ -22,6 +22,7 @@ class OrderedCommandDict:
         :param commands: A sequence of commands, which will be kept in order.
         :param spaces_per_tab: The number of tabs to use when converting to str with __str__()
         """
+        assert all(_ is not None for _ in commands), f"{self.__class__.__name__} expected as sequence of Commands, not {commands}."
         self.__commands = list(commands)
         self.spaces_per_tab: int = spaces_per_tab  # For __str__()
 
@@ -35,42 +36,43 @@ class OrderedCommandDict:
 
         :return: The command dictionary.
         """
-        def parse_section(lines: Sequence[str], line_index: int = 0,
+        def parse_section(lines: Iterator[str],
                           parent_indent: int = -1, section_indent: int = 0, spaces_per_tab: int = 2,
-                          out: Optional[OrderedCommandDict] = None
-                          ) -> Tuple[OrderedCommandDict, int]:
+                          out: Optional[OrderedCommandDict] = None) -> Tuple[OrderedCommandDict, Optional[Command]]:
             """Auxiliary recursive function."""
             if out is None:
                 out = OrderedCommandDict(spaces_per_tab=spaces_per_tab)
-            while line_index < len(lines):
-                line = lines[line_index]
-                match = re.match(r"(\s*)(\S+)(\s.*)?", line)
-                if match is None:
-                    line_index += 1
-                    continue  # skip empty line
-                indent_str, command_name, command_argument = match.groups()
-                if command_argument is not None:
-                    command_argument = command_argument[1:]
-                if any(ord(_) > 128 for _ in command_name) or not 1 <= len(command_name) < 256:
-                    raise ValueError("Invalid command detected.")
-                if '\t' not in indent_str:
-                    indent = len(indent_str)
-                else:  # Replace tabs with spaces before counting indentation
-                    indent = sum((spaces_per_tab - (_ % spaces_per_tab)) if c == '\t' else 1 for _, c in enumerate(indent_str))
-                next_command = Command(name=command_name, argument=command_argument)
-                if indent <= parent_indent:
-                    return out, line_index
-                elif parent_indent < indent <= section_indent:  # be very forgiving
-                    out.append(next_command)
-                    line_index += 1
-                else:  # indent > section_indent:  recurse
-                    out[-1].children, line_index = parse_section(
-                        lines, line_index + 1,
-                        parent_indent=section_indent, section_indent=indent, spaces_per_tab=2,
-                        out=OrderedCommandDict([next_command], spaces_per_tab=spaces_per_tab))
-            return out, line_index
+            try:
+                while (line := next(lines)) is not None:
+                    match = re.match(r"(\s*)(\S+)(\s.*)?", line)
+                    if match is None:
+                        continue  # skip empty line
+                    indent_str, command_name, command_argument = match.groups()
+                    if command_argument is not None:
+                        command_argument = command_argument[1:]
+                    if any(ord(_) > 128 for _ in command_name) or not 1 <= len(command_name) < 256:
+                        raise ValueError("Invalid command detected.")
+                    if '\t' not in indent_str:
+                        indent = len(indent_str)
+                    else:  # Replace tabs with spaces before counting indentation
+                        indent = sum((spaces_per_tab - (_ % spaces_per_tab)) if c == '\t' else 1 for _, c in enumerate(indent_str))
+                    next_command = Command(name=command_name, argument=command_argument)
+                    if indent <= parent_indent:
+                        return out, next_command  # pass next command to
+                    elif parent_indent < indent <= section_indent:  # be very forgiving
+                        out.append(next_command)
+                    else:  # indent > section_indent:  recurse
+                        out[-1].children, next_command = parse_section(
+                            lines,
+                            parent_indent=section_indent, section_indent=indent, spaces_per_tab=2,
+                            out=OrderedCommandDict([next_command], spaces_per_tab=spaces_per_tab))
+                        if next_command is not None:
+                            out.append(next_command)
+            except StopIteration:
+                pass
+            return out, None
 
-        return parse_section(file_contents.splitlines(), spaces_per_tab=spaces_per_tab)[0]
+        return parse_section(file_contents.splitlines().__iter__(), spaces_per_tab=spaces_per_tab)[0]
 
     @classmethod
     def from_file(cls, input_path_or_stream: Union[FileLike, PathLike], spaces_per_tab: int = 2) -> OrderedCommandDict:
@@ -413,59 +415,3 @@ class ZmxSurface(Surface):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(commands={repr(self.commands)})"
-
-
-if __name__ == "__main__":
-    import time
-    import zmxtools
-    zmxtools.log.handlers[0].level = -1
-
-    test_file = "/home/tom/repositories/optical_design_gits/zmxtools/tests/data/SpeckleUsingPOP_GridSagSurf.ZMX"
-    # test_file = "/home/tom/repositories/optical_design_gits/zmxtools/tests/data/3116-S02.ZMX"
-
-    spaces_per_tab = 2
-
-    log.info(f"Reading {test_file}...")
-
-    start_time = time.perf_counter()
-
-    with open(test_file, "rt", encoding="utf-8") as file:
-        input_str = file.read()
-        # input_lines = [_.rstrip("\r\n") for _ in input_lines]
-        command_seq = OrderedCommandDict.from_str(input_str)
-
-        print(repr(command_seq["NOTE"][1]))
-        print(repr(command_seq.sort_and_merge("NOTE")[0].argument.replace('\n', '')))
-        # command_seq["NAME"][0].argument += "TEST"
-        # del command_seq[-1]
-        # command_seq.append(Command("BLAA", "1 2.3 3 INFINITY -5e-3, 5, BREAK 6"))
-        # print(repr(command_seq["BLAA"][0]))
-        # print(command_seq.arguments("NOTE", 0).replace('\n', ''))
-        # print("------------")
-        # print(command_seq["BLAA"][0])
-        # print([repr(_) for _ in command_seq["BLAA"][0].numbers])
-        # print("------------")
-
-        output_lines = str(command_seq).splitlines()
-
-        input_lines = input_str.splitlines()
-        if len(input_lines) != len(output_lines):
-            log.warning(f"The number of input lines ({len(input_lines)}) differs from the number of output lines ({len(output_lines)}).")
-        else:
-            log.info(f"The number of output lines, {len(output_lines)}, is the same.")
-        for _, (a, b) in enumerate(zip(input_lines, output_lines)):
-            if a != b:
-                log.warning(f"Line {_} differs:\n{a}|\n{b}|\n---\n")
-        log.info("Compared line by line.")
-
-    # lens = ZmxIO("file.zmx")
-    # lens["SURF", "1", "CURV"] = "0.100 ..."
-    # lens["SURF", "1", "DISZ"] = "0.200"
-    # lens["SURF", "2"] = "a comment"
-    # print(str(lens))
-
-    log.info("Parsing as an optical model...")
-    # design = ZmxOpticalDesign.from_str(input_str)
-    design = ZmxOpticalDesign(command_seq)
-
-    log.info("Done!")
