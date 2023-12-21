@@ -7,7 +7,9 @@ from zmxtools import log
 
 log = log.getChild(__name__)
 
+
 __all__ = ['unpack', 'extract', 'repack']
+
 
 ZAR = '.zar'
 ZIP = '.zip'
@@ -69,7 +71,8 @@ def _decompress_lzw(compressed: bytes) -> bytes:
 
 def unpack(input_path_or_stream: Union[BinaryFileLike, PathLike]) -> Generator[BytesFile, None, None]:
     """
-    Unpacks a zar archive file and generates a series of BytesFile objects that hold the unpacked file name and contents.
+    Unpacks a zar archive file and generates a series of BytesFile objects
+    that hold the unpacked file name and contents.
 
     The returned Generator produces tuples in the order found in the archive.
     Usage:

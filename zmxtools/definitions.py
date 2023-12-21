@@ -1,3 +1,5 @@
+from __future__ import  annotations
+
 import typing
 from dataclasses import dataclass, field
 import pathlib
@@ -56,55 +58,62 @@ FileLike = Union[BinaryFileLike, typing.IO]
 PathLike = Union[os.PathLike, str]
 
 
-@dataclass
 class Material:
-    """A class to represent a Zemax glass"""
-    name: str
+    """A class to represent a material as glass"""
+    name: str = ""
 
-vacuum = Material("vacuum")
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
+
+    def __eq__(self, other: Material) -> bool:
+        return hash(self) == hash(other)
 
 
-@dataclass
+class Vacuum(Material):
+    def __init__(self):
+        super().__init__("vacuum")
+
+
 class MaterialLibrary:
-    """A class to represent a collection of :class:`Material`s."""
     name: str = ""
     description: str = ""
-    materials: Sequence[Material] = field(default_factory=list)
+    materials: Sequence[Material] = []
+
+    def __init__(self, name: str, description: str = "", materials: Sequence[Material] = tuple()):
+        self.name = name
+        self.description = description
+        self.materials = materials
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name}, {self.description}, {repr(self.materials)})"
 
 
-@dataclass
 class Surface:
     """A class to represent a thin surface between two volumes."""
     stop: bool = False
-    type: str = ""
-    curvature: float = 0.0
-    radius: float = 0.0
-    coating: str = ""
-    mirror: bool = False
-    parameters: List[float] = field(default_factory=float)
-    data: List[str] = field(default_factory=str)
+    description: str = ""  # A comment, often the name of the lens element
 
-    name: str = ""  # The common name of the lens element
-    distance: float = 0.0
-    material: Material = field(default_factory=lambda: vacuum)
-
-    def using_unit(self, unit: float) -> Self:
-        """Change from the specified unit to SI units."""
-        self.curvature /= unit
-        self.distance *= unit
-        self.radius *= unit
-        return self
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(stop={self.stop}, description={self.description})"
 
 
-@dataclass
-class OpticalSystem:
-    """A class to describe a complete optical system, including light source and detector surface."""
-    version: str = ""
+class OpticalDesign:
     name: str = ""
     description: str = ""
-    surfaces: List[Surface] = field(default_factory=list)
-    unit: float = 1.0
-    wavelengths: Sequence[float] = field(default_factory=list)
-    wavelength_weights: Sequence[float] = field(default_factory=list)
-    material_library: MaterialLibrary = field(default_factory=lambda: MaterialLibrary())
-    coating_filename: str = ""
+
+    surfaces: List[Surface] = []
+    wavelengths: Sequence[float] = []
+    wavelength_weights: Sequence[float] = []
+    material_libraries: Sequence[MaterialLibrary] = []
+
+    def __repr__(self) -> str:
+        return (f"{self.__class__.__name__}({self.name}, {self.description}, {repr(self.surfaces)}, "
+                f"wavelengths={self.wavelengths}, wavelength_weights={self.wavelength_weights}, material_library={repr(self.material_libraries)})")
+
+

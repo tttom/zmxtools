@@ -19,8 +19,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.10"
 importlib_metadata = "^6.8"
-lark = "^1.1.8"
-coloredlogs = { version = "^15.0.1", optional = true }
+coloredlogs = "^15.0.1"
 
 
 [tool.poetry.group.docs]
@@ -33,8 +32,6 @@ sphinx_rtd_theme = "^1.3"
 tomli = "^2.0"
 #doc8 = "^1.0"
 m2r2 = "^0.3"
-
-
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7"
@@ -50,10 +47,6 @@ safety = "^2.3.5"
 pytest = "^7.1"
 pytest-cov = "^4.0"
 pytest-randomly = "^3.12"
-
-
-[tool.poetry.extras]
-coloredlogs = ["coloredlogs"]
 
 
 [tool.poetry.scripts]

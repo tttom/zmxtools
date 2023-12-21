@@ -106,7 +106,7 @@ def unzar(argv: Optional[Sequence[str]] = None) -> int:
         log.debug(f'with file names {combined_input_files}')
         nb_files_skipped = 0
         for input_file in combined_input_files:
-            log.info(f'Processing {input_file}...')
+            log.debug(f'Processing {input_file}...')
             input_full_file = Path(input_file.strip())
             if input_full_file.suffix.lower() != ZAR:
                 log.warning(f'Archive file "{input_full_file}" does not have the ".zar" extension!')

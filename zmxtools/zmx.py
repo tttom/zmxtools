@@ -1,238 +1,471 @@
-import math
-from typing import List, Dict, Union
-from collections import defaultdict
-from lark import Lark, tree, lexer, Transformer, Discard
-from lark.indenter import Indenter
+from __future__ import annotations
 
-from zmxtools.definitions import Material, MaterialLibrary, Surface, OpticalSystem, FileLike, PathLike
+from typing import Union, Sequence, Tuple, Optional, Self
+from collections.abc import Iterator
+from collections import defaultdict
+import re
+import math
+
+from zmxtools.definitions import FileLike, PathLike, Material, Vacuum, MaterialLibrary, Surface, OpticalDesign
 from zmxtools import log
 
 log = log.getChild(__name__)
 
-__all__ = ["read"]
+__all__ = ["ZmxOpticalDesign"]
 
 
-def __parse_zmx_str(contents: str) -> OpticalSystem:
-    """Parses the text extracted from a .zmx file into an `OpticalSystem`."""
-    # Parse into a Tree with root 'start'
-    zmx_grammar = r"""
-            ?start: _NL* node*
-
-            ?node: property _NL | surface
-
-            ?property: version | mode | name | note | unit | glass_catalog | wavelength | wavelength_weight | wavelength_with_weight
-                | enpd | envd | nscd | vann
-                | field_type | field_x | field_y | field_n_x | field_n_y | vignetting_cx | vignetting_cy | vignetting_dx | vignetting_dy
-                | vignetting_zcx | vignetting_zcy | vignetting_zdx | vignetting_zdy
-                | polarization | blank | coating_filename | unknown_property
-
-            version: "VERS" STRING
-            mode: "MODE" STRING
-            name: "NAME" STRING
-            note: "NOTE" INT STRING
-            unit: "UNIT" CNAME STRING
-            glass_catalog: "GCAT" STRING
-            wavelength: "WAVL" NUMBER+
-            wavelength_weight: "WWGT" NUMBER+
-            wavelength_with_weight: "WAVM" NUMBER+
-            field_type: "FTYP" NUMBER+
-            field_x: "XFLD" NUMBER
-            field_n_x: "XFLN" NUMBER+
-            field_y: "YFLD" NUMBER
-            field_n_y: "YFLN" NUMBER+
-            vignetting_zcx: "ZVCX" NUMBER
-            vignetting_cx: "VCXN" NUMBER+
-            vignetting_zcy: "ZVCY" NUMBER
-            vignetting_cy: "VCYN" NUMBER+
-            vignetting_zdx: "ZVDX" NUMBER
-            vignetting_dx: "VDXN" NUMBER+
-            vignetting_zdy: "ZVDY" NUMBER
-            vignetting_dy: "VDYN" NUMBER+
-            enpd: "ENPD" NUMBER
-            envd: "ENVD" NUMBER+
-            nscd: "NSCD" NUMBER+
-            vann: "VANN" NUMBER+
-            blank: "BLNK"
-            polarization: "POLS" NUMBER+
-            coating_filename: "COFN" STRING* | "COFN QF" ESCAPED_STRING*
-            unknown_property.-1: CNAME STRING*
-
-            surface: "SURF" INT _NL _INDENT (surface_property _NL)+ _DEDENT
-            ?surface_property: surface_stop | surface_name
-                | surface_type | surface_curvature | surface_diameter | surface_floating_aperture
-                | surface_coating | surface_mirror | surface_distance_z | surface_glass
-                | surface_parameter | surface_data | unknown_surface_property
-
-            surface_stop: "STOP"
-            surface_type: "TYPE" STRING*
-            surface_curvature: "CURV" NUMBER+ ESCAPED_STRING
-            surface_diameter: "DIAM" NUMBER+ ESCAPED_STRING
-            surface_floating_aperture: "FLAP" NUMBER+
-            surface_coating: "COAT" STRING
-            surface_mirror: "MIRR" NUMBER+
-            surface_parameter: "PARM" INT NUMBER+
-            surface_data: "XDAT" INT NUMBER+ ESCAPED_STRING
-            surface_name: "COMM" STRING*
-            surface_distance_z: "DISZ" NUMBER
-            surface_glass: "GLAS" STRING_WITHOUT_SPACES NUMBER+
-            unknown_surface_property.-1: CNAME STRING*
-
-            _WS: /[ \t]/
-            STRING: /.+/
-            STRING_WITHOUT_SPACES: /[^ \t]+/
-            NUMBER: SIGNED_NUMBER | "INFINITY"
-
-            %import common.ESCAPED_STRING
-            %import common.CNAME
-            %import common.INT
-            %import common.SIGNED_NUMBER
-            %import common.WS_INLINE
-            %declare _INDENT _DEDENT
-            %ignore WS_INLINE
-
-            _NL: /(\r?\n[\t ]*)+/
+class OrderedCommandDict:
+    def __init__(self, commands: Sequence[Command] = tuple(), spaces_per_tab: int = 2):
         """
+        Construct a new command dictionary from a sequence of commands.
 
-    class TreeIndenter(Indenter):
-        NL_type = '_NL'
-        OPEN_PAREN_types = []
-        CLOSE_PAREN_types = []
-        INDENT_type = '_INDENT'
-        DEDENT_type = '_DEDENT'
-        tab_len = 8
+        :param commands: A sequence of commands, which will be kept in order.
+        :param spaces_per_tab: The number of tabs to use when converting to str with __str__()
+        """
+        self.__commands = list(commands)
+        self.spaces_per_tab: int = spaces_per_tab  # For __str__()
 
-    parser = Lark(zmx_grammar, parser="lalr", postlex=TreeIndenter())
-    parsed_tree = parser.parse(contents)
+    @staticmethod
+    def from_str(file_contents: str, spaces_per_tab: int = 2) -> OrderedCommandDict:
+        """
+        Create a new `OrderedCommandDict` from a multi-line text.
 
-    # Remove unknown items (strictly not needed, though these would be flagged otherwise)
+        :param file_contents: The text string extracted from an optical file.
+        :param spaces_per_tab: The number of spaces per tab to assumed
 
-    class RemoveUnknownTransformer(Transformer):
-        def unknown_property(self, _):
-            return Discard
+        :return: The command dictionary.
+        """
+        def parse_section(lines: Sequence[str], line_index: int = 0,
+                          parent_indent: int = -1, section_indent: int = 0, spaces_per_tab: int = 2,
+                          out: Optional[OrderedCommandDict] = None
+                          ) -> Tuple[OrderedCommandDict, int]:
+            """Auxiliary recursive function."""
+            if out is None:
+                out = OrderedCommandDict(spaces_per_tab=spaces_per_tab)
+            while line_index < len(lines):
+                line = lines[line_index]
+                match = re.match(r"(\s*)(\S+)(\s.*)?", line)
+                if match is None:
+                    line_index += 1
+                    continue  # skip empty line
+                indent_str, command_name, command_argument = match.groups()
+                if command_argument is not None:
+                    command_argument = command_argument[1:]
+                if any(ord(_) > 128 for _ in command_name) or not 1 <= len(command_name) < 256:
+                    raise ValueError("Invalid command detected.")
+                if '\t' not in indent_str:
+                    indent = len(indent_str)
+                else:  # Replace tabs with spaces before counting indentation
+                    indent = sum((spaces_per_tab - (_ % spaces_per_tab)) if c == '\t' else 1 for _, c in enumerate(indent_str))
+                next_command = Command(name=command_name, argument=command_argument)
+                if indent <= parent_indent:
+                    return out, line_index
+                elif parent_indent < indent <= section_indent:  # be very forgiving
+                    out.append(next_command)
+                    line_index += 1
+                else:  # indent > section_indent:  recurse
+                    out[-1].children, line_index = parse_section(
+                        lines, line_index + 1,
+                        parent_indent=section_indent, section_indent=indent, spaces_per_tab=2,
+                        out=OrderedCommandDict([next_command], spaces_per_tab=spaces_per_tab))
+            return out, line_index
 
-        def unknown_surface_property(self, _):
-            return Discard
+        return parse_section(file_contents.splitlines(), spaces_per_tab=spaces_per_tab)[0]
 
-    # parsed_tree = RemoveUnknownTransformer().transform(parsed_tree)  # To clean up the unknown items from the tree
+    @classmethod
+    def from_file(cls, input_path_or_stream: Union[FileLike, PathLike], spaces_per_tab: int = 2) -> OrderedCommandDict:
+        """
+        Reads a file into an `OrderedCommandDict` representation.
 
-    # Go through tree to construct an OpticalSystem with multiple Surfaces.
-    optical_system = OpticalSystem()
-    notes = defaultdict(str)
-    surfaces = dict()
-    for c in parsed_tree.children:
-        match c.data:
-            case "version":
-                optical_system.version = c.children[0].value
-            case "mode":
-                mode_str = c.children[0].value
-                is_sequential = mode_str.upper().startswith("SEQ")
-                if not is_sequential:
-                    log.warning(f"This does not seem to be a sequential model because the MODE is specified as '{mode_str}'.")
-            case "name":
-                optical_system.name = c.children[0].value
-            case "note":
-                note_idx = int(c.children[0].value)
-                notes[note_idx] += c.children[1].value
-            case "unit":
-                unit_str = c.children[0].value.strip().upper()
-                if len(unit_str) > 2:
-                    unit_str = unit_str[:2]
-                unit_dict = {"UM": 1e-6, "MM": 1e-3, "CM": 1e-2, "DM": 100e-3, "DA": 10.0, "HM": 100.0, "KM": 1e3, "GM": 1e9, "TM": 1e12,
-                             "IN": 25.4e-3, "FT": 304.8e-3, "FE": 304.8e-3, "FO": 304.8e-3}
-                optical_system.unit = unit_dict[unit_str] if unit_str in unit_dict else 1.0
-            case "glass_catalog":
-                optical_system.material_library = MaterialLibrary(c.children[0].value.strip())
-            case "coating_filename":
-                optical_system.coating_filename = ".".join(_.value.strip() for _ in c.children)
-            case "wavelengths":
-                optical_system.wavelengths = [float(_.value.strip()) for _ in c.children]
-            case "wavelength_weights":
-                optical_system.wavelength_weights = [float(_.value.strip()) for _ in c.children]
-            case "surface":
-                surface_idx = int(c.children[0].value)
-                surface = Surface()
-                surface_parameters = dict()
-                surface_data = dict()
-                for sc in c.children[1:]:
-                    match sc.data:
-                        case "surface_stop":
-                            surface.stop = True
-                        case "surface_type":
-                            surface.type = sc.children[0].value
-                        case "surface_curvature":
-                            surface.curvature = float(sc.children[0].value)
-                        case "surface_diameter":
-                            surface.radius = float(sc.children[0].value) / 2.0
-                        case "surface_coating":
-                            surface.coating = sc.children[0].value
-                        case "surface_mirror":
-                            surface.mirror = int(sc.children[0].value) != 2
-                        case "surface_parameter":
-                            surface_parameters[int(sc.children[0].value)] = float(sc.children[1].value)
-                        case "surface_data":
-                            surface_data[int(sc.children[0].value)] = " ".join(_.value for _ in sc.children)
-                        case "surface_name":
-                            surface.name = " ".join(_.value for _ in sc.children)
-                        case "surface_distance_z":
-                            surface.distance = float(sc.children[0].value)
-                        case "surface_glass":
-                            surface.material = Material(sc.children[0].value.strip())
-                        case s_prop if s_prop in ("surface_hide", "surface_slab", "surface_pops", "surface_flap"):
-                            log.debug(f"Ignoring surface property: '{sc.data}' with values {sc.children}!")
-                        case _:
-                            log.warning(f"Unknown surface property '{sc}'.")
-                surface.parameters = [_[1] for _ in sorted(surface_parameters.items(), key=lambda _: _[0])]
-                surface.data = [_[1] for _ in sorted(surface_data.items(), key=lambda _: _[0])]
-                surfaces[surface_idx] = surface
-            case "wavelength":
-                optical_system.wavelengths = [float(_.value) * 1e-6 for _ in c.children]  # TODO: Always in micrometer?
-            case "wavelength_weight":
-                optical_system.wavelength_weights = [float(_.value) for _ in c.children]
-            case "coating_filename":
-                optical_system.coating_filename = c.children[0].value
-            case desc if desc in ("enpd", "envd", "gfac", "ray_aim", "push", "sdma", "ftyp", "ropd", "picb",
-                                      "pwav", "glrs", "gstd", "nscd", "fwgn", "mnum", "moff",
-                                      "xfld", "yfld", "xfln", "yfln", "vcxn", "vcyn", "vdxn", "vdyn",
-                                      "fwgt", "zvcx", "zvcy", "zvdx", "zvdy", "zvan", "vann", "polarization",
-                                      "wavelength", "wavelengths_n", "wavelength_weights_n", "tolerance", "blank", ):
-                log.info(f"Ignoring descriptor: '{c.data}' with values {c.children}!")
-            case _:
-                log.warning(f"Unknown descriptor: '{c.data}' with values {c.children}!")
+        :param input_path_or_stream: The file to read from, or its file-path.
+        :param spaces_per_tab: The number of tabs to use when converting to str with __str__()
 
-    # Put everything together
-    # Sort the dictionaries by key and add to the OpticalSystem
-    optical_system.description = "\n".join(_[1] for _ in sorted(notes.items(), key=lambda _: _[0]))
-    optical_system.surfaces = [_[1].using_unit(optical_system.unit) for _ in sorted(surfaces.items(), key=lambda _: _[0])]
-
-    return optical_system
-
-
-def __parse_zmx_bytes(content_bytes: bytes) -> OpticalSystem:
-    """Attempt to parse the byte contents of a .zmx file using different encodings."""
-    for encoding in ('utf-16', 'utf-16-le', 'utf-8', 'utf-8-sig', 'iso-8859-1'):
-        try:
-            contents = content_bytes.decode(encoding)
-            return __parse_zmx_str(contents)
-        except UnicodeDecodeError as err:
-            pass
-
-
-def read(input_path_or_stream: Union[FileLike, PathLike]) -> OpticalSystem:
-    """
-    Reads a zmx file.
-
-    :param input_path_or_stream: The file to read the optical system from, or its file-path.
-
-    :return: A representation of the optical system.
-    """
-    if isinstance(input_path_or_stream, PathLike):
-        input_file = open(input_path_or_stream, 'rb')
-    else:
-        input_file = input_path_or_stream
-    with input_file:
-        contents = input_file.read()
-        assert len(contents) > 0, f"Empty .zmx file: 0 bytes read from {input_file.name}."
-        if isinstance(contents, str):
-            return __parse_zmx_str(contents)
+        :return: The OrderedCommandDict representation.
+        """
+        if isinstance(input_path_or_stream, PathLike):
+            input_file = open(input_path_or_stream, 'rb')
         else:
-            return __parse_zmx_bytes(contents)
+            input_file = input_path_or_stream
+        with input_file:
+            contents = input_file.read()
+            if len(contents) == 0:
+                raise EOFError(f"Empty file: 0 bytes read from {input_file.name}.")
+            if not isinstance(contents, str):
+                """Attempt to parse the byte contents of the file using different encodings."""
+                commands = None
+                for encoding in ('utf-16', 'utf-16-le', 'utf-8', 'utf-8-sig', 'iso-8859-1'):
+                    try:
+                        commands = cls.from_str(contents.decode(encoding), spaces_per_tab=spaces_per_tab)
+                    except UnicodeDecodeError as err:
+                        log.debug(f"{err}: File {input_file.name} not encoded using {encoding}!")
+                    except ValueError as err:
+                        log.debug(f"{err}: File {input_file.name} does not seem to be encoded using {encoding}!")
+                if commands is None:
+                    raise IOError(f"Could not read {input_file.name}.")
+        return commands
+
+    @property
+    def names(self) -> Sequence[str]:
+        """A sequence of all the command names in order and potentially repeating."""
+        return [_.name for _ in self.__commands]
+
+    def __iter__(self) -> Iterator[Command]:
+        """
+        An iterator over all the commands in order.
+        This is called when using
+        ```
+        for _ in command_dict:
+            ...
+        ```
+        """
+        return self.__commands.__iter__()
+
+    def __len__(self) -> int:
+        """The total number of commands."""
+        return len(self.__commands)
+
+    def __sizeof__(self) -> int:
+        """The total number of commands."""
+        return len(self)
+
+    def __contains__(self, name_or_command: str | Command) -> bool:
+        """
+        Checks whether this contains a specific command or a command with a specific name.
+
+        :param name_or_command: The name or command to look for.
+
+        :return: True if the command is contained, False otherwise.
+        """
+        if isinstance(name_or_command, str):
+            return name_or_command in self.names
+        return name_or_command in self.__commands
+
+    def __getitem__(self, item: int | Tuple | slice | str) -> Command | OrderedCommandDict:
+        """
+        Returns a command at a specific integer index or
+        returns a `CommandSequence` with all commands with the specified name.
+        """
+        if not isinstance(item, Tuple):
+            item = (item, )
+        current_index = item[0]
+        other_indices = item[1:]
+        if isinstance(current_index, int):
+            if current_index < len(self.__commands):
+                result = self.__commands[current_index]
+            else:
+                raise IndexError(f"Only {len(self.__commands)} available. Index {current_index} does not exist.")
+        elif isinstance(current_index, slice):
+            result = OrderedCommandDict(self.__commands[current_index])
+        else:  # isinstance(item, str)
+            result = OrderedCommandDict([c for _, c in enumerate(self.__commands) if c.name == current_index])
+        if len(item) > 1:
+            result = result[other_indices]
+        return result
+
+    def sort_and_merge(self, name: str) -> OrderedCommandDict:
+        """
+        Get a sorted collection of arguments for an indexed command. Returns a new command dictionary for that is stored
+        on the integer index at the start of their argument. The contents of identical indices are merged so that the
+        returned collection does not contain duplicate indices.
+
+        :param name: The command name to single out.
+
+        :return: A collection of commands, sorted by its index, and merging items with the same index.
+        """
+        dict_of_lists = defaultdict(lambda: list[Command]())
+        for c in self.__commands:
+            if c.name == name:
+                dict_of_lists[int(c.argument.split(maxsplit=1)[0])].append(c)
+
+        def merge(commmands: Sequence[Command]) -> Command:
+            """Auxiliary function to merge similar `Command`s into a single `Command`."""
+            assert all(_.name == commmands[0].name for _ in commmands[1:]), "Can only merge commands with the same name."
+            argument_matches = [re.match(r"\s*(\S+)(\s.*)", _.argument) for _ in commmands]
+            arguments = [(_.groups()[1][1:] if _ is not None else "") for _ in argument_matches]
+            children = list[Command]()
+            for _ in commmands:
+                if _.children is not None:
+                    children += _.children
+            return Command(name=commmands[0].name,
+                           argument='\n'.join(arguments),
+                           children=OrderedCommandDict(children))
+
+        return OrderedCommandDict([merge(dict_of_lists[_]) for _ in sorted(dict_of_lists)])
+
+    def __delitem__(self, index):
+        del self.__commands[index]
+
+    def append(self, new_command: Command) -> Self:
+        """Adds a new command at the end of the sequence."""
+        self.__commands.append(new_command)
+        return self
+
+    def __str__(self) -> str:
+        """
+        Return the text string from which this object is parsed.
+        Aside from the line-break character choice, this should correspond to the input at creation using from_str().
+        """
+        return '\n'.join(str(_) for _ in self)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({[repr(_) for _ in self]}, spaces_per_tab={self.spaces_per_tab})"
+
+
+class Command:
+    def __init__(self, name: str = "", argument: Optional[str] = None, children: Optional[OrderedCommandDict] = None):
+        """
+        Construct a new command, corresponding to a line or section of a text file.
+
+        :param name: The command name, must be an ASCII string without whitespace.
+        :param argument: The optional arguments, may start with an index number.
+        :param children: An optional sub-tree of sub-commands.
+        """
+        self.name: str = name
+        self.argument: Optional[str] = argument
+        self.children: Optional[OrderedCommandDict] = children
+
+    @property
+    def words(self) -> Sequence[str]:
+        """
+        All the words in the argument.
+
+        A word is defined as:
+
+        * a string of characters without whitespace
+
+        * a single or double-quoted string of characters on the same line.
+
+        * a triple-quoted string of characters on multiple lines.
+        """
+        result = list[str]()
+        if self.argument is not None:
+            for match in re.finditer(r"'''([^']*)'''|'([^'\n\r]*)'|\"\"\"([^\"]*)\"\"\"|\"([^\"\n\r]*)\"|(\S+)",
+                                     self.argument):
+                result += [_ for _ in match.groups() if _ is not None]
+        return result
+
+    @property
+    def numbers(self) -> Sequence[float]:
+        """All the numbers in the argument."""
+        result = list[float]()
+        for w in self.words:
+            try:
+                result.append(float(w.strip(",;:\"\'")))
+            except ValueError:
+                pass
+        return result
+
+    def __getitem__(self, item: int | Tuple | slice | str) -> Command | OrderedCommandDict:
+        """
+        Returns a
+
+        :param item: The selection index
+        :return: A `Command` with the selected when item is an int, otherwise an `OrderedCommandDict` with the selection.
+        """
+        return self.children[item]
+
+    def __str__(self) -> str:
+        """
+        Return the text string from which this object is parsed.
+        Aside from the line-break character choice, this should correspond to the input at creation using from_str().
+        """
+        if self.argument is not None:
+            result = ' '.join([self.name, self.argument])
+        else:
+            result = self.name
+        if len(self.children) > 0:
+            result += ''.join(f"\n{' ' * self.children.spaces_per_tab}{_}" for _ in self.children)
+        return result
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}("{self.name}", "{self.argument}", {repr(self.children)})'
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
+
+    def __eq__(self, other: Command) -> bool:
+        return hash(self) == hash(other)
+
+
+class ZmxOpticalDesign(OpticalDesign):
+    @staticmethod
+    def from_str(contents: str, spaces_per_tab: int = 2) -> ZmxOpticalDesign:
+        """Parses the text extracted from a .zmx file into an `OpticalDesign`."""
+        return ZmxOpticalDesign(OrderedCommandDict.from_str(contents, spaces_per_tab))
+
+    @staticmethod
+    def from_file(input_path_or_stream: Union[FileLike, PathLike], spaces_per_tab: int = 2) -> ZmxOpticalDesign:
+        """
+        Reads a zmx file into an `OpticalDesign` representation.
+
+        :param input_path_or_stream: The file to read the optical system from, or its file-path.
+        :param spaces_per_tab: The optional number of spaces per tab.
+
+        :return: A representation of the optical system.
+        """
+        return ZmxOpticalDesign(OrderedCommandDict.from_file(input_path_or_stream, spaces_per_tab))
+
+    def __init__(self, commands: OrderedCommandDict):
+        self.commands = commands
+
+        self.version = self.commands["VERS", 0].argument if "VERS" in self.commands else ""
+        self.sequential = True
+        if "MODE" in self.commands:
+            mode = self.commands["MODE", 0].words[0]
+            if mode != "SEQ":
+                if mode == "NSC":
+                    log.warning(f"Non-sequential mode not implemented.")
+                else:
+                    log.warning(f"Unrecognized mode {mode}.")
+                self.sequential = False
+        self.name = self.commands["NAME", 0].argument if "NAME" in self.commands else ""
+        self.author = self.commands["AUTH", 0].argument if "AUTH" in self.commands else ""
+        self.description = '\n'.join(_.argument.replace('\n', '') for _ in self.commands.sort_and_merge("NOTE")) \
+            if "NOTE" in self.commands else ""
+        self.field_comment = self.commands["FCOM", 0].argument if "FCOM" in self.commands else ""
+        self.unit: float = 1.0
+        if "UNIT" in self.commands:
+            unit_code = self.commands["UNIT", 0].argument.split(maxsplit=1)[0]
+            unit_dict = {"UM": 1e-6, "MM": 1e-3, "CM": 1e-2, "DM": 100e-3, "METER": 1.0, "ME": 1.0, "M": 1.0,
+                         "DA": 10.0, "HM": 100.0, "KM": 1e3, "GM": 1e9, "TM": 1e12,
+                         "IN": 25.4e-3, "FEET": 304.8e-3, "FT": 304.8e-3, "FE": 304.8e-3, "FO": 304.8e-3}
+            if unit_code in unit_dict:
+                self.unit = unit_dict[unit_code]
+            else:
+                log.warning(f"Unrecognized unit code {unit_code}. Defaulting to 1m.")
+        self.surfaces = [ZmxSurface(s.children) for s in self.commands.sort_and_merge("SURF")]
+        self.wavelengths = self.commands["WAVL", 0].numbers if "WAVL" in self.commands else list[float]()  # "WAVM" doesn't seem very reliable. Perhaps this depends on the version?
+        self.wavelength_weights = self.commands["WWGT", 0].numbers if "WWGT" in self.commands else list[float]()
+        if len(self.wavelength_weights) < len(self.wavelengths):
+            self.wavelength_weights = [*self.wavelength_weights, *([1.0] * (len(self.wavelengths) - len(self.wavelength_weights)))]
+        if len(self.wavelengths) == 0 and "WAVM" in self.commands:  # This seems to be the new way, but it contains many unused wavelengths as well
+            wavelengths_and_weights = [_.numbers[:2] for _ in self.commands.sort_and_merge("WAVM")]
+            unique_wavelengths = set(_[0] for _ in wavelengths_and_weights)
+            nb_occurences = [sum(u == _[0] for _ in wavelengths_and_weights) for u in unique_wavelengths]
+            unique_wavelengths = [_ for _, n in zip(unique_wavelengths, nb_occurences) if n == 1]
+            wavelengths_and_weights = [_ for _ in wavelengths_and_weights if _[0] in unique_wavelengths]
+
+            self.wavelengths = [_[0] for _ in wavelengths_and_weights]
+            self.wavelength_weights = [_[1] for _ in wavelengths_and_weights]
+        self.material_libraries = list[MaterialLibrary]()
+        if "GCAT" in self.commands:
+            for name in self.commands["GCAT", 0].words:
+                self.material_libraries.append(MaterialLibrary(name=name, description=name))
+        self.coating_filenames = list[str]()
+        if "COFN" in self.commands:
+            file_names = self.commands["COFN", 0].words
+            if file_names[0] == "QF":
+                file_names = file_names[1:]
+            self.coating_filenames += file_names
+        self.numerical_aperture = 1.0
+        if "FNUM" in self.commands:
+            f_number = self.commands["FNUM", 0].numbers[0]
+            self.numerical_aperture = 2.0 / f_number  # todo: account for refractive index of object or image space?
+
+        # Make all units meters
+        self.wavelengths = [_ * 1e-6 for _ in self.wavelengths]
+        for s in self.surfaces:
+            s.curvature /= self.unit
+            s.distance *= self.unit
+            s.radius *= self.unit
+
+    def __str__(self) -> str:
+        """
+        Return the text string from which this object is parsed.
+        Aside from the line-break character choice, this should correspond to the input at creation using from_str().
+        """
+        return str(self.commands)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(commands={repr(self.commands)})"
+
+
+class ZmxSurface(Surface):
+    """A class to represent a thin surface between two volumes as read from a .zmx file."""
+    def __init__(self, commands: OrderedCommandDict):
+        """
+        Construct a new surface based from a command dictionary that represents the corresponding lines in the file.
+
+        :param commands: The command dictionary.
+        """
+        self.commands = commands
+
+        self.material = Vacuum()
+        self.type = self.commands["TYPE", 0].argument if "TYPE" in self.commands else "STANDARD"
+        self.curvature = self.commands["CURV", 0].numbers[0] if "CURV" in self.commands else 0.0
+        self.coating = self.commands["COAT", 0].argument if "COAT" in self.commands else ""
+        self.radius = self.commands["DIAM", 0].numbers[0] / 2.0 if "DIAM" in self.commands else math.inf
+        self.stop = "STOP" in self.commands
+        self.distance = self.commands["DISZ", 0].numbers[0] if "DISZ" in self.commands else math.inf
+        self.comment = self.commands["COMM", 0].argument if "COMM" in self.commands else ""
+        glass_name = self.commands["GLAS", 0].words[0] if "GLAS" in self.commands else ""
+        self.material = Material(name=glass_name)
+        self.reflect = glass_name == "MIRROR"  # Not "MIRR" command for some reason
+        # self.floating_aperture = self.commands["FLAP", 0].numbers if "FLAP" in self.commands else 0.0
+        # self.conic_constant = self.commands["CONI", 0].numbers if "CONI" in self.commands else 0.0
+
+    def __str__(self) -> str:
+        """
+        Return the text string from which this object is parsed.
+        Aside from the line-break character choice, this should correspond to the input at creation using from_str().
+        """
+        return str(self.commands)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(commands={repr(self.commands)})"
+
+
+if __name__ == "__main__":
+    import time
+    import zmxtools
+    zmxtools.log.handlers[0].level = -1
+
+    test_file = "/home/tom/repositories/optical_design_gits/zmxtools/tests/data/SpeckleUsingPOP_GridSagSurf.ZMX"
+    # test_file = "/home/tom/repositories/optical_design_gits/zmxtools/tests/data/3116-S02.ZMX"
+
+    spaces_per_tab = 2
+
+    log.info(f"Reading {test_file}...")
+
+    start_time = time.perf_counter()
+
+    with open(test_file, "rt", encoding="utf-8") as file:
+        input_str = file.read()
+        # input_lines = [_.rstrip("\r\n") for _ in input_lines]
+        command_seq = OrderedCommandDict.from_str(input_str)
+
+        print(repr(command_seq["NOTE"][1]))
+        print(repr(command_seq.sort_and_merge("NOTE")[0].argument.replace('\n', '')))
+        # command_seq["NAME"][0].argument += "TEST"
+        # del command_seq[-1]
+        # command_seq.append(Command("BLAA", "1 2.3 3 INFINITY -5e-3, 5, BREAK 6"))
+        # print(repr(command_seq["BLAA"][0]))
+        # print(command_seq.arguments("NOTE", 0).replace('\n', ''))
+        # print("------------")
+        # print(command_seq["BLAA"][0])
+        # print([repr(_) for _ in command_seq["BLAA"][0].numbers])
+        # print("------------")
+
+        output_lines = str(command_seq).splitlines()
+
+        input_lines = input_str.splitlines()
+        if len(input_lines) != len(output_lines):
+            log.warning(f"The number of input lines ({len(input_lines)}) differs from the number of output lines ({len(output_lines)}).")
+        else:
+            log.info(f"The number of output lines, {len(output_lines)}, is the same.")
+        for _, (a, b) in enumerate(zip(input_lines, output_lines)):
+            if a != b:
+                log.warning(f"Line {_} differs:\n{a}|\n{b}|\n---\n")
+        log.info("Compared line by line.")
+
+    # lens = ZmxIO("file.zmx")
+    # lens["SURF", "1", "CURV"] = "0.100 ..."
+    # lens["SURF", "1", "DISZ"] = "0.200"
+    # lens["SURF", "2"] = "a comment"
+    # print(str(lens))
+
+    log.info("Parsing as an optical model...")
+    # design = ZmxOpticalDesign.from_str(input_str)
+    design = ZmxOpticalDesign(command_seq)
+
+    log.info("Done!")
