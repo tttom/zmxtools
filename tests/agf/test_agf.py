@@ -7,7 +7,7 @@ import itertools
 import pathlib
 
 from tests.agf import test_directory, test_files
-from zmxtools.definitions import const_c
+from zmxtools.definitions import const_c, Vacuum, CiddorAir
 from zmxtools import agf
 
 from tests.zmx import log
@@ -15,6 +15,52 @@ log = log.getChild(__name__)
 
 log.level = logging.DEBUG
 agf.log.level = logging.DEBUG
+
+
+def test_vacuum():
+    vacuum = Vacuum()
+    npt.assert_almost_equal(vacuum.complex_refractive_index(wavelength=633e-9), 1.0, decimal=16,
+                            err_msg=f"Vacuum refractive index is not returned correctly.")
+    npt.assert_almost_equal(vacuum.complex_refractive_index(wavelength=[488e-9, 532e-9, 633e-9]), 1.0, decimal=16,
+                            err_msg=f"Vacuum refractive index is not returned correctly.")
+    npt.assert_almost_equal(vacuum.extinction_coefficient(wavelength=[488e-9, 532e-9, 633e-9]), 0.0, decimal=16,
+                            err_msg=f"Vacuum extinction coefficient is not returned correctly.")
+
+
+def test_air():
+    air = CiddorAir(pressure=101_325, temperature=20 + 273.15, relative_humidity=0.00, co2_mole_fraction=450e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000271800, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.pressure = 60_000
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000160924, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.pressure = 120_000
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000321916, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = CiddorAir(pressure=100e3, temperature=50 + 273.15, relative_humidity=0.00, co2_mole_fraction=450e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000243285, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.temperature = 5 + 273.15
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000282756, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.temperature = -40 + 273.15
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000337580, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = CiddorAir(pressure=120e3, temperature=50 + 273.15, relative_humidity=1.00, co2_mole_fraction=450e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000287924, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = CiddorAir(pressure=100_000, temperature=30 + 273.15, relative_humidity=0.50, co2_mole_fraction=500e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.00025863, decimal=8,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = CiddorAir(pressure=101_325, temperature=-40 + 273.15, relative_humidity=0.50, co2_mole_fraction=450e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000342056, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = CiddorAir(pressure=140e3, temperature=-2 + 273.15, relative_humidity=0.50, co2_mole_fraction=450e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000406109, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = CiddorAir(pressure=140e3, temperature=-0.1 + 273.15, relative_humidity=0.50, co2_mole_fraction=450e-6)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000403252, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
 
 
 def test_from_file():

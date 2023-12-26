@@ -4,12 +4,10 @@ import re
 from typing import Optional, Self, Sequence, Union, Iterator, Tuple
 from collections import defaultdict
 
+from zmxtools.definitions import FileLike, PathLike
 from zmxtools import log
 
 log = log.getChild(__name__)
-
-
-from zmxtools.definitions import FileLike, PathLike
 
 
 class OrderedCommandDict:

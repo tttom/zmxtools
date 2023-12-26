@@ -2,7 +2,7 @@ from __future__ import  annotations
 
 import re
 import typing
-from typing import Optional, Self, List, Sequence, Union, Iterator
+from typing import Optional, Self, List, Sequence, Iterator, Callable
 import pathlib
 import io
 import os
@@ -65,9 +65,9 @@ class BytesFile:
             return self.__content_stream.read(n)
 
 
-BinaryFileLike = Union[BytesFile, typing.BinaryIO]
-FileLike = Union[BinaryFileLike, typing.IO]
-PathLike = Union[os.PathLike, str]
+BinaryFileLike = BytesFile | typing.BinaryIO
+FileLike = BinaryFileLike | typing.IO
+PathLike = os.PathLike | str
 
 
 @dataclass
@@ -344,59 +344,38 @@ class Material:
         return hash(self) == hash(other)
 
 
-class Vacuum(Material):
-    def __init__(self):
-        super().__init__("vacuum")
-
-    def complex_refractive_index(self,
-                                 wavenumber: Optional[array_like] = None,
-                                 wavelength: Optional[array_like] = None,
-                                 angular_frequency: Optional[array_like] = None) -> array_type:
+class FunctionMaterial(Material):
+    """A class to represent a material as glass"""
+    def __init__(self, name: str = "", wavenumber_limits: array_like = (0.0, np.inf),
+                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
+                 permittivity_function: Optional[Callable[[array_type, array_type, array_type], array_type]] = None):
         """
-        Calculates the complex refractive index for this material at the specified wavenumbers, wavelengths, or
-        angular_frequencies. Its real part is the conventional refractive index and its imaginary part is the extinction
-        coefficient. Only one of wavenumber, wavelength, or angular_frequency, must be specified.
+        Construct a new Material object to present a meterial at a given temperature and pressure.
+
+        :param name: The name of the material.
+        :param wavenumber_limits: An array with the lowest and highest wavenumber at which this material is valid.
+        :param temperature: The temperature of this material in degrees Kelvin, K.
+        :param pressure: The pressure of this material in Pa = N/m^2.
+        :param permittivity_function: A function that returns an array of refractive indices at the specified
+            wavenumbers, temperatures, and pressures. The returned array should be broadcasted according to its input
+            arguments.
+        """
+        super().__init__(name=name, wavenumber_limits=wavenumber_limits, temperature=temperature, pressure=pressure)
+        self.__permittivity_function = permittivity_function
+
+    def permittivity(self,
+                     wavenumber: Optional[array_like] = None,
+                     wavelength: Optional[array_like] = None,
+                     angular_frequency: Optional[array_like] = None) -> array_type:
+        """
+        Calculates the relative permittivity for this material at the specified wavenumbers, wavelengths, or angular
+        frequencies. Only one must be specified.
 
         :param wavenumber: The wavenumbers in rad/m.
         :param wavelength: The wavelength in units of m.
         :param angular_frequency: The angular velocity in units of rad/s.
 
-        :return: The complex refractive index.
-        """
-        if wavenumber is None:
-            if wavelength is None:
-                return asarray(angular_frequency) * 0.0 + 1.0
-            else:
-                return asarray(wavelength) * 0.0 + 1.0
-        else:
-            return asarray(wavenumber) * 0.0 + 1.0
-
-
-class Air(Material):
-    def __init__(self, temperature: Optional[array_like] = None, pressure: Optional[array_like] = None):
-        """
-        Construct a new Material object to present air at a given temperature and pressure.
-
-        :param temperature: The temperature in degrees Kelvin, K.
-        :param pressure: The pressure in Pa = N/m^2.
-        """
-        super().__init__("air", temperature=temperature, pressure=pressure)
-
-    def complex_refractive_index(self,
-                                 wavenumber: Optional[array_like] = None,
-                                 wavelength: Optional[array_like] = None,
-                                 angular_frequency: Optional[array_like] = None,
-                                 ) -> array_type:
-        """
-        Calculates the complex refractive index for this material at the specified wavenumbers, wavelengths, or
-        angular_frequencies. Its real part is the conventional refractive index and its imaginary part is the extinction
-        coefficient. Only one of wavenumber, wavelength, or angular_frequency, must be specified.
-
-        :param wavenumber: The wavenumbers in rad/m.
-        :param wavelength: The wavelength in units of m.
-        :param angular_frequency: The angular velocity in units of rad/s.
-
-        :return: The complex refractive index.
+        :return: The relative permittivity.
         """
         if wavenumber is None:
             if wavelength is None:
@@ -406,15 +385,110 @@ class Air(Material):
             wavenumber = 2 * np.pi / asarray(wavelength)
         else:
             wavenumber = asarray(wavenumber)
+        wavenumber = wavenumber.real
+        return self.__permittivity_function(wavenumber, self.temperature, self.pressure)
 
-        reference_temperature = 20.0 + 273.15
-        w2 = (2 * np.pi / wavenumber)**2
-        dn = 6432.8 + (2949810.0 * w2) / (146.0 * w2 - 1.0) + (25540.0 * w2) / (41.0 * w2 - 1.0)
-        dn *= 1e-8
+    def complex_refractive_index(self,
+                                 wavenumber: Optional[array_like] = None,
+                                 wavelength: Optional[array_like] = None,
+                                 angular_frequency: Optional[array_like] = None) -> array_type:
+        """
+        Calculates the complex refractive index for this material at the specified wavenumbers. Its real part is the
+        conventional refractive index and its imaginary part is the extinction coefficient.
+        Only one of wavenumber, wavelength, or angular_frequency, must be specified.
 
-        relative_pressure = self.pressure / 101.13e3   # the pressure relative to the reference pressure, in Pa
-        d_temp = self.temperature - reference_temperature  # In degrees K
-        return 1.0 + relative_pressure * dn / (1.0 - d_temp * 3.4785e-3)
+        :param wavenumber: The wavenumbers in rad/m.
+        :param wavelength: The wavelength in units of m.
+        :param angular_frequency: The angular velocity in units of rad/s.
+
+        :return: The complex refractive index.
+        """
+        return self.permittivity(wavenumber=wavenumber, wavelength=wavelength, angular_frequency=angular_frequency) ** 0.5
+
+
+class Vacuum(FunctionMaterial):
+    def __init__(self):
+        super().__init__("vacuum", permittivity_function=lambda k, t, p: asarray(k+t+p) * 0.0 + 1.0)
+
+
+class CiddorAir(FunctionMaterial):
+    def __init__(self, name: str = "air", wavenumber_limits: array_like = (2 * np.pi / 1700e-3, 2 * np.pi / 300e-3),
+                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
+                 relative_humidity: Optional[array_like] = None, co2_mole_fraction: Optional[array_like] = None):
+        """
+        Construct a new Material object to present air at a given temperature, pressure, humidty, and CO2 concentration.
+        The Ciddor formula is used: https://emtoolbox.nist.gov/Wavelength/Documentation.asp#AppendixAIII
+        https://emtoolbox.nist.gov/Wavelength/Ciddor.asp
+
+        :param temperature: The temperature in degrees Kelvin, K.
+        :param pressure: The pressure in Pa = N/m^2.
+        :param relative_humidity: between 0 and 1.
+        :param co2_mole_fraction: in mole per mole of air.
+        """
+        self.relative_humidity = relative_humidity if relative_humidity is not None else 0.50
+        self.co2_mole_fraction = co2_mole_fraction if co2_mole_fraction is not None else 450e-6
+
+        def permittivity_function(wavenumber: array_type, temperature: array_type, pressure: array_type) -> array_type:
+            # https://emtoolbox.nist.gov/Wavelength/Documentation.asp#AppendixAIII
+
+            w = [295.235, 2.6422, -0.03238, 0.004028]
+            k = [238.0185, 5792105, 57.362, 167917]
+            a = [1.58123e-6, -2.9331e-8, 1.1043e-10]
+            b = [5.707e-6, -2.051e-8]
+            c = [1.9898e-4, -2.376e-6]
+            d = 1.83e-11
+            e = -0.765e-8
+            pressure_reference = 101325
+            temperature_reference = 288.15
+            Z_a = 0.9995922115
+            rho_vs = 0.00985938
+            R = 8.314472
+            M_v = 0.018015
+
+            wavelength = 2 * np.pi / wavenumber
+            spatial_frequency_um_sqd = 1 / (wavelength / 1e-6)**2
+            r_as = 1e-8 * (k[1] / (k[0] - spatial_frequency_um_sqd) + k[3] / (k[2] - spatial_frequency_um_sqd))
+            r_vs = 1.022e-8 * (w[0] + w[1] * spatial_frequency_um_sqd + w[2] * spatial_frequency_um_sqd**2 + w[3] * spatial_frequency_um_sqd**3)
+            M_a = 0.0289635 + 1.2011 * 1e-8 * (co2_mole_fraction / 1e-6 - 400)
+            r_axs = r_as * (1 + 5.34 * 1e-7 * (co2_mole_fraction / 1e-6 - 450))
+            temperature_celcius = temperature - 273.15
+
+            abg = [1.00062, 3.14e-8, 5.60e-7]
+            f_pt = abg[0] + abg[1] * pressure + abg[2] * temperature_celcius**2
+
+            over_water = temperature > 273.16
+            # For saturation vapor pressure over water
+            omega = temperature - 2.38555575678e-01 / (temperature - 6.50175348448e+02)
+            p_sv_a = omega**2 + 1.16705214528e+03 * omega - 7.24213167032e+05
+            p_sv_b = -1.70738469401e+01 * omega**2 + 1.20208247025e+04 * omega - 3.23255503223e+06
+            p_sv_c = 1.49151086135e+01 * omega**2 - 4.82326573616e+03 * omega + 4.05113405421e+05
+            p_sv_x = -p_sv_b + (p_sv_b**2 - 4 * p_sv_a * p_sv_c)**0.5
+            p_sv_water = 1e6 * (2 * p_sv_c / p_sv_x)**4
+
+            # For saturation vapor pressure over ice
+            theta = temperature / 273.16
+            p_sv_y = -13.928169 * (1 - theta**-1.5) + 34.7078238 * (1 - theta**-1.25)
+            p_sv_ice = 611.657 * np.exp(p_sv_y)
+
+            p_sv = p_sv_water * over_water + p_sv_ice * (1 - over_water)
+
+            x_v = relative_humidity * f_pt * p_sv / pressure
+
+            z_m = 1 - (pressure / temperature) * (a[0] + a[1] * temperature_celcius +
+                                                  a[2] * temperature_celcius**2 +
+                                                  (b[0] + b[1] * temperature_celcius) * x_v +
+                                                  (c[0] + c[1] * temperature_celcius) * x_v**2) \
+                  + (pressure / temperature) ** 2 * (d + e * x_v**2)
+            rho_axs = pressure_reference * M_a / (Z_a * R * temperature_reference)
+            rho_v = x_v * pressure * M_v / (z_m * R * temperature)
+            rho_a = (1 - x_v) * pressure * M_a / (z_m * R * temperature)
+
+            n = 1.0 + (rho_a / rho_axs) * r_axs + (rho_v / rho_vs) * r_vs
+
+            return n ** 2
+
+        super().__init__(name=name, wavenumber_limits=wavenumber_limits,
+                         temperature=temperature, pressure=pressure, permittivity_function=permittivity_function)
 
 
 class MaterialLibrary:

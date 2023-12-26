@@ -178,18 +178,18 @@ class AgfMaterial(Material):
         name = self.command.words[0]
         formula_index, glass_code, self.__refractive_index_d, self.__constringence, exclude_sub, status_index, self.production_frequency = \
             to_length([as_float(_) for _ in self.command.words[1:]], 7, pad_value=0.0)
-        formula_index = int(formula_index)
-        self.glass_code = self.command.words[1]
+        # formula_index = int(formula_index)
+        # self.glass_code = self.command.words[1]
         status_index = int(status_index)
         statuses = ["standard", "preferred", "special", "obsolete", "melt"]
-        self.status = f"{statuses[status_index - 1]} ({status_index})"
+        # self.status = f"{statuses[status_index - 1]} ({status_index})"
 
         # Extract the child-node arguments now
         self.description = self.command["GC", 0].argument if "GC" in self.command else ""
         alpham3070, alpha20300, density_g_cm3, delta_relative_partial_dispersion_g_F, ignore_thermal_expansion = to_length(
             self.command["ED", 0].numbers if "ED" in self.command else list[float](), 5, pad_value=0.0)
         self.density = density_g_cm3 * 1e3
-        self.ignore_thermal_expansion = ignore_thermal_expansion != 0
+        # self.ignore_thermal_expansion = ignore_thermal_expansion != 0
 
         # The permittivity formula coefficients for wavelengths in meters
         self._permittivity_coefficients_um = self.command["CD", 0].numbers if "CD" in self.command else list[float]()
@@ -387,9 +387,7 @@ class HerzbergerAgfMaterial(AgfMaterial):
 class ConradyAgfMaterial(AgfMaterial):
     def _real_reference_refractive_index_um(self, w: array_type) -> array_type:
         c = to_length(self._permittivity_coefficients_um, 3, pad_value=0.0)
-        return c[0] \
-            + (c[1] / w) \
-            + (c[2] / w**3.5)
+        return c[0] + (c[1] / w) + (c[2] / w**3.5)
 
 
 class HandbookOfOptics1AgfMaterial(AgfMaterial):
@@ -440,7 +438,7 @@ class Extended2AgfMaterial(AgfMaterial):
 
 class Formula13AgfMaterial(AgfMaterial):
     def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 10, pad_value=0.0)
+        c = to_length(self._permittivity_coefficients_um, 9, pad_value=0.0)
         w2 = w**2
         return c[0] \
             + (c[1] * w2) \
@@ -450,5 +448,4 @@ class Formula13AgfMaterial(AgfMaterial):
             + (c[5] * w2**-3) \
             + (c[6] * w2**-4) \
             + (c[7] * w2**-5) \
-            + (c[8] * w2**-6) \
-            + (c[9] * w2**-6)
+            + (c[8] * w2**-6)
