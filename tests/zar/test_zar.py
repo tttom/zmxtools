@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_files
@@ -5,6 +6,7 @@ from zmxtools import cli, zar
 
 from tests.zar import log
 log = log.getChild(__name__)
+log.level = logging.DEBUG
 
 
 paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_files.items() if zmx_path is not None}
@@ -27,14 +29,14 @@ def test_unpack():
                         assert zmx_file.read() == packed_data.read(), (
                             f'Data in {packed_data.name} is not what is expected.'
                         )
-                except AssertionError as exc:  # Write out the actual file for later reference
+                except AssertionError as exc:  # Write out the unpacked file for later reference
                     with open(
                         paired_test_files[zar_full_file].parent / (
-                            paired_test_files[zar_full_file].name[:-4] + '_actual.zmx'
+                            paired_test_files[zar_full_file].name[:-4] + '_unpacked.zmx'
                         ),
                         'wb',
                     ) as actual_zmx_file:
-                        actual_zmx_file.write(packed_data.contents)  # for debugging
+                        actual_zmx_file.write(packed_data.read())  # for debugging
                     raise exc
         assert len(packed_files) >= MIN_FILES_IN_ARCHIVE, (
             f'Expected more files than {packed_files} in {repr(zar_full_file)}'

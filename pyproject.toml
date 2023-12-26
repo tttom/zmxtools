@@ -20,6 +20,7 @@ classifiers = [
 python = "^3.10"
 importlib_metadata = "^6.8"
 coloredlogs = "^15.0.1"
+numpy = "^1.26.2"
 
 
 [tool.poetry.group.docs]

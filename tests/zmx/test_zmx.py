@@ -13,8 +13,8 @@ zmx.log.level = logging.WARNING
 vacuum = Vacuum()
 
 
-def test_read():
-    """Tests the zmxtools.zmx.read function."""
+def test_from_file():
+    """Tests the zmx.ZmxOpticalDesign.from_file function."""
 
     assert len(test_files) > 1, (
         f'No zmx files found in {test_directory}!'
@@ -60,8 +60,4 @@ def test_read():
             assert all(10e-9 <= _ <= 100e-6 for _ in optical_system.wavelengths), f"Unusual wavelengths found {optical_system.wavelengths} in {zmx_file_path}!"
         else:
             assert all(100e-6 <= _ <= 10e-3 for _ in optical_system.wavelengths), f"Unusual long wavelengths found {optical_system.wavelengths} in {zmx_file_path}!"
-
-        # if not all(10e-9 <= _ <= 100e-6 for _ in optical_system.wavelengths):
-        #     import os
-        #     os.rename(zmx_file_path, test_directory / "long_wavelength" / zmx_file_path.name)
 
