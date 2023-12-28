@@ -66,9 +66,7 @@ def test_air():
 def test_from_file():
     """Tests agf.AgfMaterialLibrary.from_file function."""
 
-    assert len(test_files) > 1, (
-        f'No agf files found in {test_directory}!'
-    )
+    assert len(test_files) > 1, f'No agf files found in {test_directory}!'
 
     material_type_dict = defaultdict[Type, List[pathlib.Path]](list)
     tested_material_type_dict = defaultdict[Type, List[pathlib.Path]](list)
@@ -118,11 +116,25 @@ def test_from_file():
                                         err_msg=f"{material.name} transmittance incorrect for 1mm")
                 npt.assert_almost_equal(material.absorption_coefficient(wavelength=500e-9), 0.78606, decimal=5,
                                         err_msg=f"{material.name} absorption coefficient incorrect")
-                if isinstance(material, agf.AgfMaterial):
+                # Check pressure
+                npt.assert_equal(material.pressure, 101.13e3, f"Expected default pressure to be 101,130 Pa, not {material.pressure} Pa.")
+                material.pressure = 50.0
+                npt.assert_equal(material.pressure, 50.0, f"Expected pressure to be 50 Pa, not {material.pressure} Pa.")
+
+                # Check temperature
+                npt.assert_almost_equal(material.temperature, 20+273.15, decimal=5,
+                                        err_msg=f"Expected default pressure to be 293.15K, not {material.temperature} K.")
+                material.temperature = 1000 + 273.15
+                npt.assert_almost_equal(material.temperature, 1000 + 273.15, decimal=4,
+                                        err_msg=f"Expected default pressure to be 1273.15K, not {material.temperature} K.")
+                npt.assert_almost_equal(material.refractive_index(wavelength=500e-9), 1.5241, decimal=4,
+                                        err_msg=f"{material.name} n is returned incorrectly.")
+
+                if isinstance(material, agf.AgfMixin):
                     npt.assert_almost_equal(material.density, 2.51e3, decimal=5,
                                             err_msg=f"{material.name} density is returned incorrectly as {material.density}.")
                 else:
-                    raise AssertionError(f"{material} should be an subclass of agf.AgfMaterial.")
+                    raise AssertionError(f"{material} should be an subclass of agf.AgfMixin.")
 
             if material.name == "S-BAH54":  # 1 in OHARA
                 tested_material_type_dict[material.__class__].append(agf_file_path)
@@ -156,7 +168,7 @@ def test_from_file():
                 npt.assert_almost_equal(material.transmittance(10e-3, wavelength=633e-9), 0.99800, decimal=5,
                                         err_msg=f"{material.name} transmittance incorrect for 1cm")
 
-            if material.name == "NICHIA_MELT1":
+            if material.name == "NICHIA_MELT1":  # ConradyAgfMaterial
                 tested_material_type_dict[material.__class__].append(agf_file_path)
                 log.info(f"Analysing {material.name} of type {material.__class__.__name__} from {material_library.name}...")
                 npt.assert_almost_equal(material.refractive_index_d, 1.493724, decimal=6,
@@ -217,15 +229,6 @@ def test_from_file():
                                         err_msg=f"{material.name} n is returned incorrectly.")
                 npt.assert_almost_equal(material.extinction_coefficient(wavelength=500e-9), 6.8222e-8, decimal=4,
                                         err_msg=f"{material.name} extinction coefficient incorrect")
-
-            # if material.name == "CDASS":
-            #     tested_material_type_dict[material.__class__].append(agf_file_path)
-            #     conrady_files.append(agf_file_path.name)
-            #     log.info(f"Analysing {material.name} of type {material.__class__.__name__} from {material_library.name}...")
-            #     npt.assert_almost_equal(material.refractive_index_d, 3.5963, decimal=6,
-            #                             err_msg=f"{material.name} n at 500nm is returned incorrectly.")
-            #     npt.assert_almost_equal(material.transmittance(25e-3, wavelength=500e-9), 1.0, decimal=5,
-            #                             err_msg=f"{material.name} transmittance incorrect for 25mm")
 
     all_classes = set(material_type_dict.keys())
     log.info(f"All classes: {', '.join(str(_.__name__) for _ in all_classes)}")

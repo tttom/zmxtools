@@ -118,12 +118,12 @@ class Material:
     def __init__(self, name: str = "", wavenumber_limits: array_like = (0.0, np.inf),
                  temperature: Optional[array_like] = None, pressure: Optional[array_like] = None):
         """
-        Construct a new Material object to present a meterial at a given temperature and pressure.
+        Construct a new Material object to present a material at a given temperature and pressure.
 
         :param name: The name of the material.
         :param wavenumber_limits: An array with the lowest and highest wavenumber at which this material is valid.
-        :param temperature: The temperature of this material in degrees Kelvin, K.
-        :param pressure: The pressure of this material in Pa = N/m^2.
+        :param temperature: The temperature of this material in degrees Kelvin, K (default 20+273.15 K).
+        :param pressure: The pressure of this material in Pa = N/m^2 (default 101.13 kPa)
         """
         self.name = name
         self.__wavenumber_limits = wavenumber_limits
@@ -164,7 +164,7 @@ class Material:
     def temperature(self, new_value: array_like):
         if new_value is None:
             new_value = 20.0 + 273.15
-        self.__temperature = asarray(new_value)
+        self.__temperature = asarray(new_value).real
 
     @property
     def pressure(self) -> array_type:
@@ -174,7 +174,7 @@ class Material:
     def pressure(self, new_value: array_like):
         if new_value is None:
             new_value = 101.13e3
-        self.__pressure = asarray(new_value)
+        self.__pressure = asarray(new_value).real
 
     @property
     def refractive_index_C(self) -> array_type:
@@ -217,18 +217,18 @@ class Material:
                      wavelength: Optional[array_like] = None,
                      angular_frequency: Optional[array_like] = None) -> array_type:
         """
-        Calculates the permittivity for this material at the specified wavenumbers.
+        Calculates the relative permittivity for this material at the specified wavenumbers.
         Only one of wavenumber, wavelength, or angular_frequency, must be specified.
 
         :param wavenumber: The wavenumbers in rad/m.
         :param wavelength: The wavelength in units of m.
         :param angular_frequency: The angular velocity in units of rad/s.
 
-        :return: The permittivity.
+        :return: The relative permittivity.
         """
         return self.complex_refractive_index(wavenumber=wavenumber,
                                              wavelength=wavelength,
-                                             angular_frequency=angular_frequency)**2
+                                             angular_frequency=angular_frequency) ** 2
 
     def complex_refractive_index(self,
                                  wavenumber: Optional[array_like] = None,
@@ -348,20 +348,31 @@ class FunctionMaterial(Material):
     """A class to represent a material as glass"""
     def __init__(self, name: str = "", wavenumber_limits: array_like = (0.0, np.inf),
                  temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
-                 permittivity_function: Optional[Callable[[array_type, array_type, array_type], array_type]] = None):
+                 permittivity_function:
+                 Optional[Callable[[array_type, array_type, array_type], array_type]] = None,
+                 complex_refractive_index_function:
+                 Optional[Callable[[array_type, array_type, array_type], array_type]] = None):
         """
-        Construct a new Material object to present a meterial at a given temperature and pressure.
+        Construct a new Material object to present a material at a given temperature and pressure.
 
         :param name: The name of the material.
         :param wavenumber_limits: An array with the lowest and highest wavenumber at which this material is valid.
         :param temperature: The temperature of this material in degrees Kelvin, K.
         :param pressure: The pressure of this material in Pa = N/m^2.
-        :param permittivity_function: A function that returns an array of refractive indices at the specified
-            wavenumbers, temperatures, and pressures. The returned array should be broadcasted according to its input
-            arguments.
+        :param permittivity_function: A function that returns an array of relative permittivities at the
+            specified wavenumbers, temperatures, and pressures. The returned array should be broadcasted according to
+            its input arguments.
+        :param complex_refractive_index_function: A function that returns an array of refractive indices at the
+            specified wavenumbers, temperatures, and pressures. The returned array should be broadcasted according to
+            its input arguments.
         """
+        assert permittivity_function is not None or complex_refractive_index_function is not None, \
+            "Either the permittivity function of the refractive index function must be specified, not both."
         super().__init__(name=name, wavenumber_limits=wavenumber_limits, temperature=temperature, pressure=pressure)
-        self.__permittivity_function = permittivity_function
+        self.__permittivity_function = permittivity_function if permittivity_function is not None \
+            else lambda k, t, p: complex_refractive_index_function(k, t, p) ** 2
+        self.__complex_refractive_index_function = complex_refractive_index_function \
+            if complex_refractive_index_function is not None else lambda k, t, p: permittivity_function(k, t, p) ** 0.5
 
     def permittivity(self,
                      wavenumber: Optional[array_like] = None,
@@ -403,12 +414,21 @@ class FunctionMaterial(Material):
 
         :return: The complex refractive index.
         """
-        return self.permittivity(wavenumber=wavenumber, wavelength=wavelength, angular_frequency=angular_frequency) ** 0.5
+        if wavenumber is None:
+            if wavelength is None:
+                wavelength = const_c * 2 * np.pi / asarray(angular_frequency)
+            else:
+                wavelength = asarray(wavelength)
+            wavenumber = 2 * np.pi / asarray(wavelength)
+        else:
+            wavenumber = asarray(wavenumber)
+        wavenumber = wavenumber.real
+        return self.__complex_refractive_index_function(wavenumber, self.temperature, self.pressure)
 
 
 class Vacuum(FunctionMaterial):
     def __init__(self):
-        super().__init__("vacuum", permittivity_function=lambda k, t, p: asarray(k+t+p) * 0.0 + 1.0)
+        super().__init__("vacuum", complex_refractive_index_function=lambda k, t, p: asarray(k + t + p) * 0.0 + 1.0)
 
 
 class CiddorAir(FunctionMaterial):
@@ -428,7 +448,7 @@ class CiddorAir(FunctionMaterial):
         self.relative_humidity = relative_humidity if relative_humidity is not None else 0.50
         self.co2_mole_fraction = co2_mole_fraction if co2_mole_fraction is not None else 450e-6
 
-        def permittivity_function(wavenumber: array_type, temperature: array_type, pressure: array_type) -> array_type:
+        def refractive_index_function(wavenumber: array_type, temperature: array_type, pressure: array_type) -> array_type:
             # https://emtoolbox.nist.gov/Wavelength/Documentation.asp#AppendixAIII
 
             w = [295.235, 2.6422, -0.03238, 0.004028]
@@ -483,12 +503,10 @@ class CiddorAir(FunctionMaterial):
             rho_v = x_v * pressure * M_v / (z_m * R * temperature)
             rho_a = (1 - x_v) * pressure * M_a / (z_m * R * temperature)
 
-            n = 1.0 + (rho_a / rho_axs) * r_axs + (rho_v / rho_vs) * r_vs
-
-            return n ** 2
+            return 1.0 + (rho_a / rho_axs) * r_axs + (rho_v / rho_vs) * r_vs
 
         super().__init__(name=name, wavenumber_limits=wavenumber_limits,
-                         temperature=temperature, pressure=pressure, permittivity_function=permittivity_function)
+                         temperature=temperature, pressure=pressure, complex_refractive_index_function=refractive_index_function)
 
 
 class MaterialLibrary:

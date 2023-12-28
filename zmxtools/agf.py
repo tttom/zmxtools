@@ -14,17 +14,17 @@ The following projects have been useful references:
 """
 from __future__ import annotations
 
-from typing import List, Sequence, Tuple, Optional
+from typing import List, Sequence, Tuple, Optional, Callable
 import re
 from collections.abc import Iterator
 import numpy as np
 
 from zmxtools.definitions import (array_like, array_type, asarray, const_c,
-                                  FileLike, PathLike, MaterialLibrary, Material, MaterialResistance)
+                                  FileLike, PathLike, MaterialLibrary, Material, FunctionMaterial, MaterialResistance)
 from zmxtools.parser import OrderedCommandDict, Command
 from zmxtools import log
 
-__all__ = ["AgfOrderedCommandDict", "AgfMaterialLibrary", "AgfMaterial"]
+__all__ = ["AgfOrderedCommandDict", "AgfMaterialLibrary", "AgfMixin"]
 
 log = log.getChild(__name__)
 
@@ -114,15 +114,16 @@ class AgfMaterialLibrary(MaterialLibrary):
                                  HandbookOfOptics1AgfMaterial, HandbookOfOptics2AgfMaterial,
                                  Sellmeier4AgfMaterial, Extended1AgfMaterial, Sellmeier5AgfMaterial,
                                  Extended2AgfMaterial, Formula13AgfMaterial]
-        materials = list[AgfMaterial]()
+        materials = list[Material]()
         if "NM" in self.commands:
             log.debug(f'Parsed {len(self.commands["NM"])} materials.')
-            for _ in self.commands["NM"]:
-                formula_index = int(float(_.words[1])) - 1  # Some glass names are numbers. Some files contain decimal points in the integer index.
+            for command in self.commands["NM"]:
+                formula_index = int(float(command.words[1])) - 1  # Some glass names are numbers. Some files contain decimal points in the integer index.
                 if 0 <= formula_index < len(material_constructors):
-                    materials.append(material_constructors[formula_index](_))
+                    materials.append(material_constructors[formula_index](command))
                 else:
-                    raise ValueError(f"Unknown dispersion formula number {formula_index + 1} for material {_.words[0]}: {_} with coefficients {_['CD']}.")
+                    raise ValueError(f"Unknown dispersion formula number {formula_index + 1}" +
+                                     f" for material {command.words[0]}: {command} with coefficients {command['CD']}.")
         super().__init__(name="", description=description, materials=materials)
 
     def __str__(self) -> str:
@@ -133,8 +134,7 @@ class AgfMaterialLibrary(MaterialLibrary):
         return str(self.commands)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(commands={repr(self.commands[-1])})"
-        # return f"{self.__class__.__name__}(commands={repr(self.commands)})"
+        return f"{self.__class__.__name__}(commands={repr(self.commands)})"
 
 
 def as_float(number_str: str) -> float:
@@ -143,45 +143,46 @@ def as_float(number_str: str) -> float:
         return float(number_str)
     return np.nan
 
+
 def to_length(numbers: Sequence[float], length: int, pad_value: float = np.nan):
     """Auxiliary function to ensure that we always have the correct number of values."""
     return asarray([*numbers, *([pad_value] * (length - len(numbers)))][:length])
 
 
-class AgfMaterial(Material):
-    """A class to represent a material in a Zemax AGF file."""
+class AgfMixin:
+    """A mix-in class to represent a material in a Zemax AGF file."""
+    command: Command
+
+
+    name: str
+    wavenumber_limits: array_type
     description: str
+    density: float  # in kg / m^3
     glass_code: str
     production_frequency: int  # melt frequency
     ignore_thermal_expansion: bool
+    resistance: MaterialResistance
 
-    _permittivity_coefficients_um: List[float]
+    permittivity_coefficients: array_type
+    specified_wavenumber_transmission_thickness: array_type
+    thermal_coefficients: array_type
 
-    __thermal_coefficients: List[float]
-    __wavenumber_transmission_thickness: array_like
-    __transmission: array_like
-    __transmission_thickness: array_like
-
-    def __init__(self, command: Command,
-                 temperature: Optional[array_like] = None,
-                 pressure: Optional[array_like] = None):
+    def __init__(self, command: Command):
         """
         Construct a new glass material based from a command and its child-nodes that represent the corresponding lines
-        in the file.
+        in the file. Provides the method adjust_refractive_index_function amongst other properties.
 
         :param command: The command that describes this glass.
-        :param temperature: The temperature of this material in degrees Kelvin, K.
-        :param pressure: The pressure of this material in Pa = N/m^2.
         """
         self.command = command
 
-        name = self.command.words[0]
+        self.name = self.command.words[0]
         formula_index, glass_code, self.__refractive_index_d, self.__constringence, exclude_sub, status_index, self.production_frequency = \
             to_length([as_float(_) for _ in self.command.words[1:]], 7, pad_value=0.0)
-        # formula_index = int(formula_index)
-        # self.glass_code = self.command.words[1]
-        status_index = int(status_index)
-        statuses = ["standard", "preferred", "special", "obsolete", "melt"]
+        # self.formula_index: int = int(formula_index)
+        self.glass_code = self.command.words[1]
+        # status_index = int(status_index)
+        # statuses = ["standard", "preferred", "special", "obsolete", "melt"]
         # self.status = f"{statuses[status_index - 1]} ({status_index})"
 
         # Extract the child-node arguments now
@@ -191,110 +192,81 @@ class AgfMaterial(Material):
         self.density = density_g_cm3 * 1e3
         # self.ignore_thermal_expansion = ignore_thermal_expansion != 0
 
-        # The permittivity formula coefficients for wavelengths in meters
-        self._permittivity_coefficients_um = self.command["CD", 0].numbers if "CD" in self.command else list[float]()
-
-        self.__thermal_coefficients = to_length(self.command["TD", 0].numbers if "TD" in self.command else list[float](), 6, pad_value=0.0).real
         relative_cost, climatic_resistance_index, stain_resistance_index, acid_resistance_index, \
             alkali_resistance_index, phosphate_resistance_index \
             = to_length([int(_) for _ in self.command["OD", 0].numbers] if "OD" in self.command else list[int](),
                         6, pad_value=-1)  # Cost and chemical info
-
         self.resistance = MaterialResistance(climate=climatic_resistance_index, stain=stain_resistance_index,
                                              acid=acid_resistance_index, alkali=alkali_resistance_index,
                                              phosphate=phosphate_resistance_index)
 
+        # The permittivity formula coefficients for wavelengths in micrometers
+        self.permittivity_coefficients = asarray(self.command["CD", 0].numbers
+                                                 if "CD" in self.command else list[float]()).real
+
+        # Process extinction information
+        specified_wavelength_transmission_thickness = sorted(
+            [to_length(_.numbers, 3, pad_value=1.0).real for _ in command["IT"]],
+            key=lambda _: _[0].real)
+        self.specified_wavenumber_transmission_thickness = asarray([
+            (2 * np.pi / (w * 1e-6), tr, th * 1e-3)  # convert to m
+            for w, tr, th in specified_wavelength_transmission_thickness[::-1]
+        ]).real
+
+        # Determine thermal correction factor for refractive index
+        self.thermal_coefficients = to_length(
+            self.command["TD", 0].numbers if "TD" in self.command else list[float](), 6, pad_value=0.0).real
+
+        # Extract the refractive index model validity limits
         wavelength_limits = np.sort(to_length(self.command["LD", 0].numbers, 2, pad_value=0))[::-1] * 1e-6 \
             if "CD" in self.command else asarray([np.inf, 0.0])  # Convert micrometers to meters, in reverse order
-        wavenumber_limits = 2 * np.pi / wavelength_limits
+        self.wavenumber_limits = 2 * np.pi / wavelength_limits
 
-        wavelength_transmission_thickness = sorted([to_length(_.numbers, 3, pad_value=1.0) for _ in self.command["IT"]], key=lambda _: _[0].real)
-        specified_wavenumbers = [2 * np.pi / (_[0].real * 1e-6) for _ in wavelength_transmission_thickness[::-1]]
-        specified_transmissions = [_[1].real for _ in wavelength_transmission_thickness[::-1]]
-        specified_thicknesses = [_[2].real * 1e-3 for _ in wavelength_transmission_thickness[::-1]]  # mm to meters
-        if len(specified_wavenumbers) > 0:
-            self.__transmission = lambda _: np.interp(_.real, specified_wavenumbers, specified_transmissions)
-            self.__transmission_thickness = lambda _: np.interp(_.real, specified_wavenumbers, specified_thicknesses)
-        else:  # Model as perfect transmission
-            self.__transmission = lambda _: _.real * 0.0 + 1.0
-            self.__transmission_thickness = lambda _: _.real * 0.0 + 1.0
-
-        super().__init__(name=name, wavenumber_limits=wavenumber_limits, temperature=temperature, pressure=pressure)
-
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        """Either this or the _real_wavelength_um method must be overridden in subclass."""
-        return self._real_reference_refractive_index_um(w)**2
-
-    def _real_reference_refractive_index_um(self, w: array_type) -> array_type:
-        """Either this or the _real_permittivity_um method must be overridden in subclass."""
-        return self._real_reference_permittivity_um(w)**0.5
-
-    def refractive_index(self,
-                         wavenumber: Optional[array_like] = None,
-                         wavelength: Optional[array_like] = None,
-                         angular_frequency: Optional[array_like] = None) -> array_type:
+    def adjust_refractive_index_function(self, refractive_index_at_reference_function: Callable[[array_type], array_type],
+                                         wavenumber: array_type, temperature: array_type, pressure: array_type) -> array_type:
         """
-        Calculates the real refractive index for this material at the specified wavenumbers, wavelengths,
-        and angular_frequencies. Only one must be specified.
+        An auxiliary method that returns the complex refractive index as a function of the reference refractive index
+        function, the wavenumber, temperature, and pressure.
 
-        :param wavenumber: The wavenumbers in rad/m.
-        :param wavelength: The wavelength in units of m.
-        :param angular_frequency: The angular velocity in units of rad/s.
+        The method uses self.thermal_coefficients (in um), self.specified_wavenumber_transmission_thickness (in m)
 
-        :return: The refractive index, adjusted for this material's temperature and pressure.
+        :param refractive_index_at_reference_function: The refractive index at the reference temperature and pressure conditions.
+        :param wavenumber: The wavenumber to calculate .
+        :param temperature: The temperature to compute the refractive index at.
+        :param pressure: The pressure to compute the refractive index at.
+
+        :return: The corrected complex refractive index.
         """
-        if wavelength is None:
-            if wavenumber is None:
-                wavenumber = asarray(angular_frequency) / const_c
-            else:
-                wavenumber = asarray(wavenumber)
-            wavelength = 2 * np.pi / wavenumber
-        else:
-            wavelength = asarray(wavelength)
-        # Get n and ε at reference temperature
-        real_n = self._real_reference_refractive_index_um(wavelength / 1e-6).real
-        real_permittivity = real_n**2
+        # Calculate the refractive index at the reference temperature and pressure
+        refractive_index_at_reference = refractive_index_at_reference_function(wavenumber)
 
-        # Correct for temperature difference with the reference temperature for this material
-        thc = [*self.__thermal_coefficients[:3],
-               self.__thermal_coefficients[3] * 1e-6**2,
-               self.__thermal_coefficients[4] * 1e-6**2,
-               self.__thermal_coefficients[5] * 1e-6]  # in meters
-        reference_wavelength = thc[5]
+        # Calculate the thermal correction factor from the wavenumber, self.thermal_coefficients
+        coeff_t = self.thermal_coefficients[:3]
+        coeff_tw_um2 = self.thermal_coefficients[3:5]  # in :math:`\mu m^2`
+        reference_wavelength_um = self.thermal_coefficients[5]  # in um
         reference_temperature = 20.0 + 273.15
-        d_temp = self.temperature.real - reference_temperature
+        d_temp = temperature.real - reference_temperature
 
-        thermal_correction = thc[0] * d_temp + thc[1] * d_temp**2 + thc[2] * d_temp**3 \
-                             + ((thc[3] * d_temp + thc[4] * d_temp**2) / (wavelength.real**2 - reference_wavelength**2))
-        thermal_correction *= 0.5 * (real_permittivity - 1) / real_permittivity
+        wavelength_um = 2 * np.pi / wavenumber.real / 1e-6
+        thermal_correction = coeff_t[0] * d_temp + coeff_t[1] * d_temp**2 + coeff_t[2] * d_temp**3 \
+                             + ((coeff_tw_um2[0] * d_temp + coeff_tw_um2[1] * d_temp**2)
+                                / (wavelength_um**2 - reference_wavelength_um**2))
+        thermal_correction = thermal_correction * 0.5 * (1 - refractive_index_at_reference**-2)
 
-        return real_n * (1 + thermal_correction)
+        # Calculate the extinction coefficient at a given wavenumber
+        if self.specified_wavenumber_transmission_thickness.shape[0] > 0:  # by interpolationv
+            specified_wavenumbers, specified_transmissions, specified_thicknesses = \
+                self.specified_wavenumber_transmission_thickness.transpose()
+            transmission = lambda _: np.interp(_.real, specified_wavenumbers, specified_transmissions)
+            transmission_thickness = lambda _: np.interp(_.real, specified_wavenumbers, specified_thicknesses)
+        else:  # model as perfect transmission
+            transmission = lambda _: _.real * 0.0 + 1.0
+            transmission_thickness = lambda _: _.real * 0.0 + 1.0
+        # Determine the extinction coefficient from the wavenumber, transmission, and thickness
+        extinction_coefficient = lambda wavenumber: \
+            -0.5 / wavenumber * np.log(transmission(wavenumber)) / transmission_thickness(wavenumber)
 
-    def extinction_coefficient(self,
-                                wavenumber: Optional[array_like] = None,
-                                wavelength: Optional[array_like] = None,
-                                angular_frequency: Optional[array_like] = None) -> array_type:
-        """
-        Calculates the extinction (or absorption) coefficient, κ, for this material at the specified
-        wavenumbers, wavelengths, and angular_frequencies. Only one must be specified.
-
-        :param wavenumber: The wavenumbers in rad/m.
-        :param wavelength: The wavelength in units of m.
-        :param angular_frequency: The angular velocity in units of rad/s.
-
-        :return: The extinction coefficient κ.
-        """
-        if wavenumber is None:
-            if wavelength is None:
-                wavelength = const_c * 2 * np.pi / asarray(angular_frequency)
-            else:
-                wavelength = asarray(wavelength)
-            wavenumber = 2 * np.pi / wavelength
-        else:
-            wavenumber = asarray(wavenumber)
-        wavenumber = wavenumber.real
-
-        return -0.5 / wavenumber * np.log(self.__transmission(wavenumber)) / self.__transmission_thickness(wavenumber)
+        return refractive_index_at_reference * (1.0 + thermal_correction) + 1j * extinction_coefficient(wavenumber)
 
     def __str__(self) -> str:
         """
@@ -307,145 +279,376 @@ class AgfMaterial(Material):
         return f"{self.__class__.__name__}(commands={repr(self.command)})"
 
 
-class SchottAgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 6, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] * w2) \
-            + (c[2] * w2**-1) \
-            + (c[3] * w2**-2) \
-            + (c[4] * w2**-3) \
-            + (c[5] * w2**-4)
+class PolynomialMaterial(FunctionMaterial):
+    def __init__(self, name: str = "", wavenumber_limits: array_like = (0.0, np.inf),
+                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
+                 refractive_index_model: bool = False,
+                 factors_um: array_like = tuple(), exponents: array_like = tuple(), poles_um2: array_like = tuple(),
+                 adjust_refractive_index_function: Callable[[Callable[[array_type], array_type], array_type,
+                                                             array_type, array_type], array_type] = lambda n, t, p: n):
+        r"""
+        Construct a material with a relative permittivity or refractive index that is given by the rational polynomial:
+
+        .. math::
+            \epsilon_r(\lambda) or n(\lambda) = \sum_{i=0} c_i \frac{\lambda^e}{\lambda^2 - p_i},
+
+        where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles, while `\lambda^2` is the squared
+        wavelength in micrometers, and :math:`e` are the exponents for the wavelengths.
+
+        :param name: The name of this material.
+        :param wavenumber_limits: The wavelength limits of validity.
+        :param temperature: The temperature this material is at in degrees K.
+        :param pressure: The pressure this material is at (in Pa).
+        :param refractive_index_model: Set to True to model the material's refractive index as a rational polynomial
+            instead of its permittivity.
+        :param factors_um: The coefficient factors for a polynomial in the micrometer-wavelengths
+        :param exponents: The exponents for the wavelength in the numerator of each term.
+        :param poles_um2: The poles in the polynomial terms in micrometer^2. Set to NaN to not divide the term.
+        :param adjust_refractive_index_function: A function that returns the complex refractive index as a function of
+            the reference refractive index function, the wavenumber, temperature, and pressure.
+        """
+        self.refractive_index_model = refractive_index_model
+        self.factors_um = asarray(factors_um)
+        self.exponents = asarray([*exponents, *([0] * (len(self.factors_um) - len(exponents)))])  # 0-pad to same length
+        self.poles_um2 = asarray([*poles_um2, *([np.nan] * (len(self.factors_um) - len(poles_um2)))])  # NaN-pad to same length
+
+        def formula(wavenumber: array_type) -> array_type:
+            """
+            The permittivity or refractive index (when refractive_index_model == True) at the reference temperature and
+            pressure, as a function of wavenumber.
+            """
+            wavelength_um = 2 * np.pi / wavenumber / 1e-6
+            wavelength_um2 = wavelength_um ** 2
+
+            result = 0.0
+            for factor_um, exponent, pole_um2 in zip(self.factors_um, exponents, self.poles_um2):
+                if factor_um != 0.0:
+                    term = factor_um
+                    if exponent != 0.0:
+                        term = term * wavelength_um ** exponent
+                    if not np.isnan(pole_um2):
+                        term = term / (wavelength_um2 - pole_um2)
+                    result = result + term
+            return result
+
+        # Convert formula to refractive index equivalent
+        reference_refractive_index_function = (lambda _: formula(_) ** 0.5) \
+            if not self.refractive_index_model else formula
+
+        super().__init__(name=name, wavenumber_limits=wavenumber_limits, temperature=temperature, pressure=pressure,
+                         complex_refractive_index_function=
+                         lambda k, t, p: adjust_refractive_index_function(reference_refractive_index_function, k, t, p))
 
 
-class Sellmeier1AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 6, pad_value=0.0)
-        w2 = w**2
-        return 1.0 \
-            + (c[0] * w2 / (w2 - c[1])) \
-            + (c[2] * w2 / (w2 - c[3])) \
-            + (c[4] * w2 / (w2 - c[5]))
+class SchottAgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 1 with relative permittivity
+
+        .. math::
+            \epsilon_r(\lambda) := c_0 + c_1 \lambda^2 + \sum_{i=2} c_i \lambda^{2(i-1)},
+
+        where :math:`c_i` are the coefficient factors and :math:`\lambda^2` is the squared wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=self.permittivity_coefficients, exponents=[0, 2, -2, -4, -6, -8],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class Sellmeier2AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 5, pad_value=0.0)
-        w2 = w**2
-        return 1.0 \
-            + c[0] \
-            + (c[1] * w2 / (w2 - (c[2])**2)) \
-            + (c[3] / (w2 - (c[4])**2))
+class Sellmeier1AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 2 with relative permittivity
+
+        .. math::
+            \epsilon_r(\lambda) := 1 + \sum_{i=1} c_i \frac{\lambda^2}{\lambda^2 - p_i},
+
+        where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles, while `\lambda^2` is the squared
+        wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=[1.0, *self.permittivity_coefficients[::2]],
+                                    exponents=[0, *([2] * (1 + len(self.permittivity_coefficients) // 2))],
+                                    poles_um2=[np.nan, *self.permittivity_coefficients[1::2]],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class Sellmeier3AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 8, pad_value=0.0)
-        w2 = w**2
-        return 1.0 \
-            + (c[0] * w2 / (w2 - c[1])) \
-            + (c[2] * w2 / (w2 - c[3])) \
-            + (c[4] * w2 / (w2 - c[5])) \
-            + (c[6] * w2 / (w2 - c[7]))
+class Sellmeier2AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        TODO: Find a test case for this type of glass.
+        Construct a material using AGF formula 4 with relative permittivity
+
+        .. math::
+            \epsilon_r(\lambda) := 1 + c_1 + c_2\frac{\lambda^2}{\lambda^2 - p_2} + \sum_{i=3} c_i \frac{1}{\lambda^2 - p_i},
+
+        where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles, while `\lambda^2` is the squared
+        wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=[1.0, self.permittivity_coefficients[0], *self.permittivity_coefficients[1::2]],
+                                    exponents=[0, 0, 2, 0],
+                                    poles_um2=[np.nan, np.nan, *(self.permittivity_coefficients[2::2] ** 2)],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class Sellmeier4AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 5, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] * w2 / (w2 - c[2])) \
-            + (c[3] * w2 / (w2 - c[4]))
+class Sellmeier3AgfMaterial(Sellmeier1AgfMaterial):
+    r"""
+    Represents a material using AGF formula 6 with relative permittivity
+
+    .. math::
+            \epsilon_r(\lambda) := 1 + \sum_{i=1} c_i \frac{\lambda^2}{\lambda^2 - p_i},
+
+    where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles, while `\lambda^2` is the squared
+    wavelength in micrometers.
+
+    """
 
 
-class Sellmeier5AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 10, pad_value=0.0)
-        w2 = w**2
-        return 1.0 \
-            + (c[0] * w2 / (w2 - c[1])) \
-            + (c[2] * w2 / (w2 - c[3])) \
-            + (c[4] * w2 / (w2 - c[5])) \
-            + (c[6] * w2 / (w2 - c[7])) \
-            + (c[8] * w2 / (w2 - c[9]))
+class Sellmeier4AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 9 with relative permittivity
+
+        .. math::
+            \epsilon_r(\lambda) := c_0 + \sum_{i=1} c_i \frac{\lambda^2}{\lambda^2 - p_i},
+
+        where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles of $\lambda^2$, where $\lambda$ is
+        the wavelength in :math:`\mu m`.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=[self.permittivity_coefficients[0], *self.permittivity_coefficients[1::2]],
+                                    exponents=[0, *([2] * (len(self.permittivity_coefficients) // 2))],
+                                    poles_um2=[np.nan, *self.permittivity_coefficients[2::2]],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class HerzbergerAgfMaterial(AgfMaterial):
-    def _real_reference_refractive_index_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 6, pad_value=0.0)
-        w2 = w**2
-        lw = 1.0 / (w2 - 0.028)
-        return c[0] \
-            + (c[1] * lw) \
-            + (c[2] * lw**2) \
-            + (c[3] * w2) \
-            + (c[4] * w2**2) \
-            + (c[5] * w2**3)
+class Sellmeier5AgfMaterial(Sellmeier1AgfMaterial):
+    """
+    Represents a material using AGF formula 11 with relative permittivity
+    """
 
 
-class ConradyAgfMaterial(AgfMaterial):
-    def _real_reference_refractive_index_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 3, pad_value=0.0)
-        return c[0] + (c[1] / w) + (c[2] / w**3.5)
+class HerzbergerAgfMaterial(AgfMixin, FunctionMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 3, for a **reference refractive index** that is given by:
+
+        .. math::
+            l(w) = w^2 - 0.028
+            n(\lambda) := c_0 + \frac{c_1}{l(w)} + \frac{c_2}{l(w)^2} + c_3 w^2 + c_4 w^4 + c_5 w^6,
+
+        where :math:`c_i` are the coefficient factors and :math:`l(\lambda)` is the shifted-squared wavelength in
+        :math:`mu m^2`, while :math:`\lambda^2` is the squared wavelength in micrometers.
+
+        :param name: The name of this material.
+        :param temperature: The temperature this material is at in degrees K.
+        :param pressure: The pressure this material is at in Pascals [Pa].
+        :param factors_um: The coefficient factors for a polynomial in the micrometer-wavelengths
+        """
+        AgfMixin.__init__(self, command)
+
+        def refractive_index_at_reference_function(wavenumber: array_type) -> array_type:
+            """
+            The refractive index at the reference temperature and pressure, as a function of wavenumber.
+            """
+            wavelength_um = 2 * np.pi / wavenumber / 1e-6
+            wavelength_um2 = wavelength_um ** 2
+            l_um2 = 1.0 / (wavelength_um2 - 0.028)
+
+            l_terms = sum((factor_um * (l_um2 ** exponent)
+                           for factor_um, exponent in zip(self.permittivity_coefficients[:3], range(3))),
+                          start=0.0)
+            w_terms = sum((factor_um * (wavelength_um2 ** exponent)
+                           for factor_um, exponent in zip(self.permittivity_coefficients[3:], range(1, 4))),
+                          start=0.0)
+            return l_terms + w_terms
+
+        FunctionMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                  temperature=temperature, pressure=pressure,
+                                  complex_refractive_index_function=
+                                  lambda k, t, p: self.adjust_refractive_index_function(
+                                      refractive_index_at_reference_function, k, t, p))
 
 
-class HandbookOfOptics1AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 4, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] / (w2 - c[2])) \
-            - (c[3] * w2)
+class ConradyAgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 5 with reference refractive index
+
+        .. math:
+            n(\lambda) := c_0 + \frac{c_1}{\lambda} + \frac{c_2}{\lambda^{7/2}},
+
+        where :math:`c_i` are the coefficient factors and :math:`\lambda` is the wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    refractive_index_model=True,
+                                    factors_um=self.permittivity_coefficients, exponents=[0, -1, -3.5],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class HandbookOfOptics2AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 4, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] * w2 / (w2 - c[2])) \
-            - (c[3] * w2)
+class HandbookOfOptics1AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 7 with relative permittivity
+
+        .. math:
+            \epsilon_r(\lambda) := c_0 + c_1\frac{1}{\lambda^2 - p_i} - c_2 \lambda^2,
+
+        where :math:`c_i` are the coefficient factors, :math:`p_i` are the poles in :math:`\lambda^2`, and `\lambda` is
+        wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=[*self.permittivity_coefficients[:2], -self.permittivity_coefficients[3]],
+                                    exponents=[0, 0, 2],
+                                    poles_um2=[np.nan, self.permittivity_coefficients[2], np.nan],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class Extended1AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 8, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] * w2) \
-            + (c[2] * w2**-1) \
-            + (c[3] * w2**-2) \
-            + (c[4] * w2**-3) \
-            + (c[5] * w2**-4) \
-            + (c[6] * w2**-5) \
-            + (c[7] * w2**-6)
+class HandbookOfOptics2AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material using AGF formula 8 with relative permittivity
+
+        .. math:
+            \epsilon_r(\lambda) := c_0 + c_1\frac{\lambda^2}{\lambda^2 - p_i} - c_2 \lambda^2,
+
+        where :math:`c_i` are the coefficient factors, :math:`p_i` are the poles in :math:`\lambda^2`, and `\lambda` is
+        wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=[*self.permittivity_coefficients[:2], -self.permittivity_coefficients[3]],
+                                    exponents=[0, 2, 2],
+                                    poles_um2=[np.nan, self.permittivity_coefficients[2], np.nan],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class Extended2AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 8, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] * w2) \
-            + (c[2] * w2**-1) \
-            + (c[3] * w2**-2) \
-            + (c[4] * w2**-3) \
-            + (c[5] * w2**-4) \
-            + (c[6] * w2**2) \
-            + (c[7] * w2**3)
+class Extended1AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        TODO: Find a test case for this material
+        Construct a material with formula 10 with relative permittivity
+
+        .. math:
+            \epsilon_r(\lambda) := c_0 + c_1\lambda^2 + \sum_{i=2}\frac{c_i}{\lambda^{2(i-1)}},
+
+        where :math:`c_i` are the coefficient factors, :math:`p_i` are the poles in :math:`\lambda^2`, and `\lambda` is
+        wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=self.permittivity_coefficients,
+                                    exponents=[0, 2, -2, -4, -6, -8, -10, -12],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
 
 
-class Formula13AgfMaterial(AgfMaterial):
-    def _real_reference_permittivity_um(self, w: array_type) -> array_type:
-        c = to_length(self._permittivity_coefficients_um, 9, pad_value=0.0)
-        w2 = w**2
-        return c[0] \
-            + (c[1] * w2) \
-            + (c[2] * w2**2) \
-            + (c[3] * w2**-1) \
-            + (c[4] * w2**-2) \
-            + (c[5] * w2**-3) \
-            + (c[6] * w2**-4) \
-            + (c[7] * w2**-5) \
-            + (c[8] * w2**-6)
+class Extended2AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material with formula 12 with relative permittivity
+
+        .. math:
+            \epsilon_r(\lambda) = c_0 + c_1\lambda^2 + \sum_{i=2}^{5}\frac{c_i}{\lambda^{2(i-1)}} + \sum_{i=6}c_i\lambda^{2(i-4)},
+
+        where :math:`c_i` are the coefficient factors and `\lambda` is the wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=self.permittivity_coefficients,
+                                    exponents=[0, 2, -2, -4, -6, -8, 4, 6],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
+
+
+class Formula13AgfMaterial(AgfMixin, PolynomialMaterial):
+    def __init__(self, command: Command,
+                 temperature: Optional[array_like] = None,
+                 pressure: Optional[array_like] = None):
+        r"""
+        Construct a material with formula 13 with relative permittivity
+
+        .. math:
+            \epsilon_r(\lambda) := c_0 + c_1\lambda^2 + c_2\lambda^4 + \sum_{i=3}\frac{c_i}{\lambda^{2(i-2)}},
+
+        where :math:`c_i` are the coefficient factors and `\lambda` is the wavelength in micrometers.
+
+        :param command: The command dictionary to extract name and limits from.
+        :param temperature: The temperature of this material.
+        :param pressure: The pressure on this material.
+        """
+        AgfMixin.__init__(self, command)
+        PolynomialMaterial.__init__(self, name=self.name, wavenumber_limits=self.wavenumber_limits,
+                                    temperature=temperature, pressure=pressure,
+                                    factors_um=self.permittivity_coefficients,
+                                    exponents=[0, 2, 4, -2, -4, -6, -8, -10, -12],
+                                    adjust_refractive_index_function=self.adjust_refractive_index_function)
