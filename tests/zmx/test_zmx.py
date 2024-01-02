@@ -1,8 +1,9 @@
+from collections import defaultdict
 import logging
 import math
-from tests.zmx import test_directory, test_files
+from tests.zmx import test_directory, test_zmx_files, test_agf_files
 from zmxtools import zmx
-from zmxtools.definitions import Vacuum
+from zmxtools.optical_design.material import Vacuum
 
 from tests.zmx import log
 log = log.getChild(__name__)
@@ -16,13 +17,14 @@ vacuum = Vacuum()
 def test_from_file():
     """Tests the zmx.ZmxOpticalDesign.from_file function."""
 
-    assert len(test_files) > 1, (
+    assert len(test_zmx_files) > 1, (
         f'No zmx files found in {test_directory}!'
     )
 
-    for zmx_file_path in test_files:
+    all_surface_types = defaultdict(set)
+    for zmx_file_path in test_zmx_files:
         log.info(f"Testing {zmx_file_path}...")
-        optical_system = zmx.ZmxOpticalDesign.from_file(zmx_file_path)
+        optical_system = zmx.ZmxOpticalDesign.from_file(zmx_file_path, test_agf_files)
         log.info(f"Read {zmx_file_path}.")
 
         if not optical_system.sequential:
@@ -61,3 +63,13 @@ def test_from_file():
         else:
             assert all(100e-6 <= _ <= 10e-3 for _ in optical_system.wavelengths), f"Unusual long wavelengths found {optical_system.wavelengths} in {zmx_file_path}!"
 
+        for s in optical_system.surfaces:
+            all_surface_types[s.type].add(zmx_file_path.name)
+
+    d = {k: len(v) for k, v in all_surface_types.items()}
+    log.info(f"Surface types: {d}")
+    # Surface types to implement: COORDBRK, XPOLYNOM, TOROIDAL, EVENASPH, PARAXIAL, FZERNSAG, TILTSURF, SZERNSAG
+    log.info(f"COORDBRK: {all_surface_types['COORDBRK']}")
+    log.info(f"SZERNSAG: {all_surface_types['SZERNSAG']}")
+    log.info(f"XPOLYNOM: {all_surface_types['XPOLYNOM']}")
+    log.info(f"TOROIDAL: {all_surface_types['TOROIDAL']}")

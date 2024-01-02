@@ -7,7 +7,8 @@ import itertools
 import pathlib
 
 from tests.agf import test_directory, test_files
-from zmxtools.definitions import const_c, Vacuum, CiddorAir
+from zmxtools.definitions import const_c
+from zmxtools.optical_design.material import Vacuum, CiddorAir, SimpleAir
 from zmxtools import agf
 
 from tests.zmx import log
@@ -27,10 +28,16 @@ def test_vacuum():
                             err_msg=f"Vacuum extinction coefficient is not returned correctly.")
 
 
-def test_air():
+def test_CiddorAir():
     air = CiddorAir(pressure=101_325, temperature=20 + 273.15, relative_humidity=0.00, co2_mole_fraction=450e-6)
     npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000271800, decimal=9,
                             err_msg=f"Air refractive index is returned incorrectly.")
+    air.pressure = 1e-12
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.0, decimal=16,
+                            err_msg=f"Air refractive index at 0 pressure is returned incorrectly.")
+    air.pressure = 0
+    npt.assert_equal(air.complex_refractive_index(wavelength=633e-9), 1.0,
+                            err_msg=f"Air refractive index at 0 pressure is returned incorrectly.")
     air.pressure = 60_000
     npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000160924, decimal=9,
                             err_msg=f"Air refractive index is returned incorrectly.")
@@ -60,6 +67,48 @@ def test_air():
                             err_msg=f"Air refractive index is returned incorrectly.")
     air = CiddorAir(pressure=140e3, temperature=-0.1 + 273.15, relative_humidity=0.50, co2_mole_fraction=450e-6)
     npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000403252, decimal=9,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+
+
+def test_SimpleAir():
+    air = SimpleAir(pressure=101_325, temperature=20 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.0002718, decimal=8,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.pressure = 1e-12
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.0, decimal=16,
+                            err_msg=f"Air refractive index at 0 pressure is returned incorrectly.")
+    air.pressure = 0
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.0, decimal=16,
+                            err_msg=f"Air refractive index at 0 pressure is returned incorrectly.")
+    air.pressure = 60_000
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000160924, decimal=7,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.pressure = 120_000
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000321916, decimal=7,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = SimpleAir(pressure=100e3, temperature=50 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000243285, decimal=8,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.temperature = 5 + 273.15
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000282756, decimal=7,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air.temperature = -40 + 273.15
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.00033758, decimal=7,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = SimpleAir(pressure=120e3, temperature=50 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000291949, decimal=8,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = SimpleAir(pressure=100_000, temperature=30 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000259372, decimal=8,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = SimpleAir(pressure=101_325, temperature=-40 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000342059, decimal=7,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = SimpleAir(pressure=140e3, temperature=-2 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.000406211, decimal=7,
+                            err_msg=f"Air refractive index is returned incorrectly.")
+    air = SimpleAir(pressure=140e3, temperature=-0.1 + 273.15)
+    npt.assert_almost_equal(air.complex_refractive_index(wavelength=633e-9), 1.00040337, decimal=7,
                             err_msg=f"Air refractive index is returned incorrectly.")
 
 
@@ -249,7 +298,7 @@ def test_from_file():
               agf.HandbookOfOptics1AgfMaterial, agf.HandbookOfOptics2AgfMaterial,
               agf.ConradyAgfMaterial, agf.HerzbergerAgfMaterial,
               agf.Extended2AgfMaterial,
-              agf.Formula13AgfMaterial):
+              agf.Extended3AgfMaterial):
         assert _ in tested_classes, f"Did not test material of type {_.__class__}"
         # TODO: Test agf.Sellmeier2AgfMaterial, agf.Extended1AgfMaterial
 

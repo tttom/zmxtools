@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import re
-import math
-from typing import Union, Tuple, Optional
+import numpy as np
+import pathlib
+from typing import Tuple, Optional, Sequence
 
-from zmxtools.definitions import (FileLike, PathLike, Material, Vacuum, MaterialLibrary, Surface, OpticalDesign)
+from zmxtools.definitions import array_like, array_type, asarray, FileLike, PathLike
+from zmxtools.optical_design.material import Material, Vacuum, MaterialLibrary
+from zmxtools.optical_design.optic import Surface, OpticalDesign
+from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.parser import OrderedCommandDict, Command
+from zmxtools.utils import zernike
 from zmxtools import log
 
 log = log.getChild(__name__)
@@ -78,13 +83,15 @@ class ZmxOpticalDesign(OpticalDesign):
         return ZmxOpticalDesign(ZmxOrderedCommandDict.from_str(contents, spaces_per_indent=spaces_per_indent))
 
     @staticmethod
-    def from_file(input_path_or_stream: Union[FileLike, PathLike],
+    def from_file(input_path_or_stream: FileLike | PathLike,
+                  material_libraries: Sequence[PathLike | MaterialLibrary] = tuple[PathLike | MaterialLibrary](),
                   spaces_per_indent: int = 2,
                   encoding: str = 'utf-16') -> ZmxOpticalDesign:
         """
         Reads a zmx file into an `OpticalDesign` representation.
 
         :param input_path_or_stream: The file to read the optical system from, or its file-path.
+        :param material_libraries: List of MaterialLibraries or paths to AGF files that can be used as glass catalogs.
         :param spaces_per_indent: The optional number of spaces per indent/tab.
         :param encoding: The text-encoding to try first.
 
@@ -92,9 +99,17 @@ class ZmxOpticalDesign(OpticalDesign):
         """
         return ZmxOpticalDesign(ZmxOrderedCommandDict.from_file(input_path_or_stream,
                                                                 spaces_per_indent=spaces_per_indent,
-                                                                encoding=encoding))
+                                                                encoding=encoding),
+                                material_libraries)
 
-    def __init__(self, commands: OrderedCommandDict):
+    def __init__(self, commands: OrderedCommandDict,
+                 material_libraries: Sequence[PathLike | MaterialLibrary] = tuple[PathLike | MaterialLibrary]()):
+        """
+        Constructs an OpticalDesign from a parsed command dictionary.
+
+        :param commands: The command dictionary obtained from parsing a ZMX file.
+        :param material_libraries: List of MaterialLibraries or paths to AGF files that can be used as glass catalogs.
+        """
         self.commands = commands
 
         self.version = self.commands["VERS", 0].argument if "VERS" in self.commands else ""
@@ -111,7 +126,6 @@ class ZmxOpticalDesign(OpticalDesign):
         self.author = self.commands["AUTH", 0].argument if "AUTH" in self.commands else ""
         self.description = '\n'.join(_.argument.replace('\n', '') for _ in self.commands.sort_and_merge("NOTE")) \
             if "NOTE" in self.commands else ""
-        self.field_comment = self.commands["FCOM", 0].argument if "FCOM" in self.commands else ""
         self.unit: float = 1.0
         if "UNIT" in self.commands:
             unit_code = self.commands["UNIT", 0].argument.split(maxsplit=1)[0]
@@ -122,7 +136,40 @@ class ZmxOpticalDesign(OpticalDesign):
                 self.unit = unit_dict[unit_code]
             else:
                 log.warning(f"Unrecognized unit code {unit_code}. Defaulting to 1m.")
-        self.surfaces = [ZmxSurface(s.children) for s in self.commands.sort_and_merge("SURF")]
+        # Materials
+        self.material_libraries = [_ for _ in material_libraries if isinstance(_, MaterialLibrary)]
+        material_library_file_paths = [_ for _ in material_libraries if not isinstance(_, MaterialLibrary)]
+        if "GCAT" in self.commands:
+            for name in self.commands["GCAT", 0].words:
+                if name not in (_.name for _ in self.material_libraries):
+                    material_library = None
+                    for material_library_file_path in material_library_file_paths:
+                        if not isinstance(material_library_file_path, pathlib.Path):
+                            material_library_file_path = pathlib.Path(material_library_file_path)
+                        if name == material_library_file_path.stem.upper():
+                            material_library = AgfMaterialLibrary.from_file(material_library_file_path)
+                            break
+                    if material_library is None:
+                        log.warning(f"Glass catalog {name} not found in {material_library_file_paths}.")
+                    else:
+                        self.material_libraries.append(material_library)
+
+        self.coating_filenames = list[str]()
+        # Coating
+        if "COFN" in self.commands:
+            file_names = self.commands["COFN", 0].words
+            if file_names[0] == "QF":
+                file_names = file_names[1:]
+            self.coating_filenames += file_names
+        self.numerical_aperture = 1.0
+
+        self.background_material = Vacuum()  # CiddorAir()
+        self.surfaces = [ZmxSurface(s.children, unit=self.unit,
+                                    material_libraries=self.material_libraries,   # todo: wavelengths are specified relative to the refractive index in air at 20+273.15K and 101.325Pa!
+                                    background_material=self.background_material)
+                         for s in self.commands.sort_and_merge("SURF")]
+
+        self.field_comment = self.commands["FCOM", 0].argument if "FCOM" in self.commands else ""
         self.wavelengths = self.commands["WAVL", 0].numbers if "WAVL" in self.commands else list[float]()  # "WAVM" doesn't seem very reliable. Perhaps this depends on the version?
         self.wavelength_weights = self.commands["WWGT", 0].numbers if "WWGT" in self.commands else list[float]()
         if len(self.wavelength_weights) < len(self.wavelengths):
@@ -136,17 +183,7 @@ class ZmxOpticalDesign(OpticalDesign):
 
             self.wavelengths = [_[0] for _ in wavelengths_and_weights]
             self.wavelength_weights = [_[1] for _ in wavelengths_and_weights]
-        self.material_libraries = list[MaterialLibrary]()
-        if "GCAT" in self.commands:
-            for name in self.commands["GCAT", 0].words:
-                self.material_libraries.append(MaterialLibrary(name=name, description=name))
-        self.coating_filenames = list[str]()
-        if "COFN" in self.commands:
-            file_names = self.commands["COFN", 0].words
-            if file_names[0] == "QF":
-                file_names = file_names[1:]
-            self.coating_filenames += file_names
-        self.numerical_aperture = 1.0
+
         if "FNUM" in self.commands:
             f_number = self.commands["FNUM", 0].numbers[0]
             self.numerical_aperture_image = 2.0 / f_number  # todo: account for refractive index of object or image space?
@@ -164,10 +201,6 @@ class ZmxOpticalDesign(OpticalDesign):
 
         # Make all units meters
         self.wavelengths = [_ * 1e-6 for _ in self.wavelengths]
-        for s in self.surfaces:
-            s.curvature /= self.unit
-            s.distance *= self.unit
-            s.radius *= self.unit
 
     def __str__(self) -> str:
         """
@@ -182,34 +215,164 @@ class ZmxOpticalDesign(OpticalDesign):
 
 class ZmxSurface(Surface):
     """A class to represent a thin surface between two volumes as read from a .zmx file."""
-    def __init__(self, commands: OrderedCommandDict):
+    def __init__(self, commands: OrderedCommandDict, unit: float = 1.0,
+                 material_libraries: Sequence[MaterialLibrary] = tuple[MaterialLibrary](),
+                 background_material: Material = Vacuum()):
         """
         Construct a new surface based from a command dictionary that represents the corresponding lines in the file.
 
         :param commands: The command dictionary.
+        :param unit: The unit (in meters) of the lengths in the command dictionary.
+        :param material_libraries: A collection of material libraries from which to choose glasses.
+        :param background_material: The material to use when no (recognized) material is specified.
         """
+        self.unit = unit
         self.commands = commands
 
-        self.material = Vacuum()
         self.type = self.commands["TYPE", 0].argument if "TYPE" in self.commands else "STANDARD"
         # Types: "STANDARD" , "EVENASPH", "TOROIDAL", "XOSPHERE", "COORDBRK", "TILTSURF", "PARAXIAL", "DGRATING"
-        self.curvature = self.commands["CURV", 0].numbers[0] if "CURV" in self.commands else 0.0
+        self.curvature = self.commands["CURV", 0].numbers[0] / self.unit if "CURV" in self.commands else 0.0
         self.coating = self.commands["COAT", 0].words[0] if "COAT" in self.commands and len(self.commands["COAT", 0].words) > 0 else ""
-        self.radius = self.commands["DIAM", 0].numbers[0] / 2.0 if "DIAM" in self.commands else math.inf
+        self.radius = self.commands["DIAM", 0].numbers[0] * self.unit / 2.0 if "DIAM" in self.commands else np.inf
         self.stop = "STOP" in self.commands
-        self.distance = self.commands["DISZ", 0].numbers[0] if "DISZ" in self.commands else math.inf
+        self.distance = self.commands["DISZ", 0].numbers[0] * self.unit if "DISZ" in self.commands else np.inf
         self.comment = self.commands["COMM", 0].argument if "COMM" in self.commands else ""
         glass_name = self.commands["GLAS", 0].words[0] if "GLAS" in self.commands and len(self.commands["GLAS", 0].words) else ""
-        self.material = Material(name=glass_name)
         self.reflect = glass_name == "MIRROR"  # Not "MIRR" command for some reason
+        if glass_name == "" or glass_name == "MIRROR":
+            material = background_material
+        else:
+            material = None
+            for material_library in material_libraries:
+                if glass_name in material_library:
+                    material = material_library.find_all(glass_name)[0]
+                    break
+            if material is None:
+                log.error(f"Glass {glass_name} not found in {material_libraries}.")
+                material = Material(name=glass_name)  # Dummy material
+        self.material: Material = material
         # self.floating_aperture = self.commands["FLAP", 0].numbers if "FLAP" in self.commands else 0.0
         self.conic_constant = self.commands["CONI", 0].numbers if "CONI" in self.commands else 0.0
-        toroidal_x = self.commands["XDAT", 0].numbers if "XDAT" in self.commands else []
-        toroidal_y = self.commands["YDAT", 0].numbers if "YDAT" in self.commands else []
+        self.parameters = [_.numbers[0] for _ in self.commands.sort_and_merge("PARM")]
+        self.extra_data = self.commands["XDAT", 0].numbers if "XDAT" in self.commands else []
         aperture_offsets = self.commands["OBDC", 0].numbers[:2] if "OBDC" in self.commands else []
+        pickup_parameter_commands = self.commands["PPAR"]  # of the form PPAR parameter from_surface factor offset 0
+        for pickup_parameter_command in pickup_parameter_commands:
+            parameter_index, from_surface, factor, offset = pickup_parameter_command.numbers[:4]
+            parameter_index -= 1
+            # self.parameter[parameter_index] = surface[from_surface].parameters[parameter_index] * factor + offset
+            # The number on file seem to be computed already.
 
-        # STANDARD surface: z**2 == 2 * r * self.curvature - (1 + self.conic_constant) * r**2
-        sag = lambda r: self.curvature * r**2 / (1 + (1 - (1 + self.conic_constant) * (self.curvature * r)**2)**0.5)
+        def standard_sag(r2: array_like) -> array_type:
+            return self.curvature * r2 / (1 + (1 - (1 + self.conic_constant) * self.curvature ** 2 * r2)**0.5)
+
+        def odd_asphere_sag(r2: array_type, coefficients: array_like) -> array_type:
+            result = 0.0
+            r = r2 ** 0.5
+            for _, c in enumerate(coefficients):
+                result = result + c * (r ** (_ + 1))
+            return standard_sag(r2) * result
+
+        def even_asphere_sag(r2: array_type, coefficients: array_like) -> array_type:
+            result = 0.0
+            for _, c in enumerate(coefficients):
+                result = result + c * (r2 ** (_ + 1))
+            return standard_sag(r2) * result
+
+        def zernike_sag(position: array_type, coefficients: array_like, indices: array_like = tuple(),
+                        radius: array_type = 1.0) -> array_type:
+            position = asarray(position)
+            rho = np.linalg.norm(position[..., :2], axis=-1) / radius
+            phi = np.arctan2(position[..., 1], position[..., 0])
+            z = zernike.Polynomial(coefficients=coefficients, indices=indices)
+            return z(rho, phi)
+
+        def poly_sag(position: array_type, coefficients: array_like, radius: array_type = 1.0) -> array_type:
+            p = asarray(position) / radius
+            result = 0.0
+            for _, c in enumerate(coefficients):
+                if c != 0.0:
+                    # 0: x^1 y^0, 1: x^0 y^1,    2: x^2 y^0, 3: x^1 y^1, 4: x^0 y^2,  5: x^3 y^0, ...
+                    # j = n * (n+1) / 2 - 1 -> n * (n+1) / 2 - 1 + n
+                    nb_factors = np.floor((2 * (_ + 1)) ** 0.5).astype(int)
+                    exponent_y = _ - nb_factors * (nb_factors + 1) // 2 + 1
+                    exponents = [nb_factors - exponent_y, exponent_y]
+                    result = result + c * (p[..., 0] ** exponents[0]) * (p[..., 1] ** exponents[1])
+            return result
+
+        match self.type:
+            case "COORDBRK":  # A Transform, not a Surface
+                self.decenter_xy = asarray(self.parameters[:2]) * self.unit
+                self.euler_angles = [_ * np.pi / 180.0 for _ in self.parameters[2:5]]  # Rotation of the coordinate system of the optics. Euler angles are applied in the order x, y, z.
+                self.rotate_before_decenter = self.parameters[5] != 0  # If False, decenter, then apply Euler angles; and then translate thickness. If True, apply Euler angles; then decenter and thickness.
+            case "PARAXIAL":
+                self.focal_length = self.parameters[0] * self.unit
+                opd_calc_mode = self.parameters[1]
+            case "STANDARD":  # STANDARD surface: z**2 == 2 * r * self.curvature - (1 + self.conic_constant) * r**2, used as the basis for many other surfaces
+                self.sag = lambda position: standard_sag(np.sum(asarray(position)[..., :2] ** 2))
+            case "EVENASPH":  # Even Asphere Surface, used as the basis for many other surfaces
+                self.sag = lambda position: even_asphere_sag(np.sum(asarray(position)[..., :2] ** 2),
+                                                             asarray(self.parameters) * self.unit)  # In lens units, the extended version uses normalized radii, rho
+            case "TOROIDAL":
+                # self.parameters [extrapolate_zernike, radius_of_rotation, coefficients]
+                # data_x [nb_zernikes, norm_radius, *zernike_terms], and VPAR also seems to contain some info?
+                def toroidal_sag(position: array_type) -> array_like:
+                    position = asarray(position)
+                    z_in_plane = even_asphere_sag(position[..., 1] ** 2, self.parameters[2:])
+                    radius_of_rotation = self.parameters[1]  # if self.parameters[1] != 0.0 else np.inf
+                    curved_in_x = radius_of_rotation != 0.0
+                    z_to_origin_2 = (z_in_plane - radius_of_rotation) ** 2 - position[..., 1] ** 2
+                    toroid = (z_to_origin_2 ** 0.5 + radius_of_rotation) * curved_in_x + (1 - curved_in_x) * z_in_plane
+                    return toroid + zernike_sag(position,
+                                                coefficients=asarray(self.extra_data[2:]) * self.unit,
+                                                radius=self.extra_data[1] * self.unit)
+                self.sag = toroidal_sag
+            case "SZERNSAG":  # Zernike Standard Sag Surface is derived from the Even aspheric surface
+                self.zernike_radius = self.extra_data[1] * self.unit
+                self.zernike_coefficients = asarray(self.extra_data[2:]) * self.unit
+                self.sag = lambda position: even_asphere_sag(np.sum(asarray(position)[..., :2] ** 2),
+                                                             asarray(self.parameters) * self.unit) + \
+                                            zernike_sag(position, self.zernike_coefficients, radius=self.zernike_radius)
+            case "SZERNPHA":  # STANDARD sag, but opd changed by Zernikes
+                self.zernike_radius = self.extra_data[1] * self.unit
+                self.zernike_coefficients = asarray(self.extra_data[2:]) * 2 * np.pi
+                self.sag = lambda position: even_asphere_sag(np.sum(asarray(position)[..., :2] ** 2),
+                                                             asarray(self.parameters) * self.unit)
+                self.phase = lambda position: zernike_sag(position, self.zernike_coefficients, radius=self.zernike_radius)
+            case "FZERNSAG":  # Zernike Fringe Sag Surface is derived from the Even aspheric surface
+                self.zernike_radius = self.extra_data[1] * self.unit
+                self.zernike_coefficients = asarray(self.extra_data[2:]) * self.unit
+                self.sag = lambda position: even_asphere_sag(np.sum(asarray(position)[..., :2] ** 2),
+                                                             asarray(self.parameters) * self.unit) + \
+                                            zernike_sag(
+                                                position, self.zernike_coefficients,
+                                                indices=zernike.fringe2index(range(1, 1 + len(self.zernike_coefficients))),
+                                                radius=self.zernike_radius)
+            case "FZERNPHA":  # STANDARD sag, but opd changed by Zernikes
+                self.zernike_radius = self.extra_data[1] * self.unit
+                self.zernike_coefficients = asarray(self.extra_data[2:]) * 2 * np.pi
+                self.sag = lambda position: even_asphere_sag(np.sum(asarray(position)[..., :2] ** 2),
+                                                             asarray(self.parameters) * self.unit)
+                self.phase = lambda position: zernike_sag(
+                    position, self.zernike_coefficients,
+                    indices=zernike.fringe2index(range(1, 1 + len(self.zernike_coefficients))),
+                    radius=self.zernike_radius)
+            case "XPOLYNOM":
+                self.sag = lambda position: standard_sag(np.sum(asarray(position)[..., :2] ** 2)) + \
+                                            poly_sag(position, self.extra_data[2:],
+                                                     radius=self.extra_data[1] * self.unit)
+            case "TILTSURF":
+                # A planar surface with a rotation before and its reverse after.
+                self.euler_angles = np.arctan(self.parameters[:2])  # TODO convert to a Transform before and a Transform after
+                self.sag = lambda position: position[..., 0] * 0.0
+            case "GRID_SAG":
+                log.warning(f"Surface {self.type}({self.parameters}, {self.extra_data}) not implemented:\n{self.commands}")
+            case "BICONICX":
+                log.warning(f"Surface {self.type}({self.parameters}, {self.extra_data}) not implemented:\n{self.commands}")
+            case "IRREGULA":
+                log.warning(f"Surface {self.type}({self.parameters}, {self.extra_data}) not implemented:\n{self.commands}")
+            case _:
+                log.warning(f"Unknown surface type: '{self.type}'!")
 
     @property
     def eccentricity(self):
