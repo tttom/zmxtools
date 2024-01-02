@@ -2,6 +2,7 @@ import logging
 from typing import List
 
 from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_zar_files
+from tests.zmx.test_zmx import assert_optical_design
 from zmxtools import cli, zar
 
 from tests.zar import log
@@ -122,15 +123,7 @@ def test_unzar_full():
 def test_load():
     """Tests the zmxtools.zar.unpack function."""
     for zar_full_file in test_zar_files.keys():
-        log.info(zar_full_file)
+        log.debug(f"Testing {zar_full_file}...")
         optical_design = zar.load(zar_full_file.as_posix())[0]
-        assert optical_design.unit == 1e-3, f"unit = {optical_design.unit}, not mm."
-        assert len(optical_design.wavelengths) > 0, f"No wavelengths specified in {zar_full_file}."
-        assert all(150e-9 <= _ <= 15e-6 for _ in optical_design.wavelengths), f"Wavelengths not optical: {optical_design.wavelengths}"
-        assert optical_design.sequential, f"Non-sequential optical model {zar_full_file}."
-        assert len(optical_design.material_libraries), f"No material libraries specified in {zar_full_file}."
-        assert len(optical_design.surfaces) >= 3, f"Number of surfaces ({len(optical_design.surfaces)}) is expected to be larger."
-        total_track = sum(_.distance for _ in optical_design.surfaces[1:-1])
-        assert 1e-3 <= total_track <= 1.0, f"Total track {total_track} too extreme in {zar_full_file}."
-        assert any(_.curvature != 0.0 for _ in optical_design.surfaces), f"No curved surfaces found in in {zar_full_file}."
-        # log.info(optical_design.surfaces[1].material.wavelength_limits)
+        assert_optical_design(optical_design, zar_full_file)
+
