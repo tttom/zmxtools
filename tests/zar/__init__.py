@@ -4,17 +4,18 @@ from typing import Dict, Optional
 from tests import log
 log = log.getChild(__name__)
 
-__all__ = ['MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_files', 'check_dir_and_remove', 'check_zip_and_remove']
+__all__ = ['MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_zar_files', 'check_dir_and_remove', 'check_zip_and_remove']
 
 MIN_FILES_IN_ARCHIVE = 3
 
 test_directory = Path(__file__).resolve().parent.parent / 'data'
 
-test_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.glob('**/*.zar')}
-for _ in test_directory.glob('**/*.zmx'):
-    zar_file = _.parent / (_.stem + '.zar')
-    if zar_file in test_files.keys():
-        test_files[zar_file] = _
+test_zar_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.rglob('*') if _.suffix.lower() == ".zar"}
+for _ in test_directory.rglob('*'):
+    if _.suffix.lower() == ".zmx":
+        zar_file = _.parent / (_.stem + '.zar')
+        if zar_file in test_zar_files.keys():
+            test_zar_files[zar_file] = _
 
 
 def check_dir_and_remove(extraction_dir: Path, remove: bool = True):
@@ -26,7 +27,7 @@ def check_dir_and_remove(extraction_dir: Path, remove: bool = True):
     )
 
     if remove:
-        # Delete files again and remove sub-directory
+        # Delete files again and remove subdirectory
         log.debug(f'Deleting directory {extraction_dir} with the extracted contents...')
         for _ in files_in_archive:
             _.unlink()

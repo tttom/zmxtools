@@ -2,7 +2,7 @@ import os
 import shutil
 from typing import List
 
-from tests.zar import check_dir_and_remove, check_zip_and_remove, test_directory, test_files
+from tests.zar import check_dir_and_remove, check_zip_and_remove, test_directory, test_zar_files
 from zmxtools import cli
 
 from tests.zar import log
@@ -21,7 +21,7 @@ def test_unzar_basic():
 
 def test_unzar_full():
     """Tests the code on actual archive files."""
-    zar_full_file = list(test_files.keys())[0]
+    zar_full_file = list(test_zar_files.keys())[0]
     output_path = test_directory / 'tmp'
     output_zip_full_file = output_path / (zar_full_file.stem + '.zip')
 
@@ -54,7 +54,7 @@ def test_unzar_full():
 
 def test_unzar_non_zar_extension():
     """Checks whether the command line interface is happy to take zar files with a different extension."""
-    zar_full_file = list(test_files.keys())[0]
+    zar_full_file = list(test_zar_files.keys())[0]
     non_zar_full_file = zar_full_file.with_name(zar_full_file.name[:-4] + '_zar_rename.nzr')
     shutil.copyfile(zar_full_file, non_zar_full_file)
     log.debug(f'Trying to read a zar file with the wrong extension {non_zar_full_file} as a .zar file...')

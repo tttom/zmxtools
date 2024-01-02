@@ -1,14 +1,16 @@
 import zipfile
 from pathlib import Path
-from typing import Generator, List, Optional, Union
+from typing import Generator, List, Optional, Sequence
 
 from zmxtools.definitions import BinaryFileLike, BytesFile, PathLike
+from zmxtools.zmx import ZmxOpticalDesign
+from zmxtools.agf import AgfMaterialLibrary
 from zmxtools import log
 
 log = log.getChild(__name__)
 
 
-__all__ = ['unpack', 'extract', 'repack']
+__all__ = ['unpack', 'extract', 'repack', 'load']
 
 
 ZAR = '.zar'
@@ -69,9 +71,9 @@ def _decompress_lzw(compressed: bytes) -> bytes:
     return b''.join(decompressed)  # convert to bytes
 
 
-def unpack(input_path_or_stream: Union[BinaryFileLike, PathLike]) -> Generator[BytesFile, None, None]:
+def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFile, None, None]:
     """
-    Unpacks a zar archive file and generates a series of BytesFile objects
+    Unpacks a zar archive file and generates a series of :py:class:``BytesFile`` objects
     that hold the unpacked file name and contents.
 
     The returned Generator produces tuples in the order found in the archive.
@@ -79,12 +81,12 @@ def unpack(input_path_or_stream: Union[BinaryFileLike, PathLike]) -> Generator[B
     ```
     from zmxtools import zar
 
-    for _ in zar.read("file.zar"):
+    for _ in zar.unpack("file.zar"):
         print(f"{_.name} has {len(_.read())} unpacked bytes.")
     ```
 
     :param input_path_or_stream: The archive or the path to the archive.
-    :return: A Generator of name-data tuples.
+    :return: A Generator of :py:class:``BytesFile`` objects.
     """
     # Make sure that the input arguments are both pathlib.Path-s
     if isinstance(input_path_or_stream, PathLike):
@@ -136,7 +138,7 @@ def unpack(input_path_or_stream: Union[BinaryFileLike, PathLike]) -> Generator[B
             yield BytesFile(path=packed_file_name, contents=archive_data)
 
 
-def extract(input_path_or_stream: Union[BinaryFileLike, PathLike], output_path: Optional[PathLike] = None) -> None:
+def extract(input_path_or_stream: BinaryFileLike | PathLike, output_path: Optional[PathLike] = None) -> None:
     """
     Imports the data from a zar archive file and writes it as a regular directory.
 
@@ -167,8 +169,8 @@ def extract(input_path_or_stream: Union[BinaryFileLike, PathLike], output_path: 
     log.info(f'Extracted{input_description} to directory {output_path}/.')
 
 
-def repack(input_path_or_stream: Union[BinaryFileLike, PathLike],
-           output_path_or_stream: Union[BinaryFileLike, PathLike, None] = None) -> None:
+def repack(input_path_or_stream: BinaryFileLike | PathLike,
+           output_path_or_stream: Optional[BinaryFileLike | PathLike] = None) -> None:
     """
     Imports the data from a zar archive file and writes it to a regular zip file.
 
@@ -214,3 +216,30 @@ def repack(input_path_or_stream: Union[BinaryFileLike, PathLike],
             archive_file.writestr(f'{repack_directory}/{unpacked_data.name}', unpacked_data.read())
 
     log.info(f'Converted{input_description} to zip archive{output_description}.')
+
+
+def load(input_path_or_stream: BinaryFileLike | PathLike) -> Sequence[ZmxOpticalDesign]:
+    """
+    Unpacks a ZAR archive file and generates a series of :py:class:``ZmxOpticalDesign` objects, one for each ZMX file
+    in the archive and using the AGF glass libraries contained in the ZAR archive.
+
+    :param input_path_or_stream: The archive or the path to the archive.
+
+    :return: A Generator of :py:class:``ZmxOpticalDesign` objects.
+    """
+    material_libraries = list[AgfMaterialLibrary]()
+    zmx_files = list[BytesFile]()
+    for file in unpack(input_path_or_stream):
+        if file.name.lower().endswith(".agf"):
+            log.info(f"Loading glass library {file.name}...")
+            material_libraries.append(AgfMaterialLibrary.from_file(file))
+            log.debug(f"Loaded glass library {file.name}.")
+        elif file.name.lower().endswith(".zmx"):
+            zmx_files.append(file)
+    # Load an optical model per zmx file
+    zmx_optical_designs = list[ZmxOpticalDesign]()
+    for zmx_file in zmx_files:
+        log.info(f"Loading {zmx_file.name} using material libraries {[_.name for _ in material_libraries]}...")
+        zmx_optical_designs.append(ZmxOpticalDesign.from_file(zmx_file, material_libraries=material_libraries))
+        log.debug(f"Loaded {zmx_file.name}.")
+    return zmx_optical_designs

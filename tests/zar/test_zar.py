@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_files
+from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_zar_files
 from zmxtools import cli, zar
 
 from tests.zar import log
@@ -9,7 +9,7 @@ log = log.getChild(__name__)
 log.level = logging.DEBUG
 
 
-paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_files.items() if zmx_path is not None}
+paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_zar_files.items() if zmx_path is not None}
 
 
 def test_unpack():
@@ -45,11 +45,11 @@ def test_unpack():
 
 def test_extract():
     """Tests the zmxtools.zar.extract function."""
-    assert len(test_files) > 1, (
+    assert len(test_zar_files) > 1, (
         f'No zar files found in {test_directory}! Make sure that the extensions are lower case.'
     )
 
-    for zar_full_file in test_files.keys():
+    for zar_full_file in test_zar_files.keys():
         zar.extract(zar_full_file)
         output_dir = zar_full_file.parent / zar_full_file.stem
         check_dir_and_remove(output_dir)
@@ -61,11 +61,11 @@ def test_extract():
 
 def test_repack():
     """Tests the zmxtools.zar.repack function."""
-    assert len(test_files) > 1, (
+    assert len(test_zar_files) > 1, (
         f'No zar files found in {test_directory}! Make sure that the extensions are lower case.'
     )
 
-    for zar_full_file in test_files.keys():
+    for zar_full_file in test_zar_files.keys():
         zip_full_file = zar_full_file.with_suffix('.zip')
         zar.repack(zar_full_file)
         check_zip_and_remove(zip_full_file)
@@ -88,7 +88,7 @@ def test_unzar_basic():
 
 def test_unzar_full():
     """Tests the code on actual archive files."""
-    zar_full_file = list(test_files.keys())[0]
+    zar_full_file = list(test_zar_files.keys())[0]
     output_path = test_directory / 'tmp'
     output_zip_full_file = output_path / (zar_full_file.stem + '.zip')
 
@@ -117,3 +117,20 @@ def test_unzar_full():
     log.debug(f'Deleting {output_path} directory...')
     output_path.rmdir()
     log.info(f'Deleted {output_path} directory.')
+
+
+def test_load():
+    """Tests the zmxtools.zar.unpack function."""
+    for zar_full_file in test_zar_files.keys():
+        log.info(zar_full_file)
+        optical_design = zar.load(zar_full_file.as_posix())[0]
+        assert optical_design.unit == 1e-3, f"unit = {optical_design.unit}, not mm."
+        assert len(optical_design.wavelengths) > 0, f"No wavelengths specified in {zar_full_file}."
+        assert all(150e-9 <= _ <= 15e-6 for _ in optical_design.wavelengths), f"Wavelengths not optical: {optical_design.wavelengths}"
+        assert optical_design.sequential, f"Non-sequential optical model {zar_full_file}."
+        assert len(optical_design.material_libraries), f"No material libraries specified in {zar_full_file}."
+        assert len(optical_design.surfaces) >= 3, f"Number of surfaces ({len(optical_design.surfaces)}) is expected to be larger."
+        total_track = sum(_.distance for _ in optical_design.surfaces[1:-1])
+        assert 1e-3 <= total_track <= 1.0, f"Total track {total_track} too extreme in {zar_full_file}."
+        assert any(_.curvature != 0.0 for _ in optical_design.surfaces), f"No curved surfaces found in in {zar_full_file}."
+        # log.info(optical_design.surfaces[1].material.wavelength_limits)
