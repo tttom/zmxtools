@@ -1,6 +1,6 @@
 import numpy as np
 
-from zmxtools.utils import to_length
+from zmxtools.utils.array import to_length
 
 
 def factorial_fraction(numerator=0, denominator=0):

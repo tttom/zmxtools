@@ -2,7 +2,7 @@ import zipfile
 from pathlib import Path
 from typing import Generator, List, Optional, Sequence
 
-from zmxtools.definitions import BinaryFileLike, BytesFile, PathLike
+from zmxtools.utils.io import BinaryFileLike, BytesFile, PathLike
 from zmxtools.zmx import ZmxOpticalDesign
 from zmxtools.agf import AgfMaterialLibrary
 from zmxtools import log

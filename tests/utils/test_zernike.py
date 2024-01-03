@@ -15,19 +15,23 @@ class TestPolynomial(unittest.TestCase):
         tilt = BasisPolynomial(1)
         tip = BasisPolynomial(2)
         defocus = BasisPolynomial(4)
+        npt.assert_equal(str(piston), "Z₀⁰")
         npt.assert_equal(piston(0), 1, "Piston fit failed")
         npt.assert_equal(piston(1/2), 1, "Piston fit failed")
         npt.assert_equal(piston(1), 1, "Piston fit failed")
+        npt.assert_equal(str(tip), "Z₁¹")
         npt.assert_equal(tip(0.0), 0.0, "Tip fit failed")
         npt.assert_equal(tip(0.5), 1.0, "Tip fit failed")
         npt.assert_equal(tip(1.0), 2.0, "Tip fit failed")
         npt.assert_equal(tip(np.array([0.0, 0.5, 1.0])), np.array([0.0, 1.0, 2.0]), "Tip fit failed")
+        npt.assert_equal(str(tilt), "Z₁⁻¹")
         npt.assert_almost_equal(tilt(np.array([0.0, 0.5, 1.0])), np.array([0.0, 0.0, 0.0]), 12, "Tilt fit failed")
         npt.assert_equal(tilt(np.array([0.0, 0.5, 1.0]), np.pi/2), np.array([0.0, 1.0, 2.0]), "Rotated tilt fit failed")
         npt.assert_almost_equal(tip(np.array([0.0, 0.5, 1.0]), np.pi/2), np.array([0.0, 0.0, 0.0]), 12, "Rotated tip fit failed")
         npt.assert_almost_equal(
             tilt(np.array([[0.0, 0.5, 1.0]]), [[0], [np.pi/2]]), np.array([[0, 0, 0], [0, 1, 2]]),
             12, "Non|rotated tilt fit failed")
+        npt.assert_equal(str(defocus), "Z₂⁰")
         npt.assert_almost_equal(defocus([[0.0, 0.5, 1.0]], [[0.0], [np.pi/2]]),
                                 np.sqrt(3) * np.array([[-1.0, -0.5, 1.0], [-1.0, -0.5, 1.0]]),
                                 12, "Defocus fit failed")
@@ -98,6 +102,7 @@ class TestPolynomial(unittest.TestCase):
 
         s = Polynomial(test_coefficients)
         npt.assert_array_equal(s.coefficients, test_coefficients)
+        assert s.order == 4, f"Zernike superposition polynomial order incorrect for {s}."
         npt.assert_array_equal(s.indices, np.arange(len(test_coefficients)))
         bs = lambda rho, phi: sum(c * BasisPolynomial(_)(rho, phi) for _, c in enumerate(test_coefficients))
 
@@ -111,6 +116,7 @@ class TestPolynomial(unittest.TestCase):
 
         test_indices = noll2index(range(1, 1 + len(test_coefficients)))
         s2 = Polynomial(test_coefficients, indices=test_indices)
+        assert s2.order == 5, f"Zernike superposition polynomial order incorrect for {s2} with indices {test_indices}."
         npt.assert_array_equal(s2.coefficients, test_coefficients)
         npt.assert_array_equal(s2.indices, test_indices)
         bs2 = lambda rho, phi: sum(c * BasisPolynomial(test_indices[_])(rho, phi) for _, c in enumerate(test_coefficients))

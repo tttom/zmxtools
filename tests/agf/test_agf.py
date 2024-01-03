@@ -6,8 +6,8 @@ from typing import Type, List
 import itertools
 import pathlib
 
-from tests.agf import test_directory, test_files
-from zmxtools.definitions import const_c
+from tests.agf import test_directory, test_agf_files
+from zmxtools.utils import const_c
 from zmxtools.optical_design.material import Vacuum, CiddorAir, SimpleAir
 from zmxtools import agf
 
@@ -115,11 +115,11 @@ def test_SimpleAir():
 def test_from_file():
     """Tests agf.AgfMaterialLibrary.from_file function."""
 
-    assert len(test_files) > 1, f'No agf files found in {test_directory}!'
+    assert len(test_agf_files) > 1, f'No agf files found in {test_directory}!'
 
     material_type_dict = defaultdict[Type, List[pathlib.Path]](list)
     tested_material_type_dict = defaultdict[Type, List[pathlib.Path]](list)
-    for agf_file_path in test_files:
+    for agf_file_path in test_agf_files:
         log.info(f"Testing {agf_file_path}...")
         material_library = agf.AgfMaterialLibrary.from_file(agf_file_path)
         log.info(f"Read {agf_file_path}.")

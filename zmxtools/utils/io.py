@@ -1,21 +1,14 @@
 from __future__ import  annotations
 
 import typing
-from typing import Optional, Self, Sequence
+from typing import Optional, Self
 import pathlib
 import io
 import os
-import numpy as np
 
 from zmxtools import log
 
 log = log.getChild(__name__)
-
-array_type = np.ndarray
-array_like = array_type | int | float | complex | Sequence["array_like"]
-asarray = lambda _: np.asarray(_, dtype=np.complex64)
-
-const_c = 299_792_458  # avoid importing scipy just for this
 
 
 class BytesFile:

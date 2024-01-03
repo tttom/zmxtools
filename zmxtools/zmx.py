@@ -6,12 +6,13 @@ import numpy as np
 import pathlib
 from typing import Tuple, Optional, Sequence
 
-from zmxtools.definitions import array_like, array_type, asarray, FileLike, PathLike
+from zmxtools.utils.io import FileLike, PathLike
+from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils import zernike
 from zmxtools.optical_design.material import Material, Vacuum, MaterialLibrary
 from zmxtools.optical_design.optic import Surface, OpticalDesign
 from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.parser import OrderedCommandDict, Command
-from zmxtools.utils import zernike
 from zmxtools import log
 
 log = log.getChild(__name__)
@@ -266,20 +267,20 @@ class ZmxSurface(Surface):
         def standard_sag(r2: array_like) -> array_type:
             return self.curvature * r2 / (1 + (1 - (1 + self.conic_constant) * self.curvature ** 2 * r2)**0.5)
 
-        def odd_asphere_sag(r2: array_type, coefficients: array_like) -> array_type:
+        def odd_asphere_sag(r2: array_like, coefficients: array_like) -> array_type:
             result = 0.0
             r = r2 ** 0.5
             for _, c in enumerate(coefficients):
                 result = result + c * (r ** (_ + 1))
             return standard_sag(r2) * result
 
-        def even_asphere_sag(r2: array_type, coefficients: array_like) -> array_type:
+        def even_asphere_sag(r2: array_like, coefficients: array_like) -> array_type:
             result = 0.0
             for _, c in enumerate(coefficients):
                 result = result + c * (r2 ** (_ + 1))
             return standard_sag(r2) * result
 
-        def zernike_sag(position: array_type, coefficients: array_like, indices: array_like = tuple(),
+        def zernike_sag(position: array_like, coefficients: array_like, indices: array_like = tuple(),
                         radius: array_type = 1.0) -> array_type:
             position = asarray(position)
             rho = np.linalg.norm(position[..., :2], axis=-1) / radius

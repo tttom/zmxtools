@@ -1,4 +1,12 @@
+from typing import Sequence, TypeAlias
 import numpy as np
+
+array_type: TypeAlias = np.ndarray
+array_like: TypeAlias = array_type | int | float | complex | Sequence["array_like"]
+
+
+def asarray(_: array_like, dtype=np.complex64) -> array_type:
+    return np.asarray(_, dtype=dtype)
 
 
 def to_length(vector, length: int, value=0):

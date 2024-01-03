@@ -10,7 +10,7 @@ MIN_FILES_IN_ARCHIVE = 3
 
 test_directory = Path(__file__).resolve().parent.parent / 'data'
 
-test_zar_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.rglob('*') if _.suffix.lower() == ".zar"}
+test_zar_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.glob('*') if _.suffix.lower() == ".zar"}
 for _ in test_directory.rglob('*'):
     if _.suffix.lower() == ".zmx":
         zar_file = _.parent / (_.stem + '.zar')

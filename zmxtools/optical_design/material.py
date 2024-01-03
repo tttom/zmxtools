@@ -5,7 +5,8 @@ from typing import Optional, List, Sequence, Iterator, Callable
 from dataclasses import dataclass
 import numpy as np
 
-from zmxtools.definitions import array_like, array_type, asarray, const_c
+from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils import const_c
 from zmxtools import log
 
 log = log.getChild(__name__)

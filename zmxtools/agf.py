@@ -19,10 +19,10 @@ import re
 from collections.abc import Iterator
 import numpy as np
 
-from zmxtools.definitions import array_like, array_type, asarray, FileLike, PathLike
+from zmxtools.utils.array import array_like, array_type, asarray, to_length
+from zmxtools.utils.io import FileLike, PathLike
 from zmxtools.optical_design.material import MaterialLibrary, Material, FunctionMaterial, PolynomialMaterial, MaterialResistance
 from zmxtools.parser import OrderedCommandDict, Command
-from zmxtools.utils import to_length
 from zmxtools import log
 
 __all__ = ["AgfOrderedCommandDict", "AgfMaterialLibrary", "AgfMixin"]
@@ -408,10 +408,8 @@ class HerzbergerAgfMaterial(AgfMixin, FunctionMaterial):
         where :math:`c_i` are the coefficient factors and :math:`l(\lambda)` is the shifted-squared wavelength in
         :math:`mu m^2`, while :math:`\lambda^2` is the squared wavelength in micrometers.
 
-        :param name: The name of this material.
         :param temperature: The temperature this material is at in degrees K.
         :param pressure: The pressure this material is at in Pascals [Pa].
-        :param factors_um: The coefficient factors for a polynomial in the micrometer-wavelengths
         """
         AgfMixin.__init__(self, command)
 

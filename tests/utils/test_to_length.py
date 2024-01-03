@@ -1,7 +1,7 @@
 import unittest
 import numpy.testing as npt
 
-from zmxtools.utils import to_length
+from zmxtools.utils.array import to_length
 
 import numpy as np
 
