@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-import re
 import numpy as np
 import pathlib
+import re
 from typing import Tuple, Optional, Sequence
 
 from zmxtools.utils.io import FileLike, PathLike
-from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils.array import array_like, array_type, asarray, norm
 from zmxtools.utils import zernike
-from zmxtools.optical_design.material import Material, Vacuum, MaterialLibrary
-from zmxtools.optical_design.optic import Surface, OpticalDesign
+from zmxtools.optical_design.source import Source
+from zmxtools.optical_design.light import Wavefront
+from zmxtools.optical_design.material import Material, VACUUM, MaterialLibrary
+from zmxtools.optical_design.medium import Medium, HomogeneousMedium
+from zmxtools.optical_design.optic import CompoundElement, SurfaceDetector, OpticalDesign
+from zmxtools.optical_design.geometry import Translation, EulerRotation, SphericalTransform
+from zmxtools.optical_design.surface import Surface, DiskAperture, SnellInterface
 from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.parser import OrderedCommandDict, Command
 from zmxtools import log
@@ -77,6 +82,24 @@ class ZmxOrderedCommandDict(OrderedCommandDict):
         return parse_section(file_contents.splitlines().__iter__())[0]
 
 
+class ZmxSource(Source):
+    def __init__(self, medium: Medium,
+                 E: array_like, H: array_like,
+                 p: array_like, d: array_like,
+                 wavelengths: array_like, wavelength_weights: array_like,
+                 surface: ZmxSurface):
+        self.wavelengths = asarray(wavelengths)
+        self.wavelength_weights = asarray(wavelength_weights)
+        self.surface: ZmxSurface = surface
+
+        p = asarray(p)
+        E = asarray(E)
+        H = asarray(H)
+        k0 = 2.0 * np.pi / self.wavelengths
+        k = d / norm(d) * k0 * medium.complex_refractive_index(wavenumber=k0, p=p, E=E, H=H)
+        super().__init__(medium=medium, wavefront=Wavefront(E=E, H=H, p=p, k=k, d=d, k0=k0))
+
+
 class ZmxOpticalDesign(OpticalDesign):
     @staticmethod
     def from_str(contents: str, spaces_per_indent: int = 2) -> ZmxOpticalDesign:
@@ -114,6 +137,7 @@ class ZmxOpticalDesign(OpticalDesign):
         self.commands = commands
 
         self.version = self.commands["VERS", 0].argument if "VERS" in self.commands else ""
+        log.debug(f'Loading a zmx file with version "{self.version}"...')
         self.sequential = True
         if "MODE" in self.commands:
             mode = self.commands["MODE", 0].words[0]
@@ -137,7 +161,9 @@ class ZmxOpticalDesign(OpticalDesign):
                 self.unit = unit_dict[unit_code]
             else:
                 log.warning(f"Unrecognized unit code {unit_code}. Defaulting to 1m.")
-        # Materials
+        log.info(f'Loading optical design "{self.name}" by "{self.author}": {self.description} using units of {self.unit}.')
+
+        log.debug("Configuring material libraries...")
         self.material_libraries = [_ for _ in material_libraries if isinstance(_, MaterialLibrary)]
         material_library_file_paths = [_ for _ in material_libraries if not isinstance(_, MaterialLibrary)]
         if "GCAT" in self.commands:
@@ -155,6 +181,7 @@ class ZmxOpticalDesign(OpticalDesign):
                     else:
                         self.material_libraries.append(material_library)
 
+        log.debug("Configuring coatings...")
         self.coating_filenames = list[str]()
         # Coating
         if "COFN" in self.commands:
@@ -162,29 +189,40 @@ class ZmxOpticalDesign(OpticalDesign):
             if file_names[0] == "QF":
                 file_names = file_names[1:]
             self.coating_filenames += file_names
-        self.numerical_aperture = 1.0
+        log.info(f"Coating files {self.coating_filenames}. Coatings are not yet implemented.")
 
-        self.background_material = Vacuum()  # CiddorAir()
-        self.surfaces = [ZmxSurface(s.children, unit=self.unit,
-                                    material_libraries=self.material_libraries,   # todo: wavelengths are specified relative to the refractive index in air at 20+273.15K and 101.325Pa!
-                                    background_material=self.background_material)
-                         for s in self.commands.sort_and_merge("SURF")]
+        self.background_material = VACUUM  # CiddorAir()
+        surfaces: Sequence[ZmxSurface] = [ZmxSurface(s.children, unit=self.unit,
+                                                     material_libraries=self.material_libraries,   # todo: wavelengths are specified relative to the refractive index in air at 20+273.15K and 101.325Pa!
+                                                     background_material=self.background_material)
+                                          for s in self.commands.sort_and_merge("SURF")]
+        log.info(f"Detected {len(surfaces)} surfaces, including the object and image surface.")
 
-        self.field_comment = self.commands["FCOM", 0].argument if "FCOM" in self.commands else ""
-        self.wavelengths = self.commands["WAVL", 0].numbers if "WAVL" in self.commands else list[float]()  # "WAVM" doesn't seem very reliable. Perhaps this depends on the version?
-        self.wavelength_weights = self.commands["WWGT", 0].numbers if "WWGT" in self.commands else list[float]()
-        if len(self.wavelength_weights) < len(self.wavelengths):
-            self.wavelength_weights = [*self.wavelength_weights, *([1.0] * (len(self.wavelengths) - len(self.wavelength_weights)))]
-        if len(self.wavelengths) == 0 and "WAVM" in self.commands:  # This seems to be the new way, but it contains many unused wavelengths as well
+        media = [HomogeneousMedium(_.material) for _ in surfaces[:-1]]
+        object_medium = media[0]
+
+        log.debug("Reading the illumination spectrum...")
+        wavelengths = self.commands["WAVL", 0].numbers if "WAVL" in self.commands else list[float]()  # "WAVM" doesn't seem very reliable. Perhaps this depends on the version?
+        wavelength_weights = self.commands["WWGT", 0].numbers if "WWGT" in self.commands else list[float]()
+        if len(wavelength_weights) < len(wavelengths):
+            wavelength_weights = [*wavelength_weights, *([1.0] * (len(wavelengths) - len(wavelength_weights)))]
+        if len(wavelengths) == 0 and "WAVM" in self.commands:  # This seems to be the new way, but it contains many unused wavelengths as well
             wavelengths_and_weights = [_.numbers[:2] for _ in self.commands.sort_and_merge("WAVM")]
             unique_wavelengths = set(_[0] for _ in wavelengths_and_weights)
             nb_occurences = [sum(u == _[0] for _ in wavelengths_and_weights) for u in unique_wavelengths]
             unique_wavelengths = [_ for _, n in zip(unique_wavelengths, nb_occurences) if n == 1]
             wavelengths_and_weights = [_ for _ in wavelengths_and_weights if _[0] in unique_wavelengths]
 
-            self.wavelengths = [_[0] for _ in wavelengths_and_weights]
-            self.wavelength_weights = [_[1] for _ in wavelengths_and_weights]
+            wavelengths = [_[0] for _ in wavelengths_and_weights]
+            wavelength_weights = [_[1] for _ in wavelengths_and_weights]
 
+        # Make all units meters
+        wavelengths = [_ * 1e-6 for _ in wavelengths]
+        log.info(f"Using wavelengths of {[f'{_ / 1e-9:0.1f}' for _ in wavelengths]} nm.")
+
+        log.debug("Parsing the field configuration...")
+        self.field_comment = self.commands["FCOM", 0].argument if "FCOM" in self.commands else ""
+        self.numerical_aperture = 1.0
         if "FNUM" in self.commands:
             f_number = self.commands["FNUM", 0].numbers[0]
             self.numerical_aperture_image = 2.0 / f_number  # todo: account for refractive index of object or image space?
@@ -200,8 +238,33 @@ class ZmxOpticalDesign(OpticalDesign):
             field_at_image = (field_type // 2) == 1  # object: False, image: True
         # field also uses VDXN, VDYN, VCXN, VXYN, VANN, VWGN, VWGT
 
-        # Make all units meters
-        self.wavelengths = [_ * 1e-6 for _ in self.wavelengths]
+        source = ZmxSource(medium=object_medium,
+                           E=(1, 0, 0), H=(0, 1, 0),
+                           p=0, d=(0, 0, 1),
+                           wavelengths=wavelengths, wavelength_weights=wavelength_weights,
+                           surface=surfaces[0])
+        optic = CompoundElement(*surfaces[1:-1], *media[1:-1])
+        image_medium = media[-1]
+        detector = SurfaceDetector(medium=image_medium, surface=surfaces[-1])
+
+        super().__init__(source=source, optic=optic, detector=detector)
+        self.source: ZmxSource = source  # A more specific type
+        self.detector: SurfaceDetector = detector  # A more specific type
+
+    @property
+    def surfaces(self) -> Sequence[ZmxSurface]:
+        """All ZmxSurfaces in order, including the object and the image surface."""
+
+        def all_surfaces(optic) -> Sequence[ZmxSurface]:
+            result = list[ZmxSurface]()
+            if isinstance(optic, CompoundElement):
+                for e in optic.elements:
+                    result += all_surfaces(e)
+            elif isinstance(optic, ZmxSurface):
+                result.append(optic)
+            return result
+
+        return self.source.surface, *all_surfaces(self.optic), self.detector.surface
 
     def __str__(self) -> str:
         """
@@ -218,7 +281,7 @@ class ZmxSurface(Surface):
     """A class to represent a thin surface between two volumes as read from a .zmx file."""
     def __init__(self, commands: OrderedCommandDict, unit: float = 1.0,
                  material_libraries: Sequence[MaterialLibrary] = tuple[MaterialLibrary](),
-                 background_material: Material = Vacuum()):
+                 background_material: Material = VACUUM):
         """
         Construct a new surface based from a command dictionary that represents the corresponding lines in the file.
 
@@ -228,7 +291,7 @@ class ZmxSurface(Surface):
         :param background_material: The material to use when no (recognized) material is specified.
         """
         self.unit = unit
-        self.commands = commands
+        self.commands: OrderedCommandDict = commands
 
         self.type = self.commands["TYPE", 0].argument if "TYPE" in self.commands else "STANDARD"
         # Types: "STANDARD" , "EVENASPH", "TOROIDAL", "XOSPHERE", "COORDBRK", "TILTSURF", "PARAXIAL", "DGRATING"
@@ -283,7 +346,7 @@ class ZmxSurface(Surface):
         def zernike_sag(position: array_like, coefficients: array_like, indices: array_like = tuple(),
                         radius: array_type = 1.0) -> array_type:
             position = asarray(position)
-            rho = np.linalg.norm(position[..., :2], axis=-1) / radius
+            rho = norm(position[..., :2]) / radius
             phi = np.arctan2(position[..., 1], position[..., 0])
             z = zernike.Polynomial(coefficients=coefficients, indices=indices)
             return z(rho, phi)
@@ -374,6 +437,10 @@ class ZmxSurface(Surface):
                 log.warning(f"Surface {self.type}({self.parameters}, {self.extra_data}) not implemented:\n{self.commands}")
             case _:
                 log.warning(f"Unknown surface type: '{self.type}'!")
+
+        super().__init__(interface=SnellInterface(transform=SphericalTransform(curvature=self.curvature)),
+                         aperture=DiskAperture(outer_radius=self.radius),
+                         transform=Translation([0, 0, self.distance]))
 
     @property
     def eccentricity(self):

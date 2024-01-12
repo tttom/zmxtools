@@ -9,6 +9,50 @@ def asarray(_: array_like, dtype=np.complex64) -> array_type:
     return np.asarray(_, dtype=dtype)
 
 
+def stack(*args: array_like) -> array_type:
+    return np.stack(*args, axis=-1)
+
+
+def dot(a: array_like, b: array_like) -> array_type:
+    return np.dot(a, b)
+
+
+def cross(a: array_like, b: array_like) -> array_type:
+    return np.cross(a, b)
+
+
+def einsum(subscripts: str, *args: array_like) -> array_type:
+    return np.einsum(subscripts, *args)
+
+
+def norm(_: array_like) -> array_type:
+    return np.linalg.norm(_, axis=-1)
+
+
+def norm2(_: array_like) -> array_type:
+    return norm(_) ** 2
+
+
+def sin(_: array_like) -> array_type:
+    return np.sin(_)
+
+
+def cos(_: array_like) -> array_type:
+    return np.cos(_)
+
+
+def arctan2(a: array_like, b: array_like) -> array_type:
+    return np.arctan2(a, b)
+
+
+def sqrt(_: array_like) -> array_type:
+    return np.sqrt(_)
+
+
+def maximum(a: array_like, b: array_like) -> array_type:
+    return np.maximum(a, b)
+
+
 def to_length(vector, length: int, value=0):
     """
     Pads a 1D vector to a given length, crops it if it is too long.

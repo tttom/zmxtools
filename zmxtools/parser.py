@@ -179,7 +179,7 @@ class OrderedCommandDict:
         return '\n'.join(str(_) for _ in self)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({[repr(_) for _ in self]}, spaces_per_indent={self.spaces_per_indent})"
+        return f"{self.__class__.__name__}({list(self)}, spaces_per_indent={self.spaces_per_indent})"
 
 
 class Command:

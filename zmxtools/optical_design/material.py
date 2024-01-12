@@ -1,13 +1,13 @@
 from __future__ import  annotations
 
 import re
-from typing import Optional, List, Sequence, Iterator, Callable
+from typing import Optional, Sequence, Iterator, Callable
 from dataclasses import dataclass
 import numpy as np
 
 from zmxtools.utils.array import array_like, array_type, asarray
 from zmxtools.utils import const_c
-from zmxtools import log
+from zmxtools.optical_design import log
 
 log = log.getChild(__name__)
 
@@ -428,10 +428,16 @@ class PolynomialMaterial(FunctionMaterial):
                          complex_refractive_index_function=
                          lambda k, t, p: adjust_refractive_index_function(reference_refractive_index_function, k, t, p))
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name}, factors_um={self.factors_um}, exponents={self.exponents}, poles_um2={self.poles_um2})"
+
 
 class Vacuum(FunctionMaterial):
     def __init__(self):
         super().__init__("vacuum", complex_refractive_index_function=lambda k, t, p: asarray(k + t + p) * 0.0 + 1.0)
+
+
+VACUUM = Vacuum()
 
 
 class CiddorAir(FunctionMaterial):
@@ -652,31 +658,3 @@ class MaterialLibrary:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name}, {self.description}, {repr(self.materials)})"
-
-
-class Surface:
-    """A class to represent a thin surface between two volumes."""
-    stop: bool = False
-    description: str = ""  # A comment, often the name of the lens element
-    curvature: float
-    distance: float
-    radius: float
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(stop={self.stop}, description={self.description})"
-
-
-class OpticalDesign:
-    name: str = ""
-    description: str = ""
-
-    surfaces: List[Surface] = []
-    wavelengths: Sequence[float] = []
-    wavelength_weights: Sequence[float] = []
-    material_libraries: List[MaterialLibrary] = []
-
-    def __repr__(self) -> str:
-        return (f"{self.__class__.__name__}({self.name}, {self.description}, {repr(self.surfaces)}, "
-                f"wavelengths={self.wavelengths}, wavelength_weights={self.wavelength_weights}, material_library={repr(self.material_libraries)})")
-
-
