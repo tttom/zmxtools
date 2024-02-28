@@ -273,9 +273,3 @@ class Command:
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}("{self.name}", "{self.argument}", {repr(self.children)})'
-
-    # def __hash__(self) -> int:
-    #     return hash(repr(self))
-    #
-    # def __eq__(self, other: Command) -> bool:
-    #     return hash(self) == hash(other)

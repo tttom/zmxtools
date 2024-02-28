@@ -10,11 +10,12 @@ coordinates. These objects can be used as polar-coordinate functions or as Carte
 :py:obj:``BasisPolynomial(n, m).cartesian(y, x)`` property. General :py:class:``Polynomial``s are superpositions of
 ``BasisPolynomial``s.
 
-
-Convert between standard indices and radial+azimuthal order using the functions :py:func:``index2orders`` and
-:py:func:``orders2index``. Convert between radial+azimuthal order and Noll indices using :py:func:``orders2noll`` and
-:py:func:``noll2orders``. Convert directly between standard and Noll orders using :py:func:``index2noll`` and
-:py:func:``noll2index``. Similar functions are provided for Fringe (a.k.a. University of Arizona) indices.
+Basis Zernike polynomials can be selected using their integer radial and azimuthal ``orders``, standard ``index``,
+the ``noll`` index, or the ``fringe`` index. Convert between standard indices and radial+azimuthal order using the
+functions :py:func:``index2orders`` and :py:func:``orders2index``. Convert between radial+azimuthal order and Noll
+indices using :py:func:``orders2noll`` and :py:func:``noll2orders``. Convert directly between standard and Noll orders
+using :py:func:``index2noll`` and :py:func:``noll2index``. Similar functions are provided for Fringe (a.k.a. University
+of Arizona) indices.
 
 Commonly used Zernike polynomials have named implementations: :py:func:``piston``, :py:func:``tip``, :py:func:``tilt``,
            :py:func:``oblique_astigmatism``, :py:func:``defocus``, :py:func:``vertical_astigmatism``,
@@ -420,6 +421,42 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
     def cartesian(self, y: array_like, x: array_like) -> array_type:
         return self.polar(rho=np.sqrt(y**2 + x**2), phi=np.arctan2(y, x))
 
+    def polar_gradient(self, rho: array_like = 0, phi: array_like = 0) -> array_type:
+        """
+        Returns the gradient from polar coordinates.
+        The first (left-most) dimension has size 2 with the partial derivatives in the order [d_rho, d_phi].
+        """
+        rho = asarray(rho, float)
+        phi = asarray(phi, float)
+        # Make orthogonal basis on unit disk (for 2x2 square, set everything outside unit disk to zero and multiply by 4/pi)
+        # The norm of each basis vector is sqrt(pi), so that piston(rho, phi) = 1 everywhere.
+        normalization = np.sqrt(2 * (self.n + 1) / (1 + (self.m == 0)))
+        # Set the real part as requested, the imaginary part will be the odd-counterpart polynomial
+        zernike_phase = self.m * (phi + np.pi * (rho < 0)) + (self.m < 0) * np.pi / 2
+        if self.odd_and_even:
+            zernike_phasor = np.exp(1j * zernike_phase)
+            d_zernike_phasor = zernike_phasor * 1j * zernike_phase * self.m
+        else:
+            zernike_phasor = np.cos(zernike_phase)
+            d_zernike_phasor = - np.sin(zernike_phase) * zernike_phase * self.m
+        result = normalization * self.__polynomial_r(np.abs(rho)) * zernike_phasor
+
+        rho2 = rho ** 2
+        rho2m1 = rho2 - 1
+
+        dZdrho = (
+                     (2 * self.n * self.m * rho2m1 + (self.n - self.m) * (self.m + self.n * (2 * rho2 - 1))) * self.__polynomial_r(np.abs(rho))
+                     - (self.n + self.m) * (self.n - self.m) * self.__polynomial_r(np.abs(rho))
+                  ) / (2 * self.n * rho * rho2m1) * normalization * zernike_phasor
+        dZdphi = normalization * self.__polynomial_r(np.abs(rho)) * d_zernike_phasor
+
+        return np.stack([dZdrho, dZdphi])
+
+
+    def cartesian_gradient(self, y: array_like, x: array_like) -> array_type:
+        """Returns the gradient from Cartesian coordinates."""
+        return self.polar_gradient(rho=np.sqrt(y**2 + x**2), phi=np.arctan2(y, x))
+
     def __polynomial_r(self, rho: array_like=0):
         """
         Calculate the radial polynomial component, for all rho in a matrix
@@ -437,6 +474,26 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         # Complete the shapes of ns and ms
         n, m = np.broadcast_arrays(self.n, np.abs(self.m))  # Make also sure that m is non-negative
         return self.__polynomial_r_static(n, m, rho)
+
+    def __d_polynomial_r(self, rho: array_like=0):
+        """
+        Calculate the derivative of the radial polynomial component, for all rho in a matrix
+        prerequisites: m >= 0, rho >= 0, mod(n - m, 2) == 0
+        Output: a matrix of the same shape as rho, or the multidimensional 0 indicating an all zero result in case the
+        difference n - m is odd.
+
+        :param rho: An nd-array with the radial distances. This array must have singleton. Non negativeness is enforced.
+
+        :return: The polynomial derivatives in an nd-array of the same shape as rho_i, but broadcasted over the dimensions
+        of n and m.
+        """
+        rho = np.abs(asarray(rho, float))
+        if rho.dtype == int:
+            rho = rho.astype(float)
+
+        # Complete the shapes of ns and ms
+        n, m = np.broadcast_arrays(self.n, np.abs(self.m))  # Make also sure that m is non-negative
+        return self.__d_polynomial_r_static(n, m, rho)
 
     @staticmethod
     # TODO: may need caching
