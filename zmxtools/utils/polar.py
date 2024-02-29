@@ -2,9 +2,12 @@
 A module to convert :ph:class:``numpy.ndarray``s between Cartesian and polar coordinates.
 """
 import numpy as np
+from typing import Tuple
+
+from zmxtools.utils.array import array_like, array_type
 
 
-def cart2pol(y, x):
+def cart2pol(y: array_like, x: array_like) -> Tuple[array_type, array_type]:
     """
     Convert Cartesian coordinates to polar coordinates.
 
@@ -21,7 +24,7 @@ def cart2pol(y, x):
     return rho, phi
 
 
-def pol2cart(rho, phi):
+def pol2cart(rho: array_like, phi: array_like) -> Tuple[array_type, array_type]:
     """
     Convert polar coordinates to Cartesian coordinates.
 

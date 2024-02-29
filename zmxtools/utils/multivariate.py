@@ -3,8 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 import itertools
 import numpy as np
-from typing import Optional, Callable, Sequence, Tuple, Dict, List
+from typing import Callable, Sequence, Dict, List
 
+from zmxtools.utils.polar import cart2pol
 from zmxtools.utils.array import array_like, asarray, array_type
 from zmxtools.utils import script
 
@@ -13,15 +14,29 @@ __all__ = ["Polynomial"]
 
 
 class Polynomial(Callable):
-    """A class to represent Cartesian multivariate polynomials."""
+    """
+    A class to represent Cartesian multivariate polynomials.
+
+    Generic exponents are allowed, positive and negative, i.e. as a Laurent polynomial.
+    https://en.wikipedia.org/wiki/Laurent_polynomial
+    """
     def __init__(self,
                  coefficients: array_like,
-                 symbols: Sequence[str] = tuple[str](),
+                 labels: Sequence[str] = tuple[str](),
                  exponents: Sequence[Sequence[int | float | complex]] = tuple[Sequence[int | float | complex]]()):
+        """
+        Construct a multivariate polynomial object that can be evaluated at specific points or array's thereof.
+
+        :param coefficients: The coefficients as a multi-dimensional array with the N-th dimension corresponding to the
+            N-th independent coordinate.
+        :param labels: The names or symbols of the independent variables in order. This is used to display or to select
+            the arguments by name. By default x₀, x₁, x₂, x₃, ... is used.
+        :param exponents: The optional exponents of the polynomial. By default these are 0, 1, 2, ...
+        """
         self.__coefficients = None
         self.coefficients = coefficients
         self.__symbols = tuple[str]()
-        self.symbols = symbols
+        self.labels = labels
         self.__exponents = tuple[Sequence[int | float | complex]]()
         self.exponents = exponents
 
@@ -39,14 +54,14 @@ class Polynomial(Callable):
         self.__coefficients = asarray(new_coefficients)
 
     @property
-    def symbols(self) -> Sequence[str]:
+    def labels(self) -> Sequence[str]:
         """
         The symbols that are used to represent this as a str. Their number must equal self.coefficients.ndim
         """
         return self.__symbols
 
-    @symbols.setter
-    def symbols(self, new_symbols: Sequence[str]):
+    @labels.setter
+    def labels(self, new_symbols: Sequence[str]):
         symbols = list(new_symbols)
         assert len(symbols) == len(set(symbols)), f"No duplicate symbols are allowed. Got {symbols}."
         for _ in range(len(symbols), self.ndim):
@@ -65,12 +80,12 @@ class Polynomial(Callable):
         exponents = list(new_exponents)
         for variable_index in range(len(exponents)):  # Make sure that sufficient exponents are specified
             if len(exponents[variable_index]) < self.shape[variable_index]:
-                exponents[variable_index] = tuple(
+                exponents[variable_index] = (
                     *exponents[variable_index],
                     *range(len(exponents[variable_index]), self.shape[variable_index])
                 )
             elif len(exponents[variable_index]) > self.shape[variable_index]:
-                raise ValueError(f"The number of exponents, {len(exponents[variable_index])}, for {self.symbols[variable_index]} should match the number of coefficients, {self.shape[variable_index]}.")
+                raise ValueError(f"The number of exponents, {len(exponents[variable_index])}, for {self.labels[variable_index]} should match the number of coefficients, {self.shape[variable_index]}.")
             else:
                 exponents[variable_index] = tuple(exponents[variable_index])
         for variable_index in range(len(exponents), self.ndim):  # Add default exponents for the remaining dimensions
@@ -79,40 +94,46 @@ class Polynomial(Callable):
 
     @property
     def ndim(self) -> int:
+        """The number of independent variables of this ``Polynomial``."""
         return self.coefficients.ndim
 
     @property
     def shape(self) -> Sequence[int]:
+        """
+        The number of exponents considered for each independent variable.
+        Using the default exponents, these are the highest orders of the ``Polynomial``.
+        """
         return self.coefficients.shape
 
     def __call__(self, *args: array_like, **kwargs: array_like) -> array_type:
         """
-        The evaluated value of this polynomial. The result has a shape that is equal to the broadcasted dimensions of
-        the arguments. Keyword arguments override non-named arguments.
+        The evaluated value of this polynomial at the specified coordinates. These can be specified in order of the
+        labels or by label name. The coordinates are broadcast as necessary. Keyword arguments override non-named arguments.
 
         :param args: The coordinates in order of the symbols.
-        :param kwargs: (optional) The named coordinates.
+        :param kwargs: (optional) The coordinates by their label.
 
-        :return: The polynomial value for each argument coordinate.
+        :return: The polynomial value for each argument coordinate. The result has a shape that is equal to the
+        broadcasted dimensions of the arguments.
         """
         for s in kwargs:
-            assert s in self.symbols, f"Unknown coordinate symbol, {s}. Must be one of {self.symbols}."
+            assert s in self.labels, f"Unknown coordinate symbol, {s}. Must be one of {self.labels}."
 
         # Convert arguments to standard form
-        arg_dict: Dict[str, array_type] = dict[str, array_type]()
-        for symbol, arg in zip(self.symbols, args):
+        arg_dict: Dict[str, array_type] = defaultdict[str, array_type](float)  # Default to 0.0
+        for symbol, arg in zip(self.labels, args):
             arg_dict[symbol] = asarray(arg)
         for symbol, arg in kwargs.items():
             arg_dict[symbol] = asarray(arg)
 
-        arguments = [arg_dict[symbol] for symbol in self.symbols]
+        arguments = [arg_dict[label] for label in self.labels]
         # assert len(arguments) == len(self.symbols), f"Expected exactly one argument for each of {self.symbols}, got {len(arguments)}."
         while len(arguments) < self.ndim:  # Assume that missing arguments are 0.
             arguments.append(asarray(0.0))
 
         calculation_axes = tuple(range(-self.coefficients.ndim, 0))  # The axes of the multi-variate polynomial
 
-        def calc_product_rec(coordinates, exponents):
+        def calc_product_rec(coordinates: array_type, exponents) -> array_type:
             coordinate = np.expand_dims(coordinates[0], axis=calculation_axes)
             exponents_for_this_axis = np.expand_dims(exponents[0], axis=tuple(range(-(len(exponents) - 1), 0)))
             result = coordinate ** exponents_for_this_axis
@@ -122,8 +143,10 @@ class Polynomial(Callable):
 
         return np.sum(self.coefficients * calc_product_rec(arguments, self.exponents), axis=calculation_axes)
 
-    @property
-    def gradient(self) -> Sequence[Polynomial]:
+    def grad(self) -> Sequence[Polynomial]:
+        """
+        Calculate the gradient of this ``Polynomial``. The partial derivatives are listed in the order of ``self.labels``.
+        """
         result: List[Polynomial] = list[Polynomial]()
         for axis, exponents in enumerate(self.exponents):
             non_zero_exponents = [_ != 0 for _ in exponents]
@@ -134,19 +157,20 @@ class Polynomial(Callable):
             derivative_exponents = list(self.exponents)
             derivative_exponents[axis] = exponents - 1
             result.append(Polynomial(coefficients=derivative_coefficients,
-                                     symbols=self.symbols,
+                                     labels=self.labels,
                                      exponents=derivative_exponents))
         return result
 
     def __add__(self, other: Polynomial | int | float | complex) -> Polynomial:
+        """Returns the sum of two polynomials, or a this ``Polynomial`` and a constant value."""
         if not isinstance(other, Polynomial):
-            other = Polynomial(other)  # A scalar
+            other = self.__class__(other)  # A scalar
 
         coefficients = self.coefficients
-        symbols = list(self.symbols)
+        symbols = list(self.labels)
         exponents = list(self.exponents)
         other_coefficients = other.coefficients
-        other_symbols = list(other.symbols)
+        other_symbols = list(other.labels)
         other_exponents = list(other.exponents)
 
         # Extend symbols and ndims of coefficients to include other_symbols and other_coefficients
@@ -184,134 +208,182 @@ class Polynomial(Callable):
 
         coefficients += other_coefficients
 
-        return Polynomial(coefficients=coefficients, symbols=symbols, exponents=exponents)
+        return self.__class__(coefficients=coefficients, labels=symbols, exponents=exponents)
 
     def __radd__(self, other: Polynomial | int | float | complex) -> Polynomial:
+        """Add this Polynomial to something on the left or the right."""
         if not isinstance(other, Polynomial):
-            other = Polynomial(other)
+            other = self.__class__(other)
         return other + self
 
     def __neg__(self) -> Polynomial:
-        return Polynomial(-self.coefficients, symbols=self.symbols, exponents=self.exponents)
+        """Negate the values of this ``Polynomial``."""
+        return self.__class__(-self.coefficients, labels=self.labels, exponents=self.exponents)
 
     def __sub__(self, other: Polynomial | int | float | complex) -> Polynomial:
+        """Return the difference of this polynomial and another."""
         return self + (-other)
 
     def __rsub__(self, other: Polynomial | int | float | complex) -> Polynomial:
         if not isinstance(other, Polynomial):
-            other = Polynomial(other)
+            other = self.__class__(other)
         return other - self
 
     def __mul__(self, other: Polynomial | int | float | complex) -> Polynomial:
+        """Scale this ``Polynomial`` by a scalar or multiply it with another Polynomial."""
         if not isinstance(other, Polynomial):
-            return Polynomial(coefficients=self.coefficients * other, symbols=self.symbols, exponents=self.exponents)
+            return self.__class__(coefficients=self.coefficients * other, labels=self.labels, exponents=self.exponents)
         else:
+            # unique_other_labels = (_ for _ in other.labels if _ not in self.labels)
+            # product_labels = list(*self.labels, *unique_other_labels)
+            # product_coefficients = np.expand_dims(self.coefficients, axis=tuple(range(-len(unique_other_labels))))
             raise NotImplementedError
 
     def __rmul__(self, other: int | float | complex) -> Polynomial:
-        return Polynomial(coefficients=other * self.coefficients, symbols=self.symbols, exponents=self.exponents)
+        return Polynomial(coefficients=other * self.coefficients, labels=self.labels, exponents=self.exponents)
 
     def __truediv__(self, other: Polynomial | int | float | complex) -> Polynomial:
         if not isinstance(other, Polynomial):
-            return Polynomial(coefficients=self.coefficients / other, symbols=self.symbols, exponents=self.exponents)
+            return self * (1 / other)
         else:
             raise NotImplementedError
 
     def __str__(self) -> str:
-        def format_factor(symbol: str, exponent: int | float | complex):
+        """Format this polynomial as a unicode string."""
+        def format_factor(symbol: str, exponent: int | float | complex) -> str:
             result = str(symbol) if exponent != 0 else ""
             if exponent != 0 and exponent != 1:
-                result += script.super(exponent)
+                result += script.sup(exponent)
             return result
 
-        def format_coefficient(coefficient: complex, product_str: str):
+        def format_coefficient(coefficient: complex, product_str: str) -> str:
             if coefficient.real != 0 and coefficient.imag != 0:
-                return f"+({coefficient.real}{coefficient.imag:+})"
+                result = f"+({coefficient.real}{coefficient.imag:+})"
             elif coefficient.real != 0:  # coefficient.imag == 0
                 if product_str == "" or abs(coefficient) != 1:
-                    return f"{coefficient.real:+}"
+                    result = f"{coefficient.real:+}"
                 else:
-                    return "+" if coefficient == 1 else "-"
+                    result = "+" if coefficient == 1 else "-"
+            else:  # coefficient.real == 0 but coefficient.imag != 0
+                if coefficient.imag == -1:
+                    result = "-i"
+                elif coefficient.imag == 1:
+                    result = "+i"
+                else:
+                    result = f"{coefficient.imag:+}i"
 
-            else:  # coefficient.imag != 0:
-                return f"{coefficient.imag:+}i"
+            result = result.replace("+", " + ")
+            result = result.replace("-", " - ")
 
-        products = itertools.product(*([format_factor(s, e) for e in self.exponents[_]] for _, s in enumerate(self.symbols)))
+            return result
+
+        products = itertools.product(*([format_factor(s, e) for e in self.exponents[_]] for _, s in enumerate(self.labels)))
         products = ("".join(_) for _ in products)
         terms = [format_coefficient(c, p) + "".join(p) for c, p in zip(self.coefficients.ravel(), products)
                  if c != 0]
         if len(terms) > 0:
-            if terms[0].startswith("+"):
-                terms[0] = terms[0][1:]
+            if terms[0].startswith(" +"):
+                terms[0] = terms[0][2:]
             result = "".join(terms)
-            result = result.replace("+", " + ")
-            result = result.replace("-", " - ")
             result = result.strip()
         else:
             result = "0.0"
         return result
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.coefficients}, {self.symbols}, {self.exponents})"
+        return f"{self.__class__.__name__}({self.coefficients}, {self.labels}, {self.exponents})"
 
     def __hash__(self) -> int:
         return hash(repr(self))
 
     def __eq__(self, other: Polynomial) -> bool:
         return self.shape == other.shape and np.all(self.coefficients == other.coefficients) \
-            and all(s == o for s, o in zip(self.symbols, other.symbols)) \
+            and all(s == o for s, o in zip(self.labels, other.labels)) \
             and all(tuple(s) == tuple(o) for s, o in zip(self.exponents, other.exponents))
 
 
 class PolarPolynomial(Polynomial):
-    def __init__(self, coefficients: array_like, symbols: Sequence[str] = ('ρ', 'ϕ')):
-        super().__init__(coefficients=coefficients, symbols=symbols)
+    def __init__(self, coefficients: array_like,
+                 labels: Sequence[str] = ('ρ', 'ϕ'),
+                 exponents: Sequence[Sequence[int | float | complex]] = tuple[Sequence[int | float | complex]]()):
+        """
+        A polynomial of the form Σₙᵐ aₙᵐ ρⁿ cos(mϕ) + Σₙᵐ bₙᵐ ρⁿ sin(mϕ)  =  Re Σₙᵐ cₙᵐ ρⁿ exp(-imϕ),
+        with coefficients cₙᵐ = aₙᵐ + ibₙᵐ.
 
-    # def polar(self, rho: array_like, phi: array_like) -> array_type:
-    #     return self(rho=rho, phi=phi)
+        :param coefficients: The coefficients as a multi-dimensional array with the N-th dimension corresponding to the
+            N-th independent coordinate.
+        :param labels: The names or symbols of the independent variables in order. This is used to display or to select
+            the arguments by name. By default, the labels x₀, x₁, x₂, x₃, ... is used.
+        :param exponents: The optional exponents of the polynomial. By default, these are 0, 1, 2, ...
+        """
+        cartesian_labels = (labels[0], f"exp(-i{labels[1]})")  # or "e⁻ⁱᵠ"
+        super().__init__(coefficients=coefficients, labels=cartesian_labels, exponents=exponents)
 
-    @property
-    def gradient(self) -> Sequence[Polynomial]:
-        grad = super().gradient  # Cartesian partial derivatives
+    def __call__(self, rho: array_like = 0.0, phi: array_like = 0.0) -> array_type:
+        """
+        Calculates the ``PolarPolynomial``'s values at the specified polar coordinates. The coordinates are broadcast
+        as necessary.
 
-        return grad[0], grad[1] * PolarPolynomial(1)
-        # result: List[Polynomial] = list[Polynomial]()
-        # for _, length in enumerate(self.shape):
-        #     coefficients = self.coefficients.swapaxes(_, 0)[1:].swapaxes(0, _)
-        #     exponents = np.arange(1, length)
-        #     exponents = np.expand_dims(exponents, tuple(range(1, coefficients.ndim - _)))
-        #     result.append(Polynomial(coefficients=coefficients * exponents, symbols=self.symbols))
-        # return result
+        :param rho: The radial coordinates.
+        :param phi: The azimuthal coordinates in radians.
+
+        :return: The values at the specified coordinates.
+        """
+        return super().__call__(rho, np.exp(-1j * asarray(phi)))
+
+    def cartesian(self, y: array_like, x: array_like) -> array_type:
+        """Compute the values at Cartesian coordinates. The coordinates are broadcast as necessary."""
+        rho, phi = cart2pol(y, x)
+        return self(rho, phi)
+
+    def cartesian_grad(self, y: array_like, x: array_like, axis: int = 0) -> array_type:
+        g = self.grad()
+
+        rho, phi = cart2pol(y, x)
+        epsilon = 1e-6
+        at_origin = rho < epsilon  # At the origin phi should be 0
+
+        phasors = np.exp(-1j * phi)
+        df_drho, df_dphi = g[0](rho, phasors).real, (-1j * phasors * g[1](rho, phasors)).real
+
+        # df_dphirho[at_origin] = (-1j * phasors * g[1].grad()[0](0.0, phasors)).real  # Apply l'Hopital
+        df_dphirho = (1 - at_origin) * df_dphi / (rho + at_origin) \
+                     + at_origin * (-1j * phasors * g[1].grad()[0](0.0, phasors)).real  # Apply l'Hopital if necessary
+        c, s = np.cos(phi), np.sin(phi)
+        df_dx = c * df_drho - s * df_dphirho
+        df_dy = s * df_drho + c * df_dphirho
+
+        return np.stack([df_dy, df_dx], axis=axis)
 
 
 if __name__ == "__main__":
-    # s = Polynomial(5)
-    # print(repr(s))
-    # print(s)
+    from zmxtools.utils.polar import pol2cart
+    import matplotlib.pyplot as plt
 
-    p = Polynomial([[1, -4, 7], [5, 2, 3]], "xy")
-    print(repr(p))
-    print(p)
+    # p = PolarPolynomial([[0.5 + 0.5j]], exponents=[[1], [1]])
+    p = PolarPolynomial([[-2j * np.sqrt(8)], [3j * np.sqrt(8)]], exponents=[[1, 3], [1]]) / 5.0
 
-    p -= 1
-    print(p)
+    rho = np.arange(0, 1.1, 0.05)[..., np.newaxis]
+    phi = np.arange(0, 1.05, 0.05) * 2 * np.pi
+    y, x = pol2cart(rho, phi)
 
-    y = Polynomial([5], 'y', exponents=[[1]])
-    print(f"y = {y}")
+    z = p.cartesian(y, x).real
+    grad = p.cartesian_grad(y, x)
 
-    p += y
-    print(p)
+    print("Calculating local coordinate system...")
+    v = np.stack([grad[0] * 0 + 1, grad[0] * 0, grad[0]])
+    u = np.stack([grad[1] * 0, grad[1] * 0 + 1, grad[1]])
+    u /= np.linalg.norm(u, axis=0)
+    v /= np.linalg.norm(v, axis=0)
+    normal = np.cross(v, u, axis=0).real
 
-    z = Polynomial([0, 0, 9], 'z', exponents=[[0, 10, 20]])
-    print(f"z = {z}")
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    ax.set_aspect("equal")
 
-    p += z
-    print(p)
+    ax.plot_surface(x, y, z, color=(1, 1, 0.75), shade=True, linewidth=0, antialiased=False)
+    ax.quiver(x, y, z, u[1], u[0], u[2], color=(0.75, 0, 0), length=0.1)
+    ax.quiver(x, y, z, v[1], v[0], v[2], color=(0, 0.75, 0), length=0.1)
+    ax.quiver(x, y, z, normal[1], normal[0], normal[2], color=(0, 0, 0.75), length=0.1)
+    ax.set(xlim=(-1, 1), ylim=(-1, 1), zlim=(-1, 1), xlabel="x", ylabel="y")
+    plt.show()
 
-    print(Polynomial([3.15], 't', exponents=[[-1.5]]))
-
-    p = Polynomial([5, -3], 'x')
-    print(repr(p))
-    print(p)
-
-    print(p([3.14128]))

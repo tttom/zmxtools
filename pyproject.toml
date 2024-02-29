@@ -1,12 +1,13 @@
 [tool.poetry]
 name = "zmxtools"
 description = "Toolkit to read Zemax OpticStudio files."
-version = "0.2.0"
+version = "0.3.0"
 license = "AGPL3"
 authors = ["Tom Vettenburg <tom.vettenburg@gmail.com>", "Wouter Vermaelen"]
 readme = "README.md"
 repository = "https://github.com/tttom/zmxtools"
-keywords = ["Optical Design", "Lens Design", "Zemax", "Zemax Archive (ZAR)"]
+keywords = ["Optical Design", "Lens Design", "Zemax", "Zemax Optic Studio Archive (ZAR)",
+  "Zemax Optic Studio Lens File (ZMX)", "Zemax Optic Studio ASCII Glass Files (AGF)"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",

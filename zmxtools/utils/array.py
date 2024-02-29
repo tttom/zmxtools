@@ -1,7 +1,7 @@
 from typing import Sequence, TypeAlias
 import numpy as np
 
-array_type: TypeAlias = np.ndarray
+array_type = np.ndarray
 array_like: TypeAlias = array_type | int | float | complex | Sequence["array_like"]
 
 

@@ -99,7 +99,7 @@ class Positionable:
         :return: The current object, transformed.
         """
         raise NotImplementedError
-        return self
+        # return self
 
 
 class HomogeneousTransform(Transform):
@@ -255,7 +255,7 @@ class Translation(HomogeneousTransform):
         return Translation(-self.displacement)
 
     def __str__(self) -> str:
-        return f"T{script.super(','.join(str(_) for _ in self.displacement))}"
+        return f"T{script.sup(','.join(str(_) for _ in self.displacement))}"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.displacement})"
@@ -300,7 +300,7 @@ class Scaling(HomogeneousTransform):
         return Scaling(1.0 / self.scale)
 
     def __str__(self) -> str:
-        return f"S{script.super(','.join(str(_) for _ in self.scale))}"
+        return f"S{script.sup(','.join(str(_) for _ in self.scale))}"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.scale})"
@@ -539,7 +539,7 @@ class Rotation(HomogeneousTransform):
         return Rotation(quaternion=~self.quaternion)
 
     def __str__(self) -> str:
-        return f"H{script.super(str(self.quaternion))}"
+        return f"H{script.sup(str(self.quaternion))}"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({repr(self.quaternion)})"

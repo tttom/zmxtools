@@ -591,7 +591,7 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         return name
 
     def __str__(self) -> str:
-        return f'Z{script.sub(self.n)}{script.super(self.m)}'
+        return f'Z{script.sub(self.n)}{script.sup(self.m)}'
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.index}) = {self.name}"
@@ -828,7 +828,7 @@ class Polynomial(Callable):
                 descriptions.append("+")
             descriptions.append(c_str)
             n, m = index2orders(_)
-            descriptions.append(f'Z{script.sub(n)}{script.super(m)}')
+            descriptions.append(f'Z{script.sub(n)}{script.sup(m)}')
 
         return ''.join(descriptions)
 

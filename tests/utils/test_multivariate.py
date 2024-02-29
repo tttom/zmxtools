@@ -2,6 +2,7 @@ import unittest
 import numpy.testing as npt
 
 from zmxtools.utils.multivariate import Polynomial
+from zmxtools.utils.array import array_type
 
 import numpy as np
 from tests.utils import log
@@ -20,19 +21,19 @@ class TestPolynomial(unittest.TestCase):
         p = Polynomial([1, -4], "x", [[0, 1]])
         npt.assert_equal(p.ndim, 1)
         npt.assert_equal(p.shape, (2, ))
-        npt.assert_equal(p.symbols, ("x", ))
+        npt.assert_equal(p.labels, ("x",))
         npt.assert_equal(p.coefficients, (1, -4))
         npt.assert_equal(p.exponents, ((0, 1), ))
         p = Polynomial([-4], "x", [[1]])
         npt.assert_equal(p.ndim, 1)
         npt.assert_equal(p.shape, (1, ))
-        npt.assert_equal(p.symbols, ("x", ))
+        npt.assert_equal(p.labels, ("x",))
         npt.assert_equal(p.coefficients, (-4))
         npt.assert_equal(p.exponents, ((1, ), ))
         p = Polynomial([-4], "x", [[0]])
         npt.assert_equal(p.ndim, 1)
         npt.assert_equal(p.shape, (1, ))
-        npt.assert_equal(p.symbols, ("x", ))
+        npt.assert_equal(p.labels, ("x",))
         npt.assert_equal(p.coefficients, (-4))
         npt.assert_equal(p.exponents, ((0, ), ))
 
@@ -40,40 +41,40 @@ class TestPolynomial(unittest.TestCase):
         p = Polynomial([], "x", [[]])
         npt.assert_equal(p.ndim, 1)
         npt.assert_equal(p.shape, [0])
-        npt.assert_equal(p.symbols, ("x", ))
+        npt.assert_equal(p.labels, ("x",))
         npt.assert_equal(p.coefficients, (-4))
         npt.assert_equal(p.exponents, ([], ))
 
         p = Polynomial([1, 0, -4], "y", [[2, 3, -5]])
         npt.assert_equal(p.ndim, 1)
         npt.assert_equal(p.shape, (3, ))
-        npt.assert_equal(p.symbols, ("y", ))
+        npt.assert_equal(p.labels, ("y",))
         npt.assert_equal(p.coefficients, (1, 0, -4))
         npt.assert_equal(p.exponents, ((2, 3, -5), ))
         p = Polynomial([[1, 0, -4], [2, 4, 3]], "xy", [[0, 2], [2, 3, -5]])
         npt.assert_equal(p.ndim, 2)
         npt.assert_equal(p.shape, (2, 3))
-        npt.assert_equal(p.symbols, ("x", "y"))
+        npt.assert_equal(p.labels, ("x", "y"))
         npt.assert_equal(p.coefficients, ((1, 0, -4), (2, 4, 3)))
         npt.assert_equal(p.exponents, ((0, 2), (2, 3, -5)))
         p = Polynomial([[1, 0, -4], [2, 4, 3]], ("apple", "orange"), [[0, 2], [2, 3, -5]])
         npt.assert_equal(p.ndim, 2)
         npt.assert_equal(p.shape, (2, 3))
-        npt.assert_equal(p.symbols, ["apple", "orange"])
+        npt.assert_equal(p.labels, ["apple", "orange"])
         npt.assert_equal(p.coefficients, ((1, 0, -4), (2, 4, 3)))
         npt.assert_equal(p.exponents, ((0, 2), (2, 3, -5)))
 
         log.info("Testing default initializations...")
-        p = Polynomial([[1, 0, -4], [2, 4, 3]], symbols="xy", exponents=[[0, 2], ])
+        p = Polynomial([[1, 0, -4], [2, 4, 3]], labels="xy", exponents=[[0, 2], ])
         npt.assert_equal(p.ndim, 2)
         npt.assert_equal(p.shape, (2, 3))
-        npt.assert_equal(p.symbols, ("x", "y"))
+        npt.assert_equal(p.labels, ("x", "y"))
         npt.assert_equal(p.coefficients, ((1, 0, -4), (2, 4, 3)))
         npt.assert_equal(p.exponents, ((0, 2), (0, 1, 2)))
         p = Polynomial([[(1, 2), (0, 1), (-4, -5)], [(2, 3), (4, 5), (3, 0)]])
         npt.assert_equal(p.ndim, 3)
         npt.assert_equal(p.shape, (2, 3, 2))
-        npt.assert_equal(p.symbols, ("x₀", "x₁", "x₂"))
+        npt.assert_equal(p.labels, ("x₀", "x₁", "x₂"))
         npt.assert_equal(p.coefficients, (([1, 2], [0, 1], [-4, -5]), ([2, 3], [4, 5], [3, 0])))
         npt.assert_equal(p.exponents, ((0, 1), (0, 1, 2), (0, 1)))
 
@@ -169,7 +170,7 @@ class TestPolynomial(unittest.TestCase):
         self.check_eq(p0, Polynomial([2 / 2, 7 / 2], "x"))
 
     def test_evaluation(self):
-        def compare_array(a, b):
+        def compare_array(a: array_type, b: array_type):
             npt.assert_equal(a.ndim, np.asarray(b).ndim, err_msg=f"ndim of arrays {a} != {b}")
             npt.assert_equal(a.shape, np.asarray(b).shape, err_msg=f"shape of arrays {a} != {b}")
             npt.assert_equal(a, b, err_msg=f"Arrays {a} != {b}")
@@ -205,18 +206,18 @@ class TestPolynomial(unittest.TestCase):
 
     def test_gradient(self):
         p = Polynomial([2, 5, 3], "x")
-        g = p.gradient
+        g = p.grad()
         npt.assert_equal(len(g), 1)
         self.check_eq(g[0], Polynomial([5, 3 * 2], "x"))
 
         p = Polynomial([(2, 6), (5, 0), (3, -1)], "xy")  # 2 + 6y + 5x + 3x² - x²y
-        g = p.gradient
+        g = p.grad()
         npt.assert_equal(len(g), 2)
         self.check_eq(g[0], Polynomial([[5, 0], [6, -2]], "xy"))
         self.check_eq(g[1], Polynomial([[6], [0], [-1]], "xy"))
 
         p = Polynomial([(2, 6, 2), (5, 0, 3), (3, -1, -2)], "xy")  # 2 + 6y + 2y² + 5x + 3xy² + 3x² - x²y -2x²y²
-        g = p.gradient
+        g = p.grad()
         npt.assert_equal(len(g), 2)
         self.check_eq(g[0], Polynomial([[5, 0, 3], [6, -2, -4]], "xy"))
         self.check_eq(g[1], Polynomial([[6, 4], [0, 6], [-1, -4]], "xy"))

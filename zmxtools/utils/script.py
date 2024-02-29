@@ -13,13 +13,13 @@ Example:
 
 """
 
-__all__ = ['sub', 'super']
+__all__ = ['sup', 'sub']
 
-__SUB = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
-                      '₀₁₂₃₄₅₆₇₈₉ₐbcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓyzABCDₑFGₕᵢⱼₖₗₘₙₒₚQᵣₛₜᵤᵥwₓYZ₊₋₌₍₎ᵦᵧᵨᵩᵩᵩᵪٜ' + '͙'  # '͙'  # or '⁎'
-                      )
 __SUP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
                       '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᑫᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ᵝᵞ۹ᵠᵠᵠˣॱ' + '⃰'
+                      )
+__SUB = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
+                      '₀₁₂₃₄₅₆₇₈₉ₐbcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓyzABCDₑFGₕᵢⱼₖₗₘₙₒₚQᵣₛₜᵤᵥwₓYZ₊₋₌₍₎ᵦᵧᵨᵩᵩᵩᵪٜ' + '͙'  # '͙'  # or '⁎'
                       )
 
 
@@ -34,7 +34,7 @@ def sub(text) -> str:
     return str(text).translate(__SUB)
 
 
-def super(text) -> str:
+def sup(text) -> str:
     """
     Formats the input as a superscript unicode string.
     Note that the lowercase 'q' and several uppercase letters are missing in unicode.
