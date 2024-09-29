@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_zar_files
-from tests.zmx.test_zmx import assert_optical_design
+from tests.zmx.test_zmx import check_optical_design
 from zmxtools import cli, zar
 
 from tests.zar import log
@@ -125,5 +125,5 @@ def test_load():
     for zar_full_file in test_zar_files.keys():
         log.debug(f"Testing {zar_full_file}...")
         optical_design = zar.load(zar_full_file.as_posix())[0]
-        assert_optical_design(optical_design, zar_full_file)
+        check_optical_design(optical_design, zar_full_file)
 

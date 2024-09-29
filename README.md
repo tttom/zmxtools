@@ -16,28 +16,26 @@
 
 ### A toolkit to read Zemax files.
 
-Currently, this is limited to unpacking ZAR archives. For further processing of the archive's contents, e.g. ZMX or AGF 
-glass files, please check the [list of related software](#related-software) below.
+This provides a command line tool to unpack Zemax ZAR archives into its constituent files, or repack it as standard zip 
+files. A Python API is provided to integrate this into your own projects. Further processing of the archive's contents, 
+such as ZMX optical design or AGF glass files, is now also possible with the Python API; however, support is limited and 
+experimental. You may find the [list of related software](#related-software) below may be complimentary for further parsing.
 
 ## Features
 - Unpack a Zemax OpticStudio® Archive ZAR file using the `unzar` command.
 - Repack a ZAR file as a standard zip file using the `unzar -z` command.
-- Use as a pure Python 3 library.
+- Integrate into your project as a pure Python 3 library.
+- Parse ZMX and AGF files to Python classes for further processing.
 - Fully typed with annotations and checked with mypy, [PEP561 compatible](https://www.python.org/dev/peps/pep-0561/)
 
 ## Installation
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.11 or higher
 - pip, the Python package manager
 
 To install `zmxtools`, just run the following command in a command shell:
 ```bash
 pip install zmxtools
-```
-The `zmxtools` library will color-code test output when the `coloredlogs` package is installed. You can optionally 
-install it with
-```bash
-pip install coloredlogs
 ```
 
 ## Usage
@@ -70,9 +68,29 @@ from zmxtools import zar
 
 zar.extract('mylens.zar')
 zar.repack('mylens.zar')
-zar.read('mylens.zar')
+optical_design = zar.load('mylens.zar')[0]
 ```
-Python `pathlib.Path` objects can be used instead of strings.
+Note that you may use Python `pathlib.Path` objects instead of strings.
+
+Further processing of its contents is possible using the `zmx` sub-module.
+The contents of the files can then be extracted as follows:
+```python
+from zmxtools import zmx
+
+optical_design = zmx.ZmxOpticalDesign.from_file('mylens.zmx', 
+                                                ['schott.agf', 'infrared.agf'])
+wavelength = optical_design.source.wavelengths.ravel()[0]
+for surface in optical_design.surfaces:
+  print(surface.type + (' STOP' if surface.stop else '') + ' surface with ' +
+        (f'{1 / surface.curvature / 1e-3:0.3f} mm' if surface.curvature != 0.0 else '∞') +
+        f' radius of curvature and {surface.radius * 2 / 1e-3:0.3f} mm aperture.')
+  if surface.distance != 0.0:
+    print(f'  {surface.distance / 1e-3:0.3f} mm spacing with {surface.material.name}' +
+          f' n={surface.material.complex_refractive_index(wavelength=wavelength)}' +
+          f' @ {wavelength / 1e-9:0.1f}nm.')
+```
+Note that `surface.material` are glass objects that model the optical properties over a range of wavelengths, not just 
+those of the optical model.
 
 ## Online documentation
 The latest version of the API Documentation is published on https://zmxtools.readthedocs.io/.

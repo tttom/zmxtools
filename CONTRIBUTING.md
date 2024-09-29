@@ -16,7 +16,7 @@ To activate your `virtualenv` run `poetry shell`.
 
 ## One magic command
 
-Run `make test` to run everything we have!
+Run `make test` to run all quality checks in one go.
 
 
 ## Tests
@@ -30,7 +30,7 @@ To run all tests:
 pytest
 ```
 
-To run linting:
+To just do linting, you can use:
 
 ```bash
 flake8 .
@@ -49,7 +49,7 @@ To use it:
 mypy zmxtools tests/**/*.py
 ```
 
-This step is mandatory during the CI.
+This step is mandatory during for continuous integration to rebuild the package.
 
 
 ## Submitting your code

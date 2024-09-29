@@ -20,7 +20,7 @@ def factorial_fraction(numerator=0, denominator=0):
     # if result.ndim < 1:
     #     result = result[np.newaxis]
 
-    for idx in np.arange(2, 1 + np.maximum(np.max(numerator), np.max(denominator))):
+    for idx in np.arange(2, 1 + np.maximum(np.amax(numerator), np.amax(denominator))):
         # Iterate both the numerator and the denominator
         num_bool = (denominator < idx) & (idx <= numerator)  # either 0 or 1 for every element
         den_bool = (numerator < idx) & (idx <= denominator)  # either 0 or 1, but never both 1
