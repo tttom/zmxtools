@@ -16,13 +16,11 @@ __all__ = ['unpack', 'extract', 'repack', 'load']
 ZAR = '.zar'
 ZIP = '.zip'
 ZAR_VERSION_LENGTH = 2  # in bytes
-EARLIER_CONTENT_OFFSET = 0x14C - ZAR_VERSION_LENGTH
+VERSION_1002_CONTENT_OFFSET = 0x14C - ZAR_VERSION_LENGTH
 EARLIER_PACKED_FILE_SIZE_BEGIN = 0xC - ZAR_VERSION_LENGTH
 EARLIER_PACKED_FILE_SIZE_END = 0x10 - ZAR_VERSION_LENGTH
 EARLIER_PACKED_FILE_NAME_OFFSET = 0x20 - ZAR_VERSION_LENGTH
-EARLIER_VERSION = 0xEA00.to_bytes(2, 'big')
-LATEST_VERSION = 0xEC03.to_bytes(2, 'big')
-LATEST_CONTENT_OFFSET = 0x288 - ZAR_VERSION_LENGTH
+VERSION_1004_CONTENT_OFFSET = 0x288 - ZAR_VERSION_LENGTH
 LATEST_PACKED_FILE_SIZE_BEGIN = 0x10 - ZAR_VERSION_LENGTH
 LATEST_PACKED_FILE_SIZE_END = 0x18 - ZAR_VERSION_LENGTH
 LATEST_PACKED_FILE_NAME_OFFSET = 0x30 - ZAR_VERSION_LENGTH
@@ -98,18 +96,15 @@ def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFi
             version = input_file.read(ZAR_VERSION_LENGTH)
             if len(version) < ZAR_VERSION_LENGTH:
                 break  # end of file
-            if version[0] == LATEST_VERSION[0]:
-                header_length = LATEST_CONTENT_OFFSET
-            elif version[0] == EARLIER_VERSION[0]:
-                header_length = EARLIER_CONTENT_OFFSET
+            version = int.from_bytes(version, 'little')
+            if 1004 <= version:
+                header_length = VERSION_1004_CONTENT_OFFSET
             else:
-                log.warning(f'Unknown ZAR header "{version.hex()}"!')
-                header_length = LATEST_CONTENT_OFFSET
-                version = LATEST_VERSION  # override and cross fingers
+                header_length = VERSION_1002_CONTENT_OFFSET
 
             header = input_file.read(header_length)
 
-            if version[0] == LATEST_VERSION[0]:
+            if 1004 <= version:
                 packed_file_size = int.from_bytes(
                     header[LATEST_PACKED_FILE_SIZE_BEGIN:LATEST_PACKED_FILE_SIZE_END],
                     byteorder='little',
@@ -126,7 +121,9 @@ def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFi
                 packed_file_name_bytes = header[EARLIER_PACKED_FILE_NAME_OFFSET:]
                 packed_file_name_bytes = packed_file_name_bytes[:packed_file_name_bytes.find(0x0)]
                 packed_file_name = packed_file_name_bytes.decode('utf-8')
-            log.debug(f'Version {version.hex()}. Packed file {packed_file_name} has size {packed_file_size} bytes.')
+
+            log.debug(f'Archive version {version} ({hex(version)}) contains packed file' +
+                      f' {packed_file_name} has size {packed_file_size} bytes.')
 
             # Read and process data
             archive_data = input_file.read(packed_file_size)
@@ -230,6 +227,7 @@ def load(input_path_or_stream: BinaryFileLike | PathLike) -> Sequence[ZmxOptical
     material_libraries = list[AgfMaterialLibrary]()
     zmx_files = list[BytesFile]()
     for file in unpack(input_path_or_stream):
+        # log.debug(f'Unpacking {file.name}...')
         if file.name.lower().endswith(".agf"):
             log.info(f"Loading glass library {file.name}...")
             material_libraries.append(AgfMaterialLibrary.from_file(file))

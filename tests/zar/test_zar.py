@@ -124,6 +124,9 @@ def test_load():
     """Tests the zmxtools.zar.unpack function."""
     for zar_full_file in test_zar_files.keys():
         log.debug(f"Testing {zar_full_file}...")
-        optical_design = zar.load(zar_full_file.as_posix())[0]
-        check_optical_design(optical_design, zar_full_file)
+        try:
+            optical_design = zar.load(zar_full_file.as_posix())[0]
+            check_optical_design(optical_design, zar_full_file)
+        except IndexError:
+            raise ValueError(f'No optical model found in zar file {zar_full_file}.')
 
