@@ -1,8 +1,9 @@
 """
 A module to convert :ph:class:``numpy.ndarray``s between Cartesian and polar coordinates.
 """
-import numpy as np
 from typing import Tuple
+
+import numpy as np
 
 from zmxtools.utils.array import array_like, array_type
 

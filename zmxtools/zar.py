@@ -2,10 +2,10 @@ import zipfile
 from pathlib import Path
 from typing import Generator, List, Optional, Sequence
 
+from zmxtools import log
+from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.utils.io import BinaryFileLike, BytesFile, PathLike
 from zmxtools.zmx import ZmxOpticalDesign
-from zmxtools.agf import AgfMaterialLibrary
-from zmxtools import log
 
 log = log.getChild(__name__)
 
@@ -16,11 +16,11 @@ __all__ = ['unpack', 'extract', 'repack', 'load']
 ZAR = '.zar'
 ZIP = '.zip'
 ZAR_VERSION_LENGTH = 2  # in bytes
-VERSION_1002_CONTENT_OFFSET = 0x14C - ZAR_VERSION_LENGTH
+VERSION_PRE1002_CONTENT_OFFSET = 0x14C - ZAR_VERSION_LENGTH
 EARLIER_PACKED_FILE_SIZE_BEGIN = 0xC - ZAR_VERSION_LENGTH
 EARLIER_PACKED_FILE_SIZE_END = 0x10 - ZAR_VERSION_LENGTH
 EARLIER_PACKED_FILE_NAME_OFFSET = 0x20 - ZAR_VERSION_LENGTH
-VERSION_1004_CONTENT_OFFSET = 0x288 - ZAR_VERSION_LENGTH
+VERSION_POST1004_CONTENT_OFFSET = 0x288 - ZAR_VERSION_LENGTH
 LATEST_PACKED_FILE_SIZE_BEGIN = 0x10 - ZAR_VERSION_LENGTH
 LATEST_PACKED_FILE_SIZE_END = 0x18 - ZAR_VERSION_LENGTH
 LATEST_PACKED_FILE_NAME_OFFSET = 0x30 - ZAR_VERSION_LENGTH
@@ -71,36 +71,36 @@ def _decompress_lzw(compressed: bytes) -> bytes:
 
 def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFile, None, None]:
     """
-    Unpacks a zar archive file and generates a series of :py:class:``BytesFile`` objects
-    that hold the unpacked file name and contents.
+    Unpacks a zar archive file and returns a generator of :py:class:``BytesFile` objects.
 
-    The returned Generator produces tuples in the order found in the archive.
+    The returned Generator produces :py:class:``BytesFile` objects in the order found in the archive.
+
     Usage:
-    ```
-    from zmxtools import zar
 
-    for _ in zar.unpack("file.zar"):
-        print(f"{_.name} has {len(_.read())} unpacked bytes.")
-    ```
+    .. code:: python
+
+        from zmxtools import zar
+
+        for _ in zar.unpack('file.zar'):
+            print(f'{_.name} has {len(_.read())} unpacked bytes.')
 
     :param input_path_or_stream: The archive or the path to the archive.
-    :return: A Generator of :py:class:``BytesFile`` objects.
+
+    :return: A Generator of :py:class:``BytesFile` objects.
     """
     # Make sure that the input arguments are both pathlib.Path-s
-    if isinstance(input_path_or_stream, PathLike):
-        input_file = open(input_path_or_stream, "rb")
-    else:
-        input_file = input_path_or_stream
-    with input_file:
+    with (
+        open(input_path_or_stream, 'rb') if isinstance(input_path_or_stream, PathLike) else input_path_or_stream
+    ) as input_file:
         while True:
             version = input_file.read(ZAR_VERSION_LENGTH)
             if len(version) < ZAR_VERSION_LENGTH:
                 break  # end of file
             version = int.from_bytes(version, 'little')
             if 1004 <= version:
-                header_length = VERSION_1004_CONTENT_OFFSET
+                header_length = VERSION_POST1004_CONTENT_OFFSET
             else:
-                header_length = VERSION_1002_CONTENT_OFFSET
+                header_length = VERSION_PRE1002_CONTENT_OFFSET
 
             header = input_file.read(header_length)
 
@@ -123,7 +123,8 @@ def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFi
                 packed_file_name = packed_file_name_bytes.decode('utf-8')
 
             log.debug(f'Archive version {version} ({hex(version)}) contains packed file' +
-                      f' {packed_file_name} has size {packed_file_size} bytes.')
+                      f' {packed_file_name} has size {packed_file_size} bytes.',
+                      )
 
             # Read and process data
             archive_data = input_file.read(packed_file_size)
@@ -146,10 +147,10 @@ def extract(input_path_or_stream: BinaryFileLike | PathLike, output_path: Option
     # Make sure that the input arguments are both pathlib.Path-s
     if not isinstance(input_path_or_stream, Path):
         input_path_or_stream = Path(input_path_or_stream.strip())
-    input_description: str = f" {input_path_or_stream}" if isinstance(input_path_or_stream, Path) else ""
+    input_description: str = f' {input_path_or_stream}' if isinstance(input_path_or_stream, Path) else ''
     if output_path is None:  # By default, just drop the .zar extension for the output names
         if not isinstance(input_path_or_stream, Path):
-            raise TypeError("The output_path should be specified if input_file_or_path is not a path.")
+            raise TypeError('The output_path should be specified if input_file_or_path is not a path.')
         output_path = input_path_or_stream.parent / (
             input_path_or_stream.stem if input_path_or_stream.suffix.lower() == ZAR else input_path_or_stream
         )
@@ -167,7 +168,8 @@ def extract(input_path_or_stream: BinaryFileLike | PathLike, output_path: Option
 
 
 def repack(input_path_or_stream: BinaryFileLike | PathLike,
-           output_path_or_stream: Optional[BinaryFileLike | PathLike] = None) -> None:
+           output_path_or_stream: Optional[BinaryFileLike | PathLike] = None,
+           ) -> None:
     """
     Imports the data from a zar archive file and writes it to a regular zip file.
 
@@ -178,10 +180,10 @@ def repack(input_path_or_stream: BinaryFileLike | PathLike,
     # Make sure that the input arguments are both pathlib.Path-s
     if not isinstance(input_path_or_stream, Path):
         input_path_or_stream = Path(input_path_or_stream.strip())
-    input_description: str = f" {input_path_or_stream}" if isinstance(input_path_or_stream, Path) else ""
+    input_description: str = f' {input_path_or_stream}' if isinstance(input_path_or_stream, Path) else ''
     if output_path_or_stream is None:  # By default, just change .zar to .zip for the destination archive
         if not isinstance(input_path_or_stream, Path):
-            raise TypeError("The output_file_or_path should be specified if input_file_or_path is not a path.")
+            raise TypeError('The output_file_or_path should be specified if input_file_or_path is not a path.')
         if input_path_or_stream.suffix.lower() == ZAR:
             output_path_or_stream = input_path_or_stream.with_suffix(ZIP)
         else:  # or tag on .zip when it hasn't the .zar extension
@@ -194,7 +196,7 @@ def repack(input_path_or_stream: BinaryFileLike | PathLike,
         elif isinstance(output_path_or_stream, Path) and not output_path_or_stream.name.lower().endswith(ZIP):
             output_path_or_stream /= input_path_or_stream.name + ZIP
         Path.mkdir(output_path_or_stream.parent, exist_ok=True, parents=True)
-    output_description: str = f" {output_path_or_stream}" if isinstance(output_path_or_stream, Path) else ""
+    output_description: str = f' {output_path_or_stream}' if isinstance(output_path_or_stream, Path) else ''
     log.debug(f'Converting{input_description} to zip archive{output_description}...')
 
     # Open the output archive and start storing unpacked files
@@ -217,7 +219,9 @@ def repack(input_path_or_stream: BinaryFileLike | PathLike,
 
 def load(input_path_or_stream: BinaryFileLike | PathLike) -> Sequence[ZmxOpticalDesign]:
     """
-    Unpacks a ZAR archive file and generates a series of :py:class:``ZmxOpticalDesign` objects, one for each ZMX file
+    Unpacks a ZAR archive file as a collection of objects, one per ZMX file.
+
+    This function generates a series of :py:class:``ZmxOpticalDesign` objects, one for each ZMX file
     in the archive and using the AGF glass libraries contained in the ZAR archive.
 
     :param input_path_or_stream: The archive or the path to the archive.
@@ -227,17 +231,16 @@ def load(input_path_or_stream: BinaryFileLike | PathLike) -> Sequence[ZmxOptical
     material_libraries = list[AgfMaterialLibrary]()
     zmx_files = list[BytesFile]()
     for file in unpack(input_path_or_stream):
-        # log.debug(f'Unpacking {file.name}...')
-        if file.name.lower().endswith(".agf"):
-            log.info(f"Loading glass library {file.name}...")
+        if file.name.lower().endswith('.agf'):
+            log.info(f'Loading glass library {file.name}...')
             material_libraries.append(AgfMaterialLibrary.from_file(file))
-            log.debug(f"Loaded glass library {file.name}.")
-        elif file.name.lower().endswith(".zmx"):
+            log.debug(f'Loaded glass library {file.name}.')
+        elif file.name.lower().endswith('.zmx'):
             zmx_files.append(file)
     # Load an optical model per zmx file
     zmx_optical_designs = list[ZmxOpticalDesign]()
     for zmx_file in zmx_files:
-        log.info(f"Loading {zmx_file.name} using material libraries {[_.name for _ in material_libraries]}...")
+        log.info(f'Loading {zmx_file.name} using material libraries {[_.name for _ in material_libraries]}...')
         zmx_optical_designs.append(ZmxOpticalDesign.from_file(zmx_file, material_libraries=material_libraries))
-        log.debug(f"Loaded {zmx_file.name}.")
+        log.debug(f'Loaded {zmx_file.name}.')
     return zmx_optical_designs

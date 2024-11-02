@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Functions to format strings, or objects that can be converted to strings, as unicode subscript or superscript.
 
@@ -9,23 +7,24 @@ Example:
     test_text = '[* 0.123456789 abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ +-*=() βɣρΦϕɸχ ]'
     print(f'    regular: {test_text}')
     print(f'  subscript: {script.sub(test_text)}')
-    print(f'superscript: {script.super(test_text)}')
+    print(f'superscript: {script.sup(test_text)}')
 
 """
 
 __all__ = ['sup', 'sub']
 
 __SUP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
-                      '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᑫᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ᵝᵞ۹ᵠᵠᵠˣॱ' + '⃰'
+                      '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᑫᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ᵝᵞ۹ᵠᵠᵠˣॱ' + '⃰',
                       )
 __SUB = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
-                      '₀₁₂₃₄₅₆₇₈₉ₐbcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓyzABCDₑFGₕᵢⱼₖₗₘₙₒₚQᵣₛₜᵤᵥwₓYZ₊₋₌₍₎ᵦᵧᵨᵩᵩᵩᵪٜ' + '͙'  # '͙'  # or '⁎'
+                      '₀₁₂₃₄₅₆₇₈₉ₐbcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓyzABCDₑFGₕᵢⱼₖₗₘₙₒₚQᵣₛₜᵤᵥwₓYZ₊₋₌₍₎ᵦᵧᵨᵩᵩᵩᵪٜ' + '͙',
                       )
 
 
 def sub(text) -> str:
     """
     Formats the input as a subscript unicode string.
+
     Note that several letters are missing in unicode and are thus substituted by their case variants or regular letters.
 
     :param text: A regular txt string or anything that implements the __str__ method.
@@ -37,6 +36,7 @@ def sub(text) -> str:
 def sup(text) -> str:
     """
     Formats the input as a superscript unicode string.
+
     Note that the lowercase 'q' and several uppercase letters are missing in unicode.
     These are substituted by their case variants or regular letters.
 

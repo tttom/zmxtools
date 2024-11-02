@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import numpy as np
 import pathlib
 import re
 from collections.abc import Iterator
 from typing import Optional, Sequence, Tuple
 
-from zmxtools import log
+import numpy as np
 
+from zmxtools import log
 from zmxtools.agf import AgfMaterialLibrary
+from zmxtools.optical_design import material
 from zmxtools.optical_design.geometry import SphericalTransform, Translation
 from zmxtools.optical_design.light import Wavefront
-from zmxtools.optical_design.material import MaterialLibrary, Material, VACUUM
 from zmxtools.optical_design.medium import HomogeneousMedium, Medium
 from zmxtools.optical_design.optic import CompoundElement, OpticalDesign, SurfaceDetector
 from zmxtools.optical_design.source import Source
@@ -97,6 +97,7 @@ class ZmxSource(Source):
 
     It holds the starting rays and wavelengths.
     """
+
     def __init__(self, medium: Medium,
                  E: array_like, H: array_like,
                  p: array_like, d: array_like,
@@ -128,44 +129,20 @@ class ZmxSource(Source):
 
         k0 = 2.0 * np.pi / self.wavelengths
         k = d / norm(d) * k0 * medium.complex_refractive_index(
-            wavenumber=k0, p=position, E=electric_field, H=magnetizing_field,
+            wavenumber=k0, position=position, electric_field=electric_field, magnetizing_field=magnetizing_field,
         )
         super().__init__(medium=medium, wavefront=Wavefront(
-            E=electric_field, H=magnetizing_field, p=position, k=k, d=direction, k0=k0,
+            electric_field=electric_field, magnetizing_field=magnetizing_field,
+            position=position, k=k, direction=direction, k0=k0,
         ))
 
 
 class ZmxOpticalDesign(OpticalDesign):
     """A class to represent the complete optical design."""
-    @staticmethod
-    def from_str(file_contents: str, spaces_per_indent: int = 2) -> ZmxOpticalDesign:
-        """Parses the text extracted from a .zmx file into an `OpticalDesign`."""
-        return ZmxOpticalDesign(ZmxOrderedCommandDict.from_str(file_contents, spaces_per_indent=spaces_per_indent))
-
-    @staticmethod
-    def from_file(input_path_or_stream: FileLike | PathLike,
-                  material_libraries: Sequence[PathLike | MaterialLibrary] = tuple[PathLike | MaterialLibrary](),
-                  spaces_per_indent: int = 2,
-                  encoding: str = 'utf-16',
-                  ) -> ZmxOpticalDesign:
-        """
-        Reads a zmx file into an `OpticalDesign` representation.
-
-        :param input_path_or_stream: The file to read the optical system from, or its file-path.
-        :param material_libraries: List of MaterialLibraries or paths to AGF files that can be used as glass catalogs.
-        :param spaces_per_indent: The optional number of spaces per indent/tab.
-        :param encoding: The text-encoding to try first.
-
-        :return: A representation of the optical system.
-        """
-        return ZmxOpticalDesign(ZmxOrderedCommandDict.from_file(input_path_or_stream,
-                                                                spaces_per_indent=spaces_per_indent,
-                                                                encoding=encoding),
-                                material_libraries,
-                                )
 
     def __init__(self, commands: OrderedCommandDict,
-                 material_libraries: Sequence[PathLike | MaterialLibrary] = tuple[PathLike | MaterialLibrary]()):
+                 material_libraries: Sequence[PathLike | material.MaterialLibrary] = (),
+                 ):
         """
         Constructs an OpticalDesign from a parsed command dictionary.
 
@@ -204,8 +181,8 @@ class ZmxOpticalDesign(OpticalDesign):
         log.info(f'Loading optical design "{self.name}" by "{self.author}": {self.description}, units of {self.unit}.')
 
         log.debug('Configuring material libraries...')
-        self.material_libraries = [_ for _ in material_libraries if isinstance(_, MaterialLibrary)]
-        material_library_file_paths = [_ for _ in material_libraries if not isinstance(_, MaterialLibrary)]
+        self.material_libraries = [_ for _ in material_libraries if isinstance(_, material.MaterialLibrary)]
+        material_library_file_paths = [_ for _ in material_libraries if not isinstance(_, material.MaterialLibrary)]
         if 'GCAT' in self.commands:
             for name in self.commands['GCAT', 0].words:
                 if all(_.name != name for _ in self.material_libraries):
@@ -231,13 +208,14 @@ class ZmxOpticalDesign(OpticalDesign):
             self.coating_filenames += file_names
         log.info(f'Coating files {self.coating_filenames}. Coatings are not yet implemented.')
 
-        self.background_material = VACUUM  # CiddorAir()
+        self.background_material = material.VACUUM  # CiddorAir()
         # todo: wavelengths are specified relative to the refractive index in air at 20+273.15K and 101.325Pa!
         surfaces: Sequence[ZmxSurface] = [ZmxSurface(s.children, unit=self.unit,
                                                      material_libraries=self.material_libraries,
                                                      background_material=self.background_material,
                                                      )
-                                          for s in self.commands.sort_and_merge('SURF')]
+                                          for s in self.commands.sort_and_merge('SURF')
+                                          ]
         log.info(f'Detected {len(surfaces)} surfaces, including the object and image surface.')
 
         media = [HomogeneousMedium(_.material) for _ in surfaces[:-1]]
@@ -248,7 +226,9 @@ class ZmxOpticalDesign(OpticalDesign):
         wavelengths = self.commands['WAVL', 0].numbers if 'WAVL' in self.commands else list[float]()
         wavelength_weights = self.commands['WWGT', 0].numbers if 'WWGT' in self.commands else list[float]()
         if len(wavelength_weights) < len(wavelengths):
-            wavelength_weights = [*wavelength_weights, *([1.0] * (len(wavelengths) - len(wavelength_weights)))]
+            wavelength_weights = [*wavelength_weights,
+                                  *(1.0 for _ in range(len(wavelengths) - len(wavelength_weights))),
+                                  ]
         if len(wavelengths) == 0 and 'WAVM' in self.commands:
             # This seems to be the new way, but it contains many unused wavelengths as well
             wavelengths_and_weights = [_.numbers[:2] for _ in self.commands.sort_and_merge('WAVM')]
@@ -266,20 +246,20 @@ class ZmxOpticalDesign(OpticalDesign):
 
         log.debug('Parsing the field configuration...')
         self.field_comment = self.commands['FCOM', 0].argument if 'FCOM' in self.commands else ''
-        self.numerical_aperture = 1.0
         if 'FNUM' in self.commands:
             f_number = self.commands['FNUM', 0].numbers[0]
             self.numerical_aperture_image = 2.0 / f_number  # todo: account for refractive index of object/image space?
-        if 'OBNA' in self.commands:
-            self.numerical_aperture_object = self.commands['OBNA', 0].numbers[0]
-        if 'ENPD' in self.commands:
-            pupil_radius_object = self.commands['ENPD', 0].numbers[0] / 2.0
         if 'EFFL' in self.commands:
             effective_focal_length = self.commands['EFFL', 0].numbers[0]
+            if 'ENPD' in self.commands:
+                pupil_radius_object = self.commands['ENPD', 0].numbers[0] / 2.0
+                self.numerical_aperture_object = np.arctan2(pupil_radius_object, effective_focal_length)
+        if 'OBNA' in self.commands:
+            self.numerical_aperture_object = self.commands['OBNA', 0].numbers[0]
         if 'FTYP' in self.commands:
             field_type = self.commands['FTYP', 0].numbers[0]  # []
-            field_as_height = (field_type % 2) == 1   # angle: False, height: True
-            field_at_image = (field_type // 2) == 1  # object: False, image: True
+            self.field_as_height: bool = (field_type % 2) == 1   # angle: False, height: True
+            self.field_at_image: bool = (field_type // 2) == 1  # object: False, image: True
         # field also uses VDXN, VDYN, VCXN, VXYN, VANN, VWGN, VWGT
 
         source = ZmxSource(
@@ -297,6 +277,34 @@ class ZmxOpticalDesign(OpticalDesign):
         super().__init__(source=source, optic=optic, detector=detector)
         self.source: ZmxSource = source  # A more specific type
         self.detector: SurfaceDetector = detector  # A more specific type
+
+    @staticmethod
+    def from_str(file_contents: str, spaces_per_indent: int = 2) -> ZmxOpticalDesign:
+        """Parses the text extracted from a .zmx file into an `OpticalDesign`."""
+        return ZmxOpticalDesign(ZmxOrderedCommandDict.from_str(file_contents, spaces_per_indent=spaces_per_indent))
+
+    @staticmethod
+    def from_file(input_path_or_stream: FileLike | PathLike,
+                  material_libraries: Sequence[PathLike | material.MaterialLibrary] = (),
+                  spaces_per_indent: int = 2,
+                  encoding: str = 'utf-16',
+                  ) -> ZmxOpticalDesign:
+        """
+        Reads a zmx file into an `OpticalDesign` representation.
+
+        :param input_path_or_stream: The file to read the optical system from, or its file-path.
+        :param material_libraries: List of MaterialLibraries or paths to AGF files that can be used as glass catalogs.
+        :param spaces_per_indent: The optional number of spaces per indent/tab.
+        :param encoding: The text-encoding to try first.
+
+        :return: A representation of the optical system.
+        """
+        return ZmxOpticalDesign(ZmxOrderedCommandDict.from_file(input_path_or_stream,
+                                                                spaces_per_indent=spaces_per_indent,
+                                                                encoding=encoding,
+                                                                ),
+                                material_libraries,
+                                )
 
     @property
     def surfaces(self) -> Sequence[ZmxSurface]:
@@ -329,9 +337,10 @@ class ZmxSurface(Surface):
     """
     A class to represent a thin surface between two volumes as read from a `zmx` file.
     """
+
     def __init__(self, commands: OrderedCommandDict, unit: float = 1.0,
-                 material_libraries: Sequence[MaterialLibrary] = tuple[MaterialLibrary](),
-                 background_material: Material = VACUUM,
+                 material_libraries: Sequence[material.MaterialLibrary] = (),
+                 background_material: material.Material = material.VACUUM,
                  ):
         """
         Construct a new surface based from a command dictionary that represents the corresponding lines in the file.
@@ -363,17 +372,17 @@ class ZmxSurface(Surface):
                                       else np.inf
                                       )
         if glass_name in {'', 'MIRROR'}:
-            material = background_material
+            mat = background_material
         else:
-            material = None
+            mat = None
             for material_library in material_libraries:
                 if glass_name in material_library:
-                    material = material_library.find_all(glass_name)[0]
+                    mat = material_library.find_all(glass_name)[0]
                     break
-            if material is None:
+            if mat is None:
                 log.error(f'Glass {glass_name} not found in {material_libraries}.')
-                material = Material(name=glass_name)  # Dummy material
-        self.material: Material = material
+                mat = material.Material(name=glass_name)  # Dummy material
+        self.material: material.Material = mat
         self.floating_aperture = self.commands['FLAP', 0].numbers if 'FLAP' in self.commands else 0
         self.conic_constant = self.commands['CONI', 0].numbers if 'CONI' in self.commands else 0
         self.parameters = [_.numbers[0] for _ in self.commands.sort_and_merge('PARM')]
@@ -383,11 +392,10 @@ class ZmxSurface(Surface):
         for pickup_parameter_command in pickup_parameter_commands:
             parameter_index, from_surface, factor, offset = pickup_parameter_command.numbers[:4]
             parameter_index -= 1
-            # self.parameter[parameter_index] = surface[from_surface].parameters[parameter_index] * factor + offset
-            # The number on file seem to be computed already.
+            # The number on file seems to be pre-computed. No need to * factor + offset
 
         def standard_sag(r2: array_like) -> array_type:
-            return self.curvature * r2 / (1 + (1 - (1 + self.conic_constant) * self.curvature ** 2 * r2)**0.5)
+            return self.curvature * r2 / (1 + (1 - (1 + self.conic_constant) * self.curvature ** 2 * r2) ** 0.5)
 
         def odd_asphere_sag(r2: array_like, coefficients: array_like) -> array_type:
             sag = 0
@@ -402,7 +410,7 @@ class ZmxSurface(Surface):
                 sag = sag + c * (r2 ** (_ + 1))
             return standard_sag(r2) * sag
 
-        def zernike_sag(position: array_like, coefficients: array_like, indices: array_like = tuple(),
+        def zernike_sag(position: array_like, coefficients: array_like, indices: array_like = (),
                         radius: array_type = 1.0,
                         ) -> array_type:
             position = asarray(position)
@@ -424,8 +432,7 @@ class ZmxSurface(Surface):
                     sag = sag + c * (p[..., 0] ** exponents[0]) * (p[..., 1] ** exponents[1])
             return sag
 
-        def radial_squared(_: array_like) -> array_type:
-            return np.sum(asarray(_)[..., :2] ** 2)
+        radial_squared = lambda _: np.sum(asarray(_)[..., :2] ** 2)
 
         match self.type:
             case 'BICONICX':
@@ -443,12 +450,15 @@ class ZmxSurface(Surface):
                 # If False, decenter, then apply Euler angles; and then translate thickness.
                 # If True, apply Euler angles; then decenter and thickness.
                 self.rotate_before_decenter = self.parameters[5] != 0
-            case 'EVENASPH':  # Even Asphere Surface, used as the basis for many other surfaces
+            case 'EVENASPH':  # Even-asphere Surface, used as the basis for many other surfaces
                 self.sag = lambda pos: even_asphere_sag(radial_squared(pos), asarray(self.parameters) * self.unit)
+                # In lens units, the extended version uses normalized radii, rho
+            case 'ODDASPH':  # Odd-asphere Surface, used as the basis for many other surfaces
+                self.sag = lambda pos: odd_asphere_sag(radial_squared(pos), asarray(self.parameters) * self.unit)
                 # In lens units, the extended version uses normalized radii, rho
             case 'PARAXIAL':
                 self.focal_length = self.parameters[0] * self.unit
-                opd_calc_mode = self.parameters[1]
+                # opd_calc_mode is in self.parameters[1]
             case 'STANDARD':
                 # STANDARD surface: z**2 == 2 * r * self.curvature - (1 + self.conic_constant) * r**2,
                 # used as the basis for many other surfaces

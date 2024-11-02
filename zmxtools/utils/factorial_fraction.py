@@ -1,9 +1,12 @@
 import numpy as np
+from typing import Sequence
 
 from zmxtools.utils.array import to_length
 
+array_like = int | Sequence[int] | np.ndarray
 
-def factorial_fraction(numerator=0, denominator=0):
+
+def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> np.ndarray:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -17,8 +20,6 @@ def factorial_fraction(numerator=0, denominator=0):
     data_shape = difference.shape
 
     result = np.ones(shape=data_shape, dtype=float)
-    # if result.ndim < 1:
-    #     result = result[np.newaxis]
 
     for idx in np.arange(2, 1 + np.maximum(np.amax(numerator), np.amax(denominator))):
         # Iterate both the numerator and the denominator
@@ -34,10 +35,12 @@ def factorial_fraction(numerator=0, denominator=0):
 def factorial_product_fraction(numerators: tuple=(), denominators: tuple=()):
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
+
     If either input argument is not a tuple, it is wrapped in one.
 
     :param numerators: A set of integers or arrays of integers.
     :param denominators: A set of integers or arrays of integers.
+
     :return: An number or array of numbers of the same shape as the inputs.
     """
     if not isinstance(numerators, tuple):
@@ -78,15 +81,10 @@ def factorial_product_fraction(numerators: tuple=(), denominators: tuple=()):
     for idx in np.arange(2, 1 + np.maximum(max_numerator, max_denominator)):
         # Iterate both the numerator and the denominator
         numerator_idx_factors = np.zeros(data_shape, dtype=np.int32)
-        # if numerator_idx_factors.ndim < 1:
-        #     numerator_idx_factors = numerator_idx_factors[..., np.newaxis]
         for n in numerators:
             numerator_idx_factors += idx <= np.array(n)  # either 0 or 1 for every element
         for n in denominators:
             numerator_idx_factors -= idx <= np.array(n)  # either 0 or 1 for every element
-
-        # tmp = np.array(idx, dtype=float32)**numerator_idx_factors
-        # log.debug(f"Shapes of result {result.shape}, tmp {tmp.shape}, and product {(result*tmp).shape}")
 
         result *= np.array(idx, dtype=float)**numerator_idx_factors
 

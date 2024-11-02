@@ -5,9 +5,7 @@ import traceback
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from zmxtools import __version__, zar
-
-from . import log
+from zmxtools import __version__, log, zar
 
 log = log.getChild(__name__)
 

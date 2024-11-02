@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from collections import defaultdict
 import itertools
+from collections import defaultdict
+from typing import Callable, Dict, List, Sequence
+
 import numpy as np
-from typing import Callable, Sequence, Dict, List
 
-from zmxtools.utils.polar import cart2pol
-from zmxtools.utils.array import array_like, asarray, array_type
 from zmxtools.utils import script
+from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils.polar import cart2pol
 
 
-__all__ = ["Polynomial"]
+__all__ = ['Polynomial']
 
 
 class Polynomial(Callable):
@@ -63,7 +64,7 @@ class Polynomial(Callable):
     @labels.setter
     def labels(self, new_symbols: Sequence[str]):
         symbols = list(new_symbols)
-        assert len(symbols) == len(set(symbols)), f"No duplicate symbols are allowed. Got {symbols}."
+        assert len(symbols) == len(set(symbols)), f'No duplicate symbols are allowed. Got {symbols}.'
         for _ in range(len(symbols), self.ndim):
             symbols.append('x'+script.sub(_))
         self.__symbols = tuple(symbols)
@@ -85,7 +86,7 @@ class Polynomial(Callable):
                     *range(len(exponents[variable_index]), self.shape[variable_index])
                 )
             elif len(exponents[variable_index]) > self.shape[variable_index]:
-                raise ValueError(f"The number of exponents, {len(exponents[variable_index])}, for {self.labels[variable_index]} should match the number of coefficients, {self.shape[variable_index]}.")
+                raise ValueError(f'The number of exponents, {len(exponents[variable_index])}, for {self.labels[variable_index]} should match the number of coefficients, {self.shape[variable_index]}.')
             else:
                 exponents[variable_index] = tuple(exponents[variable_index])
         for variable_index in range(len(exponents), self.ndim):  # Add default exponents for the remaining dimensions
@@ -117,7 +118,7 @@ class Polynomial(Callable):
         broadcasted dimensions of the arguments.
         """
         for s in kwargs:
-            assert s in self.labels, f"Unknown coordinate symbol, {s}. Must be one of {self.labels}."
+            assert s in self.labels, f'Unknown coordinate symbol, {s}. Must be one of {self.labels}.'
 
         # Convert arguments to standard form
         arg_dict: Dict[str, array_type] = defaultdict[str, array_type](float)  # Default to 0.0
@@ -127,7 +128,7 @@ class Polynomial(Callable):
             arg_dict[symbol] = asarray(arg)
 
         arguments = [arg_dict[label] for label in self.labels]
-        # assert len(arguments) == len(self.symbols), f"Expected exactly one argument for each of {self.symbols}, got {len(arguments)}."
+        # assert len(arguments) == len(self.symbols), f'Expected exactly one argument for each of {self.symbols}, got {len(arguments)}.'
         while len(arguments) < self.ndim:  # Assume that missing arguments are 0.
             arguments.append(asarray(0.0))
 
@@ -141,6 +142,20 @@ class Polynomial(Callable):
                 result = result * calc_product_rec(coordinates[1:], exponents[1:])
             return result
 
+        # # Attempt to save memory
+        # result = 0
+        # print(self)
+        # factor = calc_product_rec(arguments[1:], arguments[1:]) if len(arguments) > 1 else 1
+        # argument = np.expand_dims(arguments[0], axis=calculation_axes)
+        # for coeff, exponent in zip(self.coefficients, self.exponents[0]):
+        #     print(f'coeff = {coeff}, exponent = {exponent}, arg = {argument} factor = {factor}')
+        #     term = (argument ** exponent) * factor
+        #     print(f'term = {coeff * term}')
+        #     term = np.sum(coeff * term, axis=calculation_axes)
+        #     result = result + term
+        #     print(f'term = {term}')
+        #
+        # return result
         return np.sum(self.coefficients * calc_product_rec(arguments, self.exponents), axis=calculation_axes)
 
     def grad(self) -> Sequence[Polynomial]:
@@ -251,47 +266,47 @@ class Polynomial(Callable):
     def __str__(self) -> str:
         """Format this polynomial as a unicode string."""
         def format_factor(symbol: str, exponent: int | float | complex) -> str:
-            result = str(symbol) if exponent != 0 else ""
+            result = str(symbol) if exponent != 0 else ''
             if exponent != 0 and exponent != 1:
                 result += script.sup(exponent)
             return result
 
         def format_coefficient(coefficient: complex, product_str: str) -> str:
             if coefficient.real != 0 and coefficient.imag != 0:
-                result = f"+({coefficient.real}{coefficient.imag:+})"
+                result = f'+({coefficient.real}{coefficient.imag:+})'
             elif coefficient.real != 0:  # coefficient.imag == 0
-                if product_str == "" or abs(coefficient) != 1:
-                    result = f"{coefficient.real:+}"
+                if product_str == '' or abs(coefficient) != 1:
+                    result = f'{coefficient.real:+}'
                 else:
-                    result = "+" if coefficient == 1 else "-"
+                    result = '+' if coefficient == 1 else '-'
             else:  # coefficient.real == 0 but coefficient.imag != 0
                 if coefficient.imag == -1:
-                    result = "-i"
+                    result = '-i'
                 elif coefficient.imag == 1:
-                    result = "+i"
+                    result = '+i'
                 else:
-                    result = f"{coefficient.imag:+}i"
+                    result = f'{coefficient.imag:+}i'
 
-            result = result.replace("+", " + ")
-            result = result.replace("-", " - ")
+            result = result.replace('+', ' + ')
+            result = result.replace('-', ' - ')
 
             return result
 
         products = itertools.product(*([format_factor(s, e) for e in self.exponents[_]] for _, s in enumerate(self.labels)))
-        products = ("".join(_) for _ in products)
-        terms = [format_coefficient(c, p) + "".join(p) for c, p in zip(self.coefficients.ravel(), products)
+        products = (''.join(_) for _ in products)
+        terms = [format_coefficient(c, p) + ''.join(p) for c, p in zip(self.coefficients.ravel(), products)
                  if c != 0]
         if len(terms) > 0:
-            if terms[0].startswith(" +"):
+            if terms[0].startswith(' +'):
                 terms[0] = terms[0][2:]
-            result = "".join(terms)
+            result = ''.join(terms)
             result = result.strip()
         else:
-            result = "0.0"
+            result = '0.0'
         return result
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.coefficients}, {self.labels}, {self.exponents})"
+        return f'{self.__class__.__name__}({self.coefficients}, {self.labels}, {self.exponents})'
 
     def __hash__(self) -> int:
         return hash(repr(self))
@@ -316,7 +331,7 @@ class PolarPolynomial(Polynomial):
             the arguments by name. By default, the labels x₀, x₁, x₂, x₃, ... is used.
         :param exponents: The optional exponents of the polynomial. By default, these are 0, 1, 2, ...
         """
-        cartesian_labels = (labels[0], f"exp(-i{labels[1]})")  # or "e⁻ⁱᵠ"
+        cartesian_labels = (labels[0], f'exp(-i{labels[1]})')  # or 'e⁻ⁱᵠ'
         super().__init__(coefficients=coefficients, labels=cartesian_labels, exponents=exponents)
 
     def __call__(self, rho: array_like = 0.0, phi: array_like = 0.0) -> array_type:
@@ -356,9 +371,8 @@ class PolarPolynomial(Polynomial):
         return np.stack([df_dy, df_dx], axis=axis)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     from zmxtools.utils.polar import pol2cart
-    import matplotlib.pyplot as plt
 
     # p = PolarPolynomial([[0.5 + 0.5j]], exponents=[[1], [1]])
     p = PolarPolynomial([[-2j * np.sqrt(8)], [3j * np.sqrt(8)]], exponents=[[1, 3], [1]]) / 5.0
@@ -370,20 +384,20 @@ if __name__ == "__main__":
     z = p.cartesian(y, x).real
     grad = p.cartesian_grad(y, x)
 
-    print("Calculating local coordinate system...")
+    print('Calculating local coordinate system...')
     v = np.stack([grad[0] * 0 + 1, grad[0] * 0, grad[0]])
     u = np.stack([grad[1] * 0, grad[1] * 0 + 1, grad[1]])
     u /= np.linalg.norm(u, axis=0)
     v /= np.linalg.norm(v, axis=0)
     normal = np.cross(v, u, axis=0).real
 
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    ax.set_aspect("equal")
+    fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
+    ax.set_aspect('equal')
 
     ax.plot_surface(x, y, z, color=(1, 1, 0.75), shade=True, linewidth=0, antialiased=False)
     ax.quiver(x, y, z, u[1], u[0], u[2], color=(0.75, 0, 0), length=0.1)
     ax.quiver(x, y, z, v[1], v[0], v[2], color=(0, 0.75, 0), length=0.1)
     ax.quiver(x, y, z, normal[1], normal[0], normal[2], color=(0, 0, 0.75), length=0.1)
-    ax.set(xlim=(-1, 1), ylim=(-1, 1), zlim=(-1, 1), xlabel="x", ylabel="y")
+    ax.set(xlim=(-1, 1), ylim=(-1, 1), zlim=(-1, 1), xlabel='x', ylabel='y')
     plt.show()
 

@@ -1,24 +1,27 @@
-from __future__ import  annotations
+from __future__ import annotations
 
 import re
-from typing import Optional, Self, Sequence, Union, Iterator, Tuple
 from collections import defaultdict
+from typing import Iterator, Optional, Self, Sequence, Tuple
 
-from zmxtools.utils.io import FileLike, PathLike
 from zmxtools import log
+from zmxtools.utils.io import FileLike, PathLike
 
 log = log.getChild(__name__)
 
 
 class OrderedCommandDict:
-    def __init__(self, commands: Sequence[Command] = tuple(), spaces_per_indent: int = 2):
+    """An ordered dictionary of commands, as they appear in the file, but indexable by the command name."""
+
+    def __init__(self, commands: Sequence[Command] = (), spaces_per_indent: int = 2):
         """
         Construct a new command dictionary from a sequence of commands.
 
         :param commands: A sequence of commands, which will be kept in order.
         :param spaces_per_indent: The number of spaces to use when indenting with __str__()
         """
-        assert all(_ is not None for _ in commands), f"{self.__class__.__name__} expected as sequence of Commands, not {commands}."
+        assert all(_ is not None for _ in commands
+                   ), f'{self.__class__.__name__} expected as sequence of Commands, not {commands}.'
         self.__commands = list(commands)
         self.spaces_per_indent: int = spaces_per_indent  # For __str__()
 
@@ -35,9 +38,10 @@ class OrderedCommandDict:
         raise NotImplementedError
 
     @classmethod
-    def from_file(cls, input_path_or_stream: Union[FileLike, PathLike],
+    def from_file(cls, input_path_or_stream: FileLike | PathLike,
                   spaces_per_indent: int = 2,
-                  encoding: str = 'utf-16') -> OrderedCommandDict:
+                  encoding: str = 'utf-16',
+                  ) -> OrderedCommandDict:
         """
         Reads a file into an `OrderedCommandDict` representation.
 
@@ -47,31 +51,37 @@ class OrderedCommandDict:
 
         :return: The OrderedCommandDict representation.
         """
-        if isinstance(input_path_or_stream, PathLike):
-            input_file = open(input_path_or_stream, 'rb')
-        else:
-            input_file = input_path_or_stream
-        encodings = ('utf-16', 'utf-8-sig', 'utf-16-le', 'utf-8', 'utf-16-be', 'iso-8859-1')
-        if encoding not in encodings:
-            encodings = (encoding, *encodings)
-        with input_file:
+        encodings = (encoding, *(_
+                                 for _ in ('utf-16', 'utf-8-sig', 'utf-16-le', 'utf-8', 'utf-16-be', 'iso-8859-1')
+                                 if _ != encoding
+                                 ),
+                     )
+        with (
+            open(input_path_or_stream, 'rb') if isinstance(input_path_or_stream, PathLike) else input_path_or_stream
+        ) as input_file:
             contents = input_file.read()
             if len(contents) == 0:
-                raise EOFError(f"Empty file: 0 bytes read from {input_file.name}.")
+                raise EOFError(f'Empty file: 0 bytes read from {input_file.name}.')
             if not isinstance(contents, str):
-                """Attempt to parse the byte-contents of the file using different encodings."""
+                # Attempt to parse the byte-contents of the file using different encodings.
                 commands = None
                 for encoding_to_try in encodings:
                     try:
                         commands = cls.from_str(contents.decode(encoding_to_try), spaces_per_indent=spaces_per_indent)
-                        if all(all((_ <= 128 and 0x30 <= ord(c) < 0x7f) for _, c in enumerate(name)) for name in commands.names):
-                            log.debug(f"File {input_file.name} appears to be encoded using {encoding_to_try}.")
+
+                        def is_ascii(name: str) -> bool:
+                            return all((_ <= 128 and 0x30 <= ord(c) < 0x7F) for _, c in enumerate(name))
+
+                        if all(is_ascii(name) for name in commands.names):
+                            log.debug(f'File {input_file.name} appears to be encoded using {encoding_to_try}.')
                             break
-                        log.debug(f'Strange command detected. File {input_file.name} does not seem to be encoded using {encoding_to_try}!')
+                        log.debug('Strange command detected. ' +
+                                  f'File {input_file.name} does not seem to be encoded using {encoding_to_try}!',
+                                  )
                     except UnicodeError as err:
-                        log.debug(f"File {input_file.name} not encoded using {encoding_to_try}! UnicodeError: {err}")
+                        log.debug(f'File {input_file.name} not encoded using {encoding_to_try}! UnicodeError: {err}')
                 if commands is None:
-                    raise IOError(f"Could not read {input_file.name}.")
+                    raise IOError(f'Could not read {input_file.name}.')
         return commands
 
     @property
@@ -82,11 +92,13 @@ class OrderedCommandDict:
     def __iter__(self) -> Iterator[Command]:
         """
         An iterator over all the commands in order.
-        This is called when using
-        ```
-        for _ in command_dict:
-            ...
-        ```
+
+        This is called when using a for loop as
+
+        .. code:: python
+
+            for _ in command_dict:
+                ...
         """
         return self.__commands.__iter__()
 
@@ -112,8 +124,7 @@ class OrderedCommandDict:
 
     def __getitem__(self, item: int | Tuple | slice | str) -> Command | OrderedCommandDict:
         """
-        Returns a command at a specific integer index or
-        returns a `CommandSequence` with all commands with the specified name.
+        Returns a command at a specific integer index or a `CommandSequence` with all commands with the specified name.
         """
         if not isinstance(item, Tuple):
             item = (item, )
@@ -123,7 +134,7 @@ class OrderedCommandDict:
             if current_index < len(self.__commands):
                 result = self.__commands[current_index]
             else:
-                raise IndexError(f"Only {len(self.__commands)} available. Index {current_index} does not exist.")
+                raise IndexError(f'Only {len(self.__commands)} available. Index {current_index} does not exist.')
         elif isinstance(current_index, slice):
             result = OrderedCommandDict(self.__commands[current_index])
         else:  # isinstance(item, str)
@@ -134,9 +145,11 @@ class OrderedCommandDict:
 
     def sort_and_merge(self, name: str) -> OrderedCommandDict:
         """
-        Get a sorted collection of arguments for an indexed command. Returns a new command dictionary for that is stored
-        on the integer index at the start of their argument. The contents of identical indices are merged so that the
-        returned collection does not contain duplicate indices.
+        Get a sorted collection of arguments for an indexed command.
+
+        This method returns a new command dictionary for that is stored on the integer index at the start of their
+        argument. The contents of identical indices are merged so that the returned collection does not contain
+        duplicate indices.
 
         :param name: The command name to single out.
 
@@ -149,22 +162,20 @@ class OrderedCommandDict:
 
         def merge(commmands: Sequence[Command]) -> Command:
             """Auxiliary function to merge similar `Command`s into a single `Command`."""
-            assert all(_.name == commmands[0].name for _ in commmands[1:]), "Can only merge commands with the same name."
-            argument_matches = [re.match(r"\s*(\S+)(\s.*)", _.argument) for _ in commmands]
-            arguments = [(_.groups()[1][1:] if _ is not None else "") for _ in argument_matches]
+            assert all(_.name == commmands[0].name for _ in commmands[1:]
+                       ), 'Can only merge commands with the same name.'
+            argument_matches = [re.match(r'\s*(\S+)(\s.*)', _.argument) for _ in commmands]
+            arguments = [(_.groups()[1][1:] if _ is not None else '') for _ in argument_matches]
             children = list[Command]()
             for _ in commmands:
                 if _.children is not None:
                     children += _.children
             return Command(name=commmands[0].name,
                            argument='\n'.join(arguments),
-                           children=OrderedCommandDict(children))
+                           children=OrderedCommandDict(children),
+                           )
 
         return OrderedCommandDict([merge(dict_of_lists[_]) for _ in sorted(dict_of_lists)])
-
-    def __delitem__(self, index: int):
-        """Delete the value at the specified index."""
-        del self.__commands[index]
 
     def append(self, new_command: Command) -> Self:
         """Adds a new command at the end of the sequence."""
@@ -174,16 +185,20 @@ class OrderedCommandDict:
     def __str__(self) -> str:
         """
         Return the text string from which this object is parsed.
+
         Aside from the line-break character choice, this should correspond to the input at creation using from_str().
         """
         return '\n'.join(str(_) for _ in self)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({list(self)}, spaces_per_indent={self.spaces_per_indent})"
+        """Returns a string that fully represents this object."""
+        return f'{self.__class__.__name__}({list(self)}, spaces_per_indent={self.spaces_per_indent})'
 
 
 class Command:
-    def __init__(self, name: str = "", argument: Optional[str] = None, children: Optional[OrderedCommandDict] = None):
+    """A class to represent a single command/line in a file."""
+
+    def __init__(self, name: str = '', argument: Optional[str] = None, children: Optional[OrderedCommandDict] = None):
         """
         Construct a new command, corresponding to a line or section of a text file.
 
@@ -209,10 +224,13 @@ class Command:
         * a triple-quoted string of characters on multiple lines.
         """
         result = list[str]()
+
         if self.argument is not None:
-            for match in re.finditer(r"'''([^']*)'''|'([^'\n\r]*)'|\"\"\"([^\"]*)\"\"\"|\"([^\"\n\r]*)\"|(\S+)",
-                                     self.argument):
-                result += [_ for _ in match.groups() if _ is not None]
+            word_pattern = re.compile(r"'''([^']*)'''|'([^'\n\r]*)'|\"\"\"([^\"]*)\"\"\"|\"([^\"\n\r]*)\"|(\S+)")
+            for match in word_pattern.finditer(self.argument):
+                for _ in match.groups():
+                    if _ is not None:
+                        result.append(_)
         return result
 
     @property
@@ -247,7 +265,9 @@ class Command:
         Returns the sub-command with a specific name, index or a collection of sub-commands at a multiple indices.
 
         :param item: The selection index, name, or indices.
-        :return: A `Command` with the selected when item is an int, otherwise an `OrderedCommandDict` with the selection.
+
+        :return: A :py:class:``Command` with the selected when item is an int, otherwise
+            an :py:class:``OrderedCommandDict` with the selection.
         """
         return self.children[item]
 
@@ -261,6 +281,7 @@ class Command:
     def __str__(self) -> str:
         """
         Return the text string from which this object is parsed.
+
         Aside from the line-break character choice, this should correspond to the input at creation using from_str().
         """
         if self.argument is not None:
@@ -272,4 +293,5 @@ class Command:
         return result
 
     def __repr__(self) -> str:
+        """Returns a complete string representation of this object."""
         return f'{self.__class__.__name__}("{self.name}", "{self.argument}", {repr(self.children)})'

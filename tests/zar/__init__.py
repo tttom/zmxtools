@@ -4,7 +4,7 @@ from typing import Dict, Optional
 from tests import log
 log = log.getChild(__name__)
 
-__all__ = ['MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_zar_files', 'check_dir_and_remove', 'check_zip_and_remove']
+__all__ = ['log', 'MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_zar_files', 'check_dir_and_remove', 'check_zip_and_remove']
 
 MIN_FILES_IN_ARCHIVE = 3
 
@@ -20,7 +20,7 @@ for _ in test_directory.rglob('*'):
 
 def check_dir_and_remove(extraction_dir: Path, remove: bool = True):
     """Checks of the directory exists and removes it."""
-    assert extraction_dir.exists, f'Extraction of zar file to {extraction_dir} failed'
+    assert extraction_dir.exists(), f'Extraction of zar file to {extraction_dir} failed'
     files_in_archive = tuple(extraction_dir.glob('*'))
     assert len(files_in_archive) >= MIN_FILES_IN_ARCHIVE, (
         f'Only found {files_in_archive} in {extraction_dir}. Expected {MIN_FILES_IN_ARCHIVE} files.'
