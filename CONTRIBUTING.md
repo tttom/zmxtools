@@ -37,7 +37,7 @@ flake8 .
 ```
 Keep in mind: default virtual environment folder excluded by flake8 style checking is `.venv`.
 If you want to customize this parameter, you should do this in `setup.cfg`.
-These steps are mandatory during the CI.
+These steps are mandatory during the continuous integration.
 
 
 ## Type checks
@@ -54,13 +54,12 @@ This step is mandatory during for continuous integration to rebuild the package.
 
 ## Submitting your code
 
-We use [trunk based](https://trunkbaseddevelopment.com/)
-development (we also sometimes call it `wemake-git-flow`).
+We use [trunk based](https://trunkbaseddevelopment.com/) development (we also sometimes call it `wemake-git-flow`).
 
 What the point of this method?
 
 1. We use protected `main` branch,
-   so the only way to push your code is via pull request
+   so the only way to push your code is via a pull request
 2. We use issue branches: to implement a new feature or to fix a bug
    create a new branch named `issue-$TASKNUMBER`
 3. Then create a pull request to `main` branch

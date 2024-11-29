@@ -1,14 +1,10 @@
 """
 Functions to format strings, or objects that can be converted to strings, as unicode subscript or superscript.
 
-Example:
-::
-    import utils.script
-    test_text = '[* 0.123456789 abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ +-*=() βɣρΦϕɸχ ]'
-    print(f'    regular: {test_text}')
-    print(f'  subscript: {script.sub(test_text)}')
-    print(f'superscript: {script.sup(test_text)}')
-
+>>> sup('+-0.123456789ijklmnop')
+⁺⁻⁰¹²³⁴⁵⁶⁷⁸⁹ⁱʲᵏˡᵐⁿᵒᵖ
+>>> sub('+-0.123456789ijklmnop')
+₊₋₀₁₂₃₄₅₆₇₈₉ᵢⱼₖₗₘₙₒₚ
 """
 
 __all__ = ['sup', 'sub']
