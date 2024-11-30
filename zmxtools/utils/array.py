@@ -1,4 +1,5 @@
 from typing import Sequence, TypeAlias
+
 import numpy as np
 
 array_type = np.ndarray
@@ -33,30 +34,6 @@ def einsum(subscripts: str, *args: array_like) -> array_type:
 def norm(_: array_like) -> array_type:
     """Computes the l2-norm along the right-most axis."""
     return np.linalg.norm(_, axis=-1)
-
-
-def norm2(_: array_like) -> array_type:
-    return norm(_) ** 2
-
-
-def sin(_: array_like) -> array_type:
-    return np.sin(_)
-
-
-def cos(_: array_like) -> array_type:
-    return np.cos(_)
-
-
-def arctan2(a: array_like, b: array_like) -> array_type:
-    return np.arctan2(a, b)
-
-
-def sqrt(_: array_like) -> array_type:
-    return np.sqrt(_)
-
-
-def maximum(a: array_like, b: array_like) -> array_type:
-    return np.maximum(a, b)
 
 
 def to_length(vector, length: int, value=0):

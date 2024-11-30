@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Sequence
+
+import numpy as np
 
 from zmxtools.utils.array import to_length
 
@@ -23,8 +24,8 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
 
     for idx in np.arange(2, 1 + np.maximum(np.amax(numerator), np.amax(denominator))):
         # Iterate both the numerator and the denominator
-        num_bool = (denominator < idx) & (idx <= numerator)  # either 0 or 1 for every element
-        den_bool = (numerator < idx) & (idx <= denominator)  # either 0 or 1, but never both 1
+        num_bool = np.logical_and(denominator < idx, idx <= numerator)  # either 0 or 1 for every element
+        den_bool = np.logical_and(numerator < idx, idx <= denominator)  # either 0 or 1, but never both 1
         # either 1/idx, 1, or idx for every element
         result[num_bool] *= idx
         result[den_bool] *= 1 / idx
@@ -32,7 +33,7 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: tuple=(), denominators: tuple=()):
+def factorial_product_fraction(numerators: tuple = (), denominators: tuple = ()):
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -41,7 +42,7 @@ def factorial_product_fraction(numerators: tuple=(), denominators: tuple=()):
     :param numerators: A set of integers or arrays of integers.
     :param denominators: A set of integers or arrays of integers.
 
-    :return: An number or array of numbers of the same shape as the inputs.
+    :return: A number or array of numbers of the same shape as the inputs.
     """
     if not isinstance(numerators, tuple):
         numerators = (numerators, )
@@ -59,14 +60,14 @@ def factorial_product_fraction(numerators: tuple=(), denominators: tuple=()):
                 data_shape = to_length(data_shape, n.ndim, 0)
             data_shape = np.maximum(data_shape, np.array(n.shape, dtype=int))
     max_denominator = 1
-    for n in denominators:
-        n = np.array(n)
-        if n.size > 0:
-            max_denominator = np.maximum(max_denominator, np.max(n))
+    for d in denominators:
+        d = np.array(d)
+        if d.size > 0:
+            max_denominator = np.maximum(max_denominator, np.amax(d))
             # Expand data_shape so it encompasses all arguments
-            if n.ndim > data_shape.size:
-                data_shape = to_length(data_shape, n.ndim, 0)
-            data_shape = np.maximum(data_shape, np.array(n.shape, dtype=int))
+            if d.ndim > data_shape.size:
+                data_shape = to_length(data_shape, d.ndim, 0)
+            data_shape = np.maximum(data_shape, np.array(d.shape, dtype=int))
 
     # Check if we should better do this as the inverse fraction and revert it at the end
     inverse_calculation = max_denominator > max_numerator
@@ -80,13 +81,9 @@ def factorial_product_fraction(numerators: tuple=(), denominators: tuple=()):
     # Multiply only the factors that don't cancel on both sides of the fraction
     for idx in np.arange(2, 1 + np.maximum(max_numerator, max_denominator)):
         # Iterate both the numerator and the denominator
-        numerator_idx_factors = np.zeros(data_shape, dtype=np.int32)
-        for n in numerators:
-            numerator_idx_factors += idx <= np.array(n)  # either 0 or 1 for every element
-        for n in denominators:
-            numerator_idx_factors -= idx <= np.array(n)  # either 0 or 1 for every element
-
-        result *= np.array(idx, dtype=float)**numerator_idx_factors
+        numerator_idx_factors = sum((idx <= np.asarray(_)) for _ in numerators)
+        numerator_idx_factors -= sum((idx <= np.asarray(_)) for _ in numerators)
+        result *= np.array(idx, dtype=float) ** numerator_idx_factors
 
     result = result.reshape(data_shape)
 
