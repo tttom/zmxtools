@@ -36,7 +36,4 @@ def pol2cart(rho: array_like, phi: array_like) -> Tuple[array_type, array_type]:
     :param phi: The azimuthal coordinate.
     :return: A tuple, (y, x), with the respective Cartesian coordinates.
     """
-    y = rho * np.sin(phi)
-    x = rho * np.cos(phi)
-
-    return y, x
+    return rho * np.sin(phi), rho * np.cos(phi)

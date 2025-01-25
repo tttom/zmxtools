@@ -2,9 +2,9 @@
 Functions to format strings, or objects that can be converted to strings, as unicode subscript or superscript.
 
 >>> sup('+-0.123456789ijklmnop')
-⁺⁻⁰¹²³⁴⁵⁶⁷⁸⁹ⁱʲᵏˡᵐⁿᵒᵖ
+'⁺⁻⁰ॱ¹²³⁴⁵⁶⁷⁸⁹ⁱʲᵏˡᵐⁿᵒᵖ'
 >>> sub('+-0.123456789ijklmnop')
-₊₋₀₁₂₃₄₅₆₇₈₉ᵢⱼₖₗₘₙₒₚ
+'₊₋₀ٜ₁₂₃₄₅₆₇₈₉ᵢⱼₖₗₘₙₒₚ'
 """
 
 __all__ = ['sup', 'sub']

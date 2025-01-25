@@ -287,10 +287,10 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         multiply with 4 / pi.
         The returned Zernike polynomials are themselves functions of polar coordinates (rho=0, phi=0)
 
-        >>> print(BasisPolynomial(n=2, m=0))
+        >>> BasisPolynomial(n=2, m=0)
         BasisPolynomial(4) = defocus
-        >>> print(BasisPolynomial(n=2, m=0))
-        Z₂⁰
+        >>> str(BasisPolynomial(n=2, m=0))
+        'Z₂⁰'
 
         Returns the Zernike polynomial of radial order n and azimuthal frequency m, where m is between -n and n.
 

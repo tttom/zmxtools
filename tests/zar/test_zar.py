@@ -1,14 +1,14 @@
 import logging
 from typing import List
 
-from tests.zar import MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, test_directory, test_zar_files
-from tests.zmx.test_zmx import check_optical_design
 from zmxtools import cli, zar
+from tests.zar import (check_dir_and_remove, check_zip_and_remove, log, MIN_FILES_IN_ARCHIVE, test_directory,
+                       test_zar_files,
+                       )
+from tests.zmx.test_zmx import check_optical_design
 
-from tests.zar import log
 log = log.getChild(__name__)
 log.level = logging.DEBUG
-
 
 paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_zar_files.items() if zmx_path is not None}
 
@@ -22,7 +22,7 @@ def test_unpack():
     for zar_full_file in paired_test_files.keys():
         log.info(zar_full_file)
         packed_files = []
-        for packed_data in zar.unpack(zar_full_file.as_posix()):  # Use a str as argument, others already use pathlib.Path
+        for packed_data in zar.unpack(zar_full_file.as_posix()):  # Use a str as argument, others already use Path
             packed_files.append(packed_data.name)
             if packed_data.name.lower().endswith('.zmx'):
                 try:
@@ -123,10 +123,9 @@ def test_unzar_full():
 def test_load():
     """Tests the zmxtools.zar.unpack function."""
     for zar_full_file in test_zar_files.keys():
-        log.debug(f"Testing {zar_full_file}...")
+        log.debug(f'Testing {zar_full_file}...')
         try:
             optical_design = zar.load(zar_full_file.as_posix())[0]
             check_optical_design(optical_design, zar_full_file)
         except IndexError:
             raise ValueError(f'No optical model found in zar file {zar_full_file}.')
-

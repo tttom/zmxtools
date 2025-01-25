@@ -11,6 +11,33 @@ from zmxtools.utils.array import array_like, array_type, asarray
 log = log.getChild(__name__)
 
 
+# class HomogeneousCoordinates:
+#     """A class to represent vectors in homogeneous coordinates."""
+#
+#     def __init__(self, vector: Optional[array_like] = None, point: Optional[array_like] = None, axis: int = 0):
+#         self.axis = axis
+#         if vector is not None:
+#             if not isinstance(vector, np.ndarray):
+#                 vector = asarray(vector)
+#             vector = vector.swapaxes(0, self.axis)  # Internally always in the same axis.
+#             if vector.shape[0] < 4:
+#                 vector =
+#         else:
+#             if not isinstance(vector, np.ndarray):
+#                 vector = asarray(vector)
+#             vector = vector.swapaxes(0, self.axis)  # Internally always in the same axis.
+#
+#         if not isinstance(data, np.ndarray):
+#             data = asarray(data)
+#         self.data = data
+#
+#     def normalized(self) -> array_type:
+#         return self.data / self.data[-1]
+#
+#
+# array_like = array_like | HomogeneousCoordinates
+
+
 class Transform:
     """A class to represent transforms."""
 

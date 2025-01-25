@@ -2,17 +2,20 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from tests import log
+
 log = log.getChild(__name__)
 
-__all__ = ['log', 'MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_zar_files', 'check_dir_and_remove', 'check_zip_and_remove']
+__all__ = ('log', 'MIN_FILES_IN_ARCHIVE', 'test_directory', 'test_zar_files', 'check_dir_and_remove',
+           'check_zip_and_remove',
+           )
 
 MIN_FILES_IN_ARCHIVE = 3
 
 test_directory = Path(__file__).resolve().parent.parent / 'data'
 
-test_zar_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.glob('*') if _.suffix.lower() == ".zar"}
+test_zar_files: Dict[Path, Optional[Path]] = {_: None for _ in test_directory.glob('*') if _.suffix.lower() == '.zar'}
 for _ in test_directory.rglob('*'):
-    if _.suffix.lower() == ".zmx":
+    if _.suffix.lower() == '.zmx':
         zar_file = _.parent / (_.stem + '.zar')
         if zar_file in test_zar_files.keys():
             test_zar_files[zar_file] = _

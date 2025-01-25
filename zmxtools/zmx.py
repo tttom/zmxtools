@@ -363,9 +363,14 @@ class ZmxSurface(Surface):
         self.stop = 'STOP' in self.commands
         self.distance = self.commands['DISZ', 0].numbers[0] * self.unit if 'DISZ' in self.commands else np.inf
         self.comment = self.commands['COMM', 0].argument if 'COMM' in self.commands else ''
-        glass_name = (self.commands['GLAS', 0].words[0]
-                      if 'GLAS' in self.commands and len(self.commands['GLAS', 0].words) > 0 else ''
-                      )
+        if 'GLAS' in self.commands and len(self.commands['GLAS', 0].words) > 0:
+            glass_name = self.commands['GLAS', 0].words[0]
+            glass_numbers = self.commands['GLAS', 0].numbers
+        else:
+            glass_name = ''
+            glass_numbers = []
+        glass_model_refractive_index = glass_numbers[2] if len(glass_numbers) >= 3 else 1.0
+        glass_model_constringence = glass_numbers[3] if len(glass_numbers) >= 4 or glass_numbers[3] == 0 else np.nan
         self.reflect = glass_name == 'MIRROR'  # Not 'MIRR' command for some reason
         self.clear_aperture_radius = (self.commands['CLAP', 0].numbers[1] * self.unit / 2.0
                                       if 'CLAP' in self.commands and len(self.commands['CLAP', 0].numbers) > 1
@@ -379,9 +384,15 @@ class ZmxSurface(Surface):
                 if glass_name in material_library:
                     mat = material_library.find_all(glass_name)[0]
                     break
-            if mat is None:
-                log.error(f'Glass {glass_name} not found in {material_libraries}.')
-                mat = material.Material(name=glass_name)  # Dummy material
+            if mat is None:  # E.g. when set to __BLANK
+                log.error(f'Glass {glass_name} not found in {material_libraries}, '
+                          f'using model glass with refractive index {glass_model_refractive_index} at the d-line and '
+                          f'Abbe number {glass_model_constringence}.')
+                mat = material.ModelGlassMaterial(
+                    name=glass_name,
+                    refractive_index=glass_model_refractive_index,
+                    constringence=glass_model_constringence,
+                )  # Create a model glass from the model refractive index and the model constringence or Abbe number.
         self.material: material.Material = mat
         self.floating_aperture = self.commands['FLAP', 0].numbers if 'FLAP' in self.commands else 0
         self.conic_constant = self.commands['CONI', 0].numbers if 'CONI' in self.commands else 0

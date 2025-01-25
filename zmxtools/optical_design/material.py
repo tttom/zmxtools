@@ -431,6 +431,66 @@ class FunctionMaterial(Material):
 AdjustRIType = Callable[[Callable[[array_type], array_type], array_type, array_type, array_type], array_type]
 
 
+class ModelGlassMaterial(FunctionMaterial):
+    """
+    A class to represent a model glass with a specified refractive index at 587.5618nm and constringence (Abbe number).
+
+    The constringence is defined as (nd - 1) / (nF - nC): https://en.wikipedia.org/wiki/Abbe_number
+    where
+    * nF is the refractive index at 486.1327nm, the blue hydrogen line, F
+    * nd is the refractive index at 587.5618nm, the yellow helium line, d
+    * nC is the refractive index at 656.2725nm, the red hydrogen line, C
+
+    This material perfectly interpolates and extrapolates the refractive index for all wavelengths.
+    """
+    def __init__(self, name: str = '', refractive_index: float = 1, constringence: float = np.nan):
+        """
+        Constructs a model glass from just the refractive index and optionally the Abbe number or constringence.
+
+        This function is based on the code in:
+        https://github.com/mjhoptics/opticalglass/blob/master/src/opticalglass/buchdahl.py#L168
+
+        :param name: The glass name.
+        :param refractive_index: The refractive index at the central d-line of 587.5618nm.
+        :param constringence: The constringence or Abbe number. If not specified, a constant refractive index is used.
+        """
+        # Modeled using a 6-digit glass specification:
+        b = -0.064667
+        m = -1.604048
+
+        long_wavelength = 656.2725e-9  # red hydrogen line, C
+        center_wavelength = 587.5618e-9  # yellow helium line, d
+        short_wavelength = 486.1327e-9  # blue hydrogen line, F
+
+        def buchdahl_chromatic_coordinate(wavelength_difference: array_like) -> array_type:
+            """Calculate the Buchdahl chromatic coordinate."""
+            return 1 / (2.5 + 1e-6 / asarray(wavelength_difference))
+
+        omega_long = buchdahl_chromatic_coordinate(long_wavelength - center_wavelength)  # red hydrogen line, C
+        omega_short = buchdahl_chromatic_coordinate(short_wavelength - center_wavelength)  # blue hydrogen line, F
+
+        delta_omega = omega_short - omega_long
+        delta_omega_2 = omega_short ** 2 - omega_long ** 2
+
+        def complex_refractive_index_function(wavenumber: array_like, t: array_like, p: array_like) -> array_type:
+            wavenumber = asarray(wavenumber)
+
+            if not np.isnan(constringence) and constringence != 0:
+                # Fit the curve
+                dFC = (refractive_index - 1) / constringence
+                v2 = (dFC - b * delta_omega) / (m * delta_omega - delta_omega_2)
+
+                omega = buchdahl_chromatic_coordinate(2 * np.pi / wavenumber - center_wavelength)
+
+                return refractive_index + (b + m * v2) * omega + v2 * omega ** 2
+
+            return np.full(wavenumber.shape, refractive_index)
+
+        super().__init__(name=name, wavenumber_limits=(0, np.inf),
+                         complex_refractive_index_function=complex_refractive_index_function,
+                         )
+
+
 class PolynomialMaterial(FunctionMaterial):
     """A class to represent materials with a refractive index distribution that is described by a polynomial."""
 

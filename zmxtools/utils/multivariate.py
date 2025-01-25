@@ -264,11 +264,10 @@ class Polynomial(Callable):
                     case -1:
                         return ' - i'
                     case 0:
-                        return ' + 0'
+                        return ' + 0.0'
                     case 1:
                         return ' + i'
-                    case _:
-                        return f'{coefficient.imag:+}i'.replace('+', ' + ').replace('-', ' - ')
+                return f'{coefficient.imag:+}i'.replace('+', ' + ').replace('-', ' - ')
             elif coefficient.imag == 0:  # but coefficient.real != 0
                 if len(product_str) == 0 or abs(coefficient) != 1:
                     return f'{coefficient.real:+}'.replace('+', ' + ').replace('-', ' - ')
@@ -285,7 +284,7 @@ class Polynomial(Callable):
         products = (''.join(_) for _ in products)
         terms = [format_coefficient(c, p) + ''.join(p) for c, p in zip(self.coefficients.ravel(), products) if c != 0]
         if len(terms) == 0:
-            return '0'
+            return '0.0'
         return (''.join(terms)).strip(' +')
 
     def __repr__(self) -> str:
