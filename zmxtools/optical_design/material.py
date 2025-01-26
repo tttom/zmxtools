@@ -170,7 +170,8 @@ class Material:
 
         https://en.wikipedia.org/wiki/Abbe_number
         """
-        return (self.refractive_index_d - 1) / (self.refractive_index_F - self.refractive_index_C)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return (self.refractive_index_d - 1) / (self.refractive_index_F - self.refractive_index_C)
 
     @property
     def relative_partial_dispersion_g_F(self) -> array_type:
@@ -179,9 +180,11 @@ class Material:
 
         https://wp.optics.arizona.edu/jgreivenkamp/wp-content/uploads/sites/11/2018/12/201-202-18-Materials.pdf
         """
-        return (self.refractive_index_g - self.refractive_index_F) / (self.refractive_index_F - self.refractive_index_C)
+        with np.errstate(divide='ignore'):
+            return (self.refractive_index_g - self.refractive_index_F
+                    ) / (self.refractive_index_F - self.refractive_index_C)
 
-    def permittivity(self,
+    def permittivity(self, /,
                      wavenumber: Optional[array_like] = None,
                      wavelength: Optional[array_like] = None,
                      angular_frequency: Optional[array_like] = None,
@@ -202,7 +205,7 @@ class Material:
                                              angular_frequency=angular_frequency,
                                              ) ** 2
 
-    def complex_refractive_index(self,
+    def complex_refractive_index(self, /,
                                  wavenumber: Optional[array_like] = None,
                                  wavelength: Optional[array_like] = None,
                                  angular_frequency: Optional[array_like] = None,
@@ -225,7 +228,7 @@ class Material:
             wavenumber=wavenumber, wavelength=wavelength, angular_frequency=angular_frequency,
         ))
 
-    def refractive_index(self,
+    def refractive_index(self, /,
                          wavenumber: Optional[array_like] = None,
                          wavelength: Optional[array_like] = None,
                          angular_frequency: Optional[array_like] = None,
@@ -450,37 +453,64 @@ class ModelGlassMaterial(FunctionMaterial):
         This function is based on the code in:
         https://github.com/mjhoptics/opticalglass/blob/master/src/opticalglass/buchdahl.py#L168
 
+        The central refractive index, nd, and the constringence, vd = (nd - 1) / (nF - nC), are insufficient to recover
+        nF and nC separately. However, when the refractive index is represented as a parabola in Buchdahl coordinates
+        instead of wavelengths, the points defined by the first and second order coefficients pairs fall approximately
+        on a line with intercept -0.064667 and slope -1.604048.
+
         :param name: The glass name.
         :param refractive_index: The refractive index at the central d-line of 587.5618nm.
         :param constringence: The constringence or Abbe number. If not specified, a constant refractive index is used.
         """
-        b = -0.064667
-        m = -1.604048
+        # The
+        # Based on fitting to multiple glass catalogs.
+        # https://github.com/mjhoptics/opticalglass/blob/da28441f269e32b121c9042ca405e5bdc997c678/notebooks/Buchdahl%20models.ipynb#L365
+        coefficients_intercept = -0.064667
+        coefficients_slope = -1.604048
 
         long_wavelength = 656.2725e-9  # red hydrogen line, C
         center_wavelength = 587.5618e-9  # yellow helium line, d
         short_wavelength = 486.1327e-9  # blue hydrogen line, F
 
-        def buchdahl_chromatic_coordinate(wavelength_difference: array_like) -> array_type:
-            """Calculate the Buchdahl chromatic coordinate."""
-            return 1 / (2.5 + 1e-6 / asarray(wavelength_difference))
+        def buchdahl_chromatic_coordinate(wavelength: array_like) -> array_type:
+            """
+            Calculate the Buchdahl chromatic coordinate.
 
-        omega_long = buchdahl_chromatic_coordinate(long_wavelength - center_wavelength)  # red hydrogen line, C
-        omega_short = buchdahl_chromatic_coordinate(short_wavelength - center_wavelength)  # blue hydrogen line, F
+            :param wavelength: The wavelength or wavelengths in meters.
+            :return: An array, omega, of the same shape with the Buchdahl coordinates.
+            """
+            wavelength_difference = asarray(wavelength) - center_wavelength
+            return 1 / (2.5 + 1e-6 / wavelength_difference)
 
-        delta_omega = omega_short - omega_long
-        delta_omega_2 = omega_short ** 2 - omega_long ** 2
+        omega_long = buchdahl_chromatic_coordinate(long_wavelength)  # red hydrogen line, C
+        omega_short = buchdahl_chromatic_coordinate(short_wavelength)  # blue hydrogen line, F
 
-        def complex_refractive_index_function(wavenumber: array_like, t: array_like, p: array_like) -> array_type:
+        omega_extent = omega_short - omega_long
+        omega_squared_extent = omega_short ** 2 - omega_long ** 2
+
+        def complex_refractive_index_function(wavenumber: array_like, t: array_like = 1, p: array_like = 1) -> array_type:
+            """
+            Computes the complex refractive index at a given wavenumber.
+
+            :param wavenumber: An array or array-like with the wavenumbers to compute the refractive index at.
+            :param t: temperature (ignored).
+            :param p: pressure (ignored).
+
+            :return: An array of the same shape as ``wavenumber`` with the complex refractive index.
+            """
             wavenumber = asarray(wavenumber)
 
             if not np.isnan(constringence) and constringence != 0:  # Fit the curve
-                dFC = (refractive_index - 1) / constringence
-                v2 = (dFC - b * delta_omega) / (m * delta_omega - delta_omega_2)
+                nF_minus_nC = (refractive_index - 1) / constringence  # by definition of the constringence
 
-                omega = buchdahl_chromatic_coordinate(2 * np.pi / wavenumber - center_wavelength)
+                # nF_minus_nC = (coefficients_intercept + coefficients_slope * coeff2) * omega_extent + coeff2 * omega_squared_extent
+                coeff2 = (nF_minus_nC - coefficients_intercept * omega_extent
+                          ) / (coefficients_slope * omega_extent + omega_squared_extent)  # Changed the final + from a -
+                coeff1 = coefficients_intercept + coefficients_slope * coeff2
 
-                return refractive_index + (b + m * v2) * omega + v2 * omega ** 2
+                omega = buchdahl_chromatic_coordinate(2 * np.pi / wavenumber)
+
+                return refractive_index + coeff1 * omega + coeff2 * omega ** 2
 
             return np.full(wavenumber.shape, refractive_index)
 

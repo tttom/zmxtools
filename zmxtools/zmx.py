@@ -366,6 +366,15 @@ class ZmxSurface(Surface):
         if 'GLAS' in self.commands and len(self.commands['GLAS', 0].words) > 0:
             glass_name = self.commands['GLAS', 0].words[0]
             glass_numbers = self.commands['GLAS', 0].numbers
+            if len(glass_numbers) <= 1 + 2:  # Check if it is encoded as a 3+3 digit string
+                glass_name = glass_name.strip()
+                if glass_name.isdigit() and len(glass_name) >= 3:
+                    refractive_index = 1 + int(glass_name[:3]) / 1000
+                    if len(glass_name) > 3:
+                        constringency = int(glass_name[3:]) / (10 ** (len(glass_name) - 5))
+                    else:
+                        constringency = np.nan
+                    glass_numbers = [-1, -1, refractive_index, constringency]
         else:
             glass_name = ''
             glass_numbers = []
