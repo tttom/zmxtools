@@ -58,17 +58,17 @@ class Wavefront(Positionable):
     @property
     def position(self) -> array_type:
         """The relative position of the definition of each ray."""
-        return self.__transform.point(position=self.__p)
+        return self.__transform.point(position=self.__p, coordinate=self.__p)
 
     @property
     def k(self) -> array_type:
         """The relative local wavevector: ||k|| / k0 = n."""
-        return self.__transform.vector(position=self.__p, vector=self.__k)
+        return self.__transform.vector(vector=self.__k, coordinate=self.__p)
 
     @property
     def direction(self) -> array_type:
         """The relative ray direction, which can be different from k for anisotropic materials."""
-        return self.__transform.vector(position=self.__p, vector=self.__d)
+        return self.__transform.vector(vector=self.__d, coordinate=self.__p)
 
     @property
     def electric_field(self) -> array_type:
@@ -77,7 +77,7 @@ class Wavefront(Positionable):
 
         This coordinate system can be non-orthogonal to k and H for anisotropic materials)
         """
-        return self.__transform.vector(position=self.__p, vector=self.__E)
+        return self.__transform.vector(vector=self.__E, coordinate=self.__p)
 
     @property
     def magnetizing_field(self) -> array_type:
@@ -86,7 +86,7 @@ class Wavefront(Positionable):
 
         This coordinate system can be non-orthogonal to k and E for anisotropic materials.
         """
-        return self.__transform.vector(vector=self.__H, position=self.__p)
+        return self.__transform.vector(vector=self.__H, coordinate=self.__p)
 
     @property
     def shape(self) -> array_type:

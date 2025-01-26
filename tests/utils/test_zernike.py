@@ -40,6 +40,9 @@ class TestPolynomial(unittest.TestCase):
         ab4 = BasisPolynomial([0, 2, 1, 4])
         ab22 = BasisPolynomial([[0, 2], [1, 4]])
 
+        npt.assert_equal(ab4.name, '[piston, tip, tilt, defocus]')
+        npt.assert_equal(ab22.name, '[[piston, tip], [tilt, defocus]]')
+
         npt.assert_equal(ab4(0), np.array([1, 0, 0, -np.sqrt(3)]), "Array of aberrations failed at rho=0")
         npt.assert_array_almost_equal(ab4(1), np.array([1, 2, 0, np.sqrt(3)]), 12, "Array of aberrations failed at rho=1")
         npt.assert_array_almost_equal(ab4([[0], [1]]), np.array([[1, 0, 0, -np.sqrt(3)], [1, 2, 0, np.sqrt(3)]]),

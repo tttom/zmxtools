@@ -481,31 +481,37 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
             prefixes = '0-', '1-', '2-', 'tre', 'quadra', 'penta', 'hexa', 'hepta', 'octa', 'nona', 'deca'
             return (prefixes[abs_m] if abs_m < len(prefixes) else f'{abs_m}-') + 'foil'
 
-        if self.m == 0:
-            if self.n == 0:
-                name = 'piston'
-            elif self.n == 2:
-                name = 'defocus'
-            else:  # Start counting from spherical
-                name = radial_multiplicity(self.n // 2 - 1) + azimulthal_multiplicity(self.m)
-        elif abs(self.m) == 1:
-            if self.n == 1:
-                name = 'tilt' if self.m < 0 else 'tip'
+        def get_single_name(m: array_type, n: array_type) -> str:
+            ms, ns = np.broadcast_arrays(m, n)
+            if ms.ndim > 0:
+                return f"[{', '.join(get_single_name(m, n) for m, n in zip(ms, ns))}]"  #.replace('],', '],\n')
+            m, n = ms, ns
+            if m == 0:
+                if n == 0:
+                    name = 'piston'
+                elif n == 2:
+                    name = 'defocus'
+                else:  # Start counting from spherical
+                    name = radial_multiplicity(n // 2 - 1) + azimulthal_multiplicity(m)
+            elif abs(m) == 1:
+                if n == 1:
+                    name = 'tilt' if m < 0 else 'tip'
+                else:
+                    name = 'vertical ' if m < 0 else 'horizontal '
+                    if n > 3:
+                        name += radial_multiplicity((n - abs(m)) // 2)
+                    name += azimulthal_multiplicity(m)
             else:
-                name = 'vertical ' if self.m < 0 else 'horizontal '
-                if self.n > 3:
-                    name += radial_multiplicity((self.n - abs(self.m)) // 2)
-                name += azimulthal_multiplicity(self.m)
-        else:
-            if abs(self.m) % 2 == 0:
-                name = 'oblique ' if self.m < 0 else 'vertical '
-            else:
-                name = 'vertical ' if self.m < 0 else ('horizontal ' if self.n > 3 else 'oblique ')
-            if self.n > abs(self.m):
-                name += radial_multiplicity(1 + (self.n - abs(self.m)) // 2)
-            name += azimulthal_multiplicity(self.m)
+                if abs(m) % 2 == 0:
+                    name = 'oblique ' if m < 0 else 'vertical '
+                else:
+                    name = 'vertical ' if m < 0 else ('horizontal ' if n > 3 else 'oblique ')
+                if n > abs(m):
+                    name += radial_multiplicity(1 + (n - abs(m)) // 2)
+                name += azimulthal_multiplicity(m)
+            return name
 
-        return name
+        return get_single_name(self.m, self.n)
 
     def __str__(self) -> str:
         """Return a compact representation of this polynomial as a unicode string."""
