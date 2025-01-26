@@ -10,9 +10,10 @@ array_like: TypeAlias = array_type | int | float | complex | Sequence['array_lik
 def asarray(_: array_like, dtype=np.complex64) -> array_type:
     """Converts numerical values to a NumPy ndarray of the desired type."""
     warnings.filterwarnings('ignore', category=np.exceptions.ComplexWarning)
-    _ = np.asarray(_, dtype=dtype)
+    arr = np.asarray(_, dtype=dtype)
     warnings.filterwarnings('ignore', category=np.exceptions.ComplexWarning)
-    return _
+    return arr
+
 
 def stack(*args: array_like) -> array_type:
     """Stacks values into a (higher dimensional) array."""

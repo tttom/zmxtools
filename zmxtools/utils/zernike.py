@@ -484,7 +484,7 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         def get_single_name(m: array_type, n: array_type) -> str:
             ms, ns = np.broadcast_arrays(m, n)
             if ms.ndim > 0:
-                return f"[{', '.join(get_single_name(m, n) for m, n in zip(ms, ns))}]"  #.replace('],', '],\n')
+                return f"[{', '.join(get_single_name(m, n) for m, n in zip(ms, ns))}]"
             m, n = ms, ns
             if m == 0:
                 if n == 0:

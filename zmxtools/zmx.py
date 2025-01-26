@@ -394,9 +394,10 @@ class ZmxSurface(Surface):
                     mat = material_library.find_all(glass_name)[0]
                     break
             if mat is None:  # E.g. when set to __BLANK
-                log.error(f'Glass {glass_name} not found in {material_libraries}, '
-                          f'using model glass with refractive index {glass_model_refractive_index} at the d-line and '
-                          f'Abbe number {glass_model_constringence}.')
+                log.error(f'Glass {glass_name} not found in {material_libraries}, ' +
+                          f'using model glass with refractive index {glass_model_refractive_index} at the d-line and ' +
+                          f'Abbe number {glass_model_constringence}.',
+                          )
                 mat = material.ModelGlassMaterial(
                     name=glass_name,
                     refractive_index=glass_model_refractive_index,

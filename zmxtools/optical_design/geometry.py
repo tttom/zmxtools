@@ -13,57 +13,6 @@ log = log.getChild(__name__)
 SCALAR_TYPE = bool | int | float | complex
 
 
-# class HomogeneousCoordinates:
-#     """A class to represent vectors in homogeneous coordinates."""
-#
-#     def __init__(self, vector: Optional[array_like] = None, point: Optional[array_like] = None, axis: int = 0):
-#         self.axis = axis
-#         if vector is not None:
-#             if not isinstance(vector, np.ndarray):
-#                 vector = asarray(vector)
-#             vector = vector.swapaxes(0, self.axis)  # Internally always in the same axis.
-#             if vector.shape[0] < 4:
-#                 vector =
-#         else:
-#             if not isinstance(vector, np.ndarray):
-#                 vector = asarray(vector)
-#             vector = vector.swapaxes(0, self.axis)  # Internally always in the same axis.
-#
-#         if not isinstance(data, np.ndarray):
-#             data = asarray(data)
-#         self.data = data
-#
-#     def normalized(self) -> array_type:
-#         return self.data / self.data[-1]
-#
-#
-# array_like = array_like | HomogeneousCoordinates
-
-# class Manifold:
-#     """A class to represent spatially-variant transformations."""
-#     def __init__(self):
-#         pass
-#
-#     def __call__(self, coordinate: array_like) -> Transform:
-#         pass
-#
-#     def __str__(self) -> str:
-#         """Return a string to display a manifold transform."""
-#         return 'T()'
-#
-#     def __repr__(self) -> str:
-#         """Returns a string that is a complete description of this object."""
-#         return f'{self.__class__.__name__}()'
-#
-#     def __hash__(self) -> int:
-#         """A relatively unique integer that can be used to check if two objects are not the same."""
-#         return hash(repr(self))
-#
-#     def __eq__(self, other: Transform) -> bool:
-#         """Compares this manifold with another, returning True when both are the same."""
-#         return repr(self) == repr(other)
-
-
 class Transform:
     """A class to represent transforms."""
 
@@ -94,7 +43,8 @@ class Transform:
         position = asarray(position)
         result = self.homogeneous(
             vector=np.concatenate((np.ones(shape=(*position.shape[:-1], 1), dtype=position.dtype), position), axis=-1),
-            coordinate=coordinate)
+            coordinate=coordinate,
+        )
         return result[..., 1:] / result[..., 0:1]
 
     def vector(self, vector: array_like, coordinate: array_like = 0) -> array_type:
@@ -111,7 +61,8 @@ class Transform:
         vector = asarray(vector)
         result = self.homogeneous(
             vector=np.concatenate((np.zeros(shape=(*vector.shape[:-1], 1), dtype=vector.dtype), vector), axis=-1),
-            coordinate=coordinate)
+            coordinate=coordinate,
+        )
         return result[..., 1:]
 
     def __invert__(self) -> Transform:
@@ -196,16 +147,7 @@ class HomogeneousTransform(Transform):
 
         The projective coordinate is element 0.
         """
-        homogeneous_vector = asarray(homogeneous_vector)
-        # if homogeneous_vector.shape[-1] == 1:
-        #     homogeneous_vector = np.concatenate(
-        #         (
-        #             np.ones(shape=(*homogeneous_vector.shape[:-1], 1), dtype=homogeneous_vector.dtype),
-        #             np.repeat(homogeneous_vector, self.matrix.shape[-1] - 1, axis=-1),
-        #         ),
-        #         axis=-1,
-        #     )
-        return (self.matrix @ homogeneous_vector[..., np.newaxis])[..., 0]
+        return (self.matrix @ asarray(homogeneous_vector)[..., np.newaxis])[..., 0]
 
     def __invert__(self) -> Transform:
         """
@@ -449,7 +391,7 @@ class Identity(Scaling):
         TODO: Is this ever called?
         """
         if isinstance(left, SCALAR_TYPE):
-            right = Scaling(left)
+            left = Scaling(left)
         return left
 
     def __invert__(self) -> Identity:
@@ -561,7 +503,8 @@ class Quaternion:
                 self[..., 2] * right.scalar - self[..., 3] * right[..., 1] + self[..., 1] * right[..., 3],
                 self.scalar * right[..., 3] +
                 self[..., 3] * right.scalar + self[..., 1] * right[..., 2] - self[..., 2] * right[..., 1],
-            ), axis=-1)
+            ), axis=-1,
+            )
             return Quaternion(product)
         return Quaternion(self.values * right)
 
@@ -721,7 +664,6 @@ class Rotation(HomogeneousTransform):
         :return: The rotated homogeneous vector.
         """
         homogeneous_vector = asarray(homogeneous_vector, float)
-        # homogeneous_vector[..., 0] = 0
         v = Quaternion(homogeneous_vector)
         product = self.quaternion * v / self.quaternion
         return product.values
@@ -864,7 +806,8 @@ class SphericalTransform(Transform):
         transverse -= np.dot(transverse, radial) * radial
         zero_transverse = transverse == 0
         polar = transverse / (
-            np.linalg.norm(transverse) + zero_transverse) + zero_transverse * asarray([1, 0, 0], float)
+            np.linalg.norm(transverse) + zero_transverse,
+        ) + zero_transverse * asarray([1, 0, 0], float)
         azimuthal = np.cross(radial, polar)
 
         transformation_matrix = asarray([polar, azimuthal, radial], float)

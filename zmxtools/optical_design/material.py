@@ -438,14 +438,14 @@ class ModelGlassMaterial(FunctionMaterial):
     """
     A class to represent a model glass with a specified refractive index at 587.5618nm and constringence (Abbe number).
 
-    The constringence is defined as (nd - 1) / (nF - nC): https://en.wikipedia.org/wiki/Abbe_number
-    where
+    The constringence is defined as (nd - 1) / (nF - nC), https://en.wikipedia.org/wiki/Abbe_number, where
     * nF is the refractive index at 486.1327nm, the blue hydrogen line, F
     * nd is the refractive index at 587.5618nm, the yellow helium line, d
     * nC is the refractive index at 656.2725nm, the red hydrogen line, C
 
     This material perfectly interpolates and extrapolates the refractive index for all wavelengths.
     """
+
     def __init__(self, name: str = '', refractive_index: float = 1, constringence: float = np.nan):
         """
         Constructs a model glass from just the refractive index and optionally the Abbe number or constringence.
@@ -488,7 +488,8 @@ class ModelGlassMaterial(FunctionMaterial):
         omega_extent = omega_short - omega_long
         omega_squared_extent = omega_short ** 2 - omega_long ** 2
 
-        def complex_refractive_index_function(wavenumber: array_like, t: array_like = 1, p: array_like = 1) -> array_type:
+        def complex_refractive_index_function(wavenumber: array_like, t: array_like = 1, p: array_like = 1,
+                                              ) -> array_type:
             """
             Computes the complex refractive index at a given wavenumber.
 
@@ -503,7 +504,6 @@ class ModelGlassMaterial(FunctionMaterial):
             if not np.isnan(constringence) and constringence != 0:  # Fit the curve
                 nF_minus_nC = (refractive_index - 1) / constringence  # by definition of the constringence
 
-                # nF_minus_nC = (coefficients_intercept + coefficients_slope * coeff2) * omega_extent + coeff2 * omega_squared_extent
                 coeff2 = (nF_minus_nC - coefficients_intercept * omega_extent
                           ) / (coefficients_slope * omega_extent + omega_squared_extent)  # Changed the final + from a -
                 coeff1 = coefficients_intercept + coefficients_slope * coeff2
