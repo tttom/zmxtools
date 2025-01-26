@@ -66,7 +66,7 @@ class Transform:
         """
         result = self.homogeneous(
             position=position,
-            vector=np.concatenate((np.ones(shape=(position.shape[:-1], 1), dtype=position.dtype), position), axis=-1),
+            vector=np.concatenate((np.ones(shape=(*position.shape[:-1], 1), dtype=position.dtype), position), axis=-1),
         )
         return result[..., 1:] / result[..., 0:1]
 
@@ -84,7 +84,7 @@ class Transform:
         vector = asarray(vector)
         result = self.homogeneous(
             position=position,
-            vector=np.concatenate((np.zeros(shape=(vector.shape[:-1], 1), dtype=vector.dtype), vector), axis=-1),
+            vector=np.concatenate((np.zeros(shape=(*vector.shape[:-1], 1), dtype=vector.dtype), vector), axis=-1),
         )
         return result[..., 1:]
 
@@ -624,9 +624,9 @@ class Rotation(HomogeneousTransform):
 
     @quaternion.setter
     def quaternion(self, new_quaternion: Quaternion | array_like):
-        if not isinstance(new_quaternion, new_quaternion):
-            new_quaternion = Quaternion(new_quaternion).unit
-        self.__quaternion = new_quaternion
+        if not isinstance(new_quaternion, Quaternion):
+            new_quaternion = Quaternion(new_quaternion)
+        self.__quaternion = new_quaternion.unit
 
     @property
     def angle(self) -> float:

@@ -370,7 +370,7 @@ class ZmxSurface(Surface):
             glass_name = ''
             glass_numbers = []
         glass_model_refractive_index = glass_numbers[2] if len(glass_numbers) >= 3 else 1.0
-        glass_model_constringence = glass_numbers[3] if len(glass_numbers) >= 4 or glass_numbers[3] == 0 else np.nan
+        glass_model_constringence = glass_numbers[3] if len(glass_numbers) >= 4 and glass_numbers[3] != 0 else np.nan
         self.reflect = glass_name == 'MIRROR'  # Not 'MIRR' command for some reason
         self.clear_aperture_radius = (self.commands['CLAP', 0].numbers[1] * self.unit / 2.0
                                       if 'CLAP' in self.commands and len(self.commands['CLAP', 0].numbers) > 1

@@ -135,12 +135,12 @@ def test_from_file():
                 log.info(f"Analysing {material.name} of type {material.__class__.__name__} from {material_library.name}...")
                 npt.assert_almost_equal(material.refractive_index(wavelength=656.281e-9), 1.5143, decimal=4,
                                         err_msg=f"{material.name} n at 656.281nm is returned incorrectly.")
-                npt.assert_almost_equal(material.refractive_index_c, 1.5143, decimal=4,
-                                        err_msg=f"{material.name} n_C is returned incorrectly as {material.refractive_index_c}.")
+                npt.assert_almost_equal(material.refractive_index_C, 1.5143, decimal=4,
+                                        err_msg=f"{material.name} n_C is returned incorrectly as {material.refractive_index_C}.")
                 npt.assert_almost_equal(material.refractive_index_d, 1.5168, decimal=4,
                                         err_msg=f"{material.name} n_d is returned incorrectly as {material.refractive_index_d}.")
-                npt.assert_almost_equal(material.refractive_index_f, 1.5224, decimal=4,
-                                        err_msg=f"{material.name} n_F is returned incorrectly as {material.refractive_index_f}.")
+                npt.assert_almost_equal(material.refractive_index_F, 1.5224, decimal=4,
+                                        err_msg=f"{material.name} n_F is returned incorrectly as {material.refractive_index_F}.")
                 npt.assert_almost_equal(material.constringence, 64.17, decimal=2,
                                         err_msg=f"{material.name} Abbe number / constringence is returned incorrectly as {material.constringence}.")
                 npt.assert_almost_equal(material.refractive_index(wavelength=500e-9), 1.5214, decimal=4,

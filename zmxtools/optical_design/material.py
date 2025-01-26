@@ -11,7 +11,7 @@ from zmxtools.utils import const_c
 from zmxtools.utils.array import array_like, array_type, asarray
 
 __all__ = ['log', 'CiddorAir', 'FunctionMaterial', 'Material', 'MaterialLibrary', 'MaterialResistance',
-           'PolynomialMaterial', 'SimpleAir', 'Vacuum', 'VACUUM',
+           'ModelGlassMaterial', 'PolynomialMaterial', 'SimpleAir', 'Vacuum', 'VACUUM',
            ]
 
 log = log.getChild(__name__)
@@ -144,9 +144,9 @@ class Material:
         self.__pressure = asarray(new_value).real
 
     @property
-    def refractive_index_c(self) -> array_type:
+    def refractive_index_C(self) -> array_type:
         """The refractive index at the Hydrogen Balmer series Hα C-line (deep red)."""
-        return self.refractive_index(wavelength=656.281e-9)
+        return self.refractive_index(wavelength=656.2725e-9)  # in air
 
     @property
     def refractive_index_d(self) -> array_type:
@@ -154,7 +154,7 @@ class Material:
         return self.refractive_index(wavelength=587.5618e-9)
 
     @property
-    def refractive_index_f(self) -> array_type:
+    def refractive_index_F(self) -> array_type:
         """The refractive index at the Hydrogen Balmer series Hβ F-line (cyan)."""
         return self.refractive_index(wavelength=486.1327e-9)
 
@@ -170,16 +170,16 @@ class Material:
 
         https://en.wikipedia.org/wiki/Abbe_number
         """
-        return (self.refractive_index_d - 1.0) / (self.refractive_index_f - self.refractive_index_c)
+        return (self.refractive_index_d - 1) / (self.refractive_index_F - self.refractive_index_C)
 
     @property
-    def relative_partial_dispersion_g_f(self) -> array_type:
+    def relative_partial_dispersion_g_F(self) -> array_type:
         """
         Relative partial dispersion between the g and F lines, P_{g,F}.
 
         https://wp.optics.arizona.edu/jgreivenkamp/wp-content/uploads/sites/11/2018/12/201-202-18-Materials.pdf
         """
-        return (self.refractive_index_g - self.refractive_index_f) / (self.refractive_index_f - self.refractive_index_c)
+        return (self.refractive_index_g - self.refractive_index_F) / (self.refractive_index_F - self.refractive_index_C)
 
     def permittivity(self,
                      wavenumber: Optional[array_like] = None,
@@ -454,7 +454,6 @@ class ModelGlassMaterial(FunctionMaterial):
         :param refractive_index: The refractive index at the central d-line of 587.5618nm.
         :param constringence: The constringence or Abbe number. If not specified, a constant refractive index is used.
         """
-        # Modeled using a 6-digit glass specification:
         b = -0.064667
         m = -1.604048
 
@@ -475,8 +474,7 @@ class ModelGlassMaterial(FunctionMaterial):
         def complex_refractive_index_function(wavenumber: array_like, t: array_like, p: array_like) -> array_type:
             wavenumber = asarray(wavenumber)
 
-            if not np.isnan(constringence) and constringence != 0:
-                # Fit the curve
+            if not np.isnan(constringence) and constringence != 0:  # Fit the curve
                 dFC = (refractive_index - 1) / constringence
                 v2 = (dFC - b * delta_omega) / (m * delta_omega - delta_omega_2)
 
