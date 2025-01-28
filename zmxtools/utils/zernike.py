@@ -25,7 +25,7 @@ Commonly used Zernike polynomials have named implementations: :py:func:``piston`
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Callable, Optional
+from typing import Protocol, runtime_checkable, Optional
 
 import numpy as np
 
@@ -267,7 +267,8 @@ def fringe2index(j_index: array_like) -> array_type:
     return orders2index(*fringe2orders(j_index))
 
 
-class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Polynomial
+@runtime_checkable
+class BasisPolynomial(Protocol):  # todo: refactor so that this inherits from Polynomial
     """
     A class representing one of the Zernike basis polynomials, or an array thereof.
 
@@ -590,7 +591,8 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         return result.reshape(output_shape)
 
 
-class Polynomial(Callable):
+@runtime_checkable
+class Polynomial(Protocol):
     """A class to represent linear combinations of Zernike polynomials, which permit basic arithmetic operations."""
 
     def __init__(self, coefficients: array_like = (), indices: array_like = ()):
