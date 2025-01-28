@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from typing import Callable, Dict, List, Sequence
+from typing import Protocol, Dict, List, Sequence, runtime_checkable
 
 import numpy as np
 
@@ -13,7 +13,8 @@ from zmxtools.utils.polar import cart2pol
 __all__ = ['Polynomial']
 
 
-class Polynomial(Callable):
+@runtime_checkable
+class Polynomial(Protocol):
     """
     A class to represent Cartesian multivariate polynomials.
 

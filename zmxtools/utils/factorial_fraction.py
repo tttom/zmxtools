@@ -1,13 +1,9 @@
-from typing import Sequence
-
 import numpy as np
 
-from zmxtools.utils.array import to_length
-
-array_like = int | Sequence[int] | np.ndarray
+from zmxtools.utils.array import to_length, array_like, array_type
 
 
-def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> np.ndarray:
+def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> array_type:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -33,7 +29,9 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: tuple = (), denominators: tuple = ()):
+def factorial_product_fraction(numerators: array_like | tuple[array_like] = (),
+                               denominators: array_like | tuple[array_like] = (),
+                               ) -> array_type:
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -52,7 +50,7 @@ def factorial_product_fraction(numerators: tuple = (), denominators: tuple = ())
     max_numerator = 1
     data_shape = np.array((), dtype=np.uint32)
     for n in numerators:
-        n = np.array(n)
+        n = np.asarray(n)
         if n.size > 0:
             max_numerator = np.maximum(max_numerator, np.max(n))
             # Expand data_shape so it encompasses all arguments
@@ -61,7 +59,7 @@ def factorial_product_fraction(numerators: tuple = (), denominators: tuple = ())
             data_shape = np.maximum(data_shape, np.array(n.shape, dtype=int))
     max_denominator = 1
     for d in denominators:
-        d = np.array(d)
+        d = np.asarray(d)
         if d.size > 0:
             max_denominator = np.maximum(max_denominator, np.amax(d))
             # Expand data_shape so it encompasses all arguments

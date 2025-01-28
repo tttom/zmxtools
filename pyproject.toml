@@ -18,10 +18,10 @@ classifiers = [
 
 
 [tool.poetry.dependencies]
-python = "^3.11.4"
-importlib_metadata = "^8.5.0"
+python = "^3.12.8"
+importlib_metadata = "^8.6.1"
 coloredlogs = "^15.0.1"
-numpy = ">=1.26.4"
+numpy = ">=2.2.2"
 
 [tool.poetry.group.docs]
 optional = true

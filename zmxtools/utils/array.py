@@ -1,10 +1,9 @@
 import warnings
-from typing import Sequence, TypeAlias
 
 import numpy as np
 
-array_type = np.ndarray
-array_like: TypeAlias = array_type | int | float | complex | Sequence['array_like']
+array_type = np.typing.NDArray[np.float16 | np.float32 | np.float64 | np.complex64 | np.complex128]
+array_like = np.typing.ArrayLike
 
 
 def asarray(_: array_like, dtype=np.complex64) -> array_type:
@@ -13,26 +12,6 @@ def asarray(_: array_like, dtype=np.complex64) -> array_type:
     arr = np.asarray(_, dtype=dtype)
     warnings.filterwarnings('ignore', category=np.exceptions.ComplexWarning)
     return arr
-
-
-def stack(*args: array_like) -> array_type:
-    """Stacks values into a (higher dimensional) array."""
-    return np.stack(*args, axis=-1)
-
-
-def dot(a: array_like, b: array_like) -> array_type:
-    """Multiplies two arrays and sums their elements."""
-    return np.dot(a, b)
-
-
-def cross(a: array_like, b: array_like) -> array_type:
-    """Computes the cross product of two arrays."""
-    return np.cross(a, b)
-
-
-def einsum(subscripts: str, *args: array_like) -> array_type:
-    """Computes the tensor product using the einstein summation convention."""
-    return np.einsum(subscripts, *args)
 
 
 def norm(_: array_like) -> array_type:
