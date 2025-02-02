@@ -1,13 +1,9 @@
-from typing import Sequence
-
 import numpy as np
 
-from zmxtools.utils.array import to_length
-
-array_like = int | Sequence[int] | np.ndarray
+from zmxtools.utils.array import array_like, array_type, asarray, to_length
 
 
-def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> np.ndarray:
+def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> array_type:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -15,17 +11,17 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     :param denominator: An integer or array of integers.
     :return: A number or array of numbers of the same shape as the inputs.
     """
-    numerator = np.array(numerator)
-    denominator = np.array(denominator)
-    difference = np.array(numerator - denominator)
+    numerator_arr = asarray(numerator, dtype=int)
+    denominator_arr = asarray(denominator, dtype=int)
+    difference = numerator_arr - denominator_arr
     data_shape = difference.shape
 
     result = np.ones(shape=data_shape, dtype=float)
 
-    for idx in np.arange(2, 1 + np.maximum(np.amax(numerator), np.amax(denominator))):
+    for idx in np.arange(2, 1 + np.maximum(np.amax(numerator_arr), np.amax(denominator_arr))):
         # Iterate both the numerator and the denominator
-        num_bool = np.logical_and(denominator < idx, idx <= numerator)  # either 0 or 1 for every element
-        den_bool = np.logical_and(numerator < idx, idx <= denominator)  # either 0 or 1, but never both 1
+        num_bool = np.logical_and(denominator_arr < idx, idx <= numerator_arr)  # either 0 or 1 for every element
+        den_bool = np.logical_and(numerator_arr < idx, idx <= denominator_arr)  # either 0 or 1, but never both 1
         # either 1/idx, 1, or idx for every element
         result[num_bool] *= idx
         result[den_bool] *= 1 / idx
@@ -33,14 +29,15 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: tuple = (), denominators: tuple = ()):
+def factorial_product_fraction(numerators: tuple[array_like] | int = 1, denominators: tuple[array_like] | int = 1,
+                               ) -> array_type:
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 
     If either input argument is not a tuple, it is wrapped in one.
 
-    :param numerators: A set of integers or arrays of integers.
-    :param denominators: A set of integers or arrays of integers.
+    :param numerators: A tuple of integers or arrays of integers.
+    :param denominators: A tuple of integers or arrays of integers.
 
     :return: A number or array of numbers of the same shape as the inputs.
     """

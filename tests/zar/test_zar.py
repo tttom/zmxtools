@@ -1,11 +1,11 @@
 import logging
 from typing import List
 
-from zmxtools import cli, zar
-from tests.zar import (check_dir_and_remove, check_zip_and_remove, log, MIN_FILES_IN_ARCHIVE, test_directory,
+from tests.zar import (MIN_FILES_IN_ARCHIVE, check_dir_and_remove, check_zip_and_remove, log, test_directory,
                        test_zar_files,
                        )
 from tests.zmx.test_zmx import check_optical_design
+from zmxtools import cli, zar
 
 log = log.getChild(__name__)
 log.level = logging.DEBUG

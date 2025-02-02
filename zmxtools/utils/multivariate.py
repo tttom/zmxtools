@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from typing import Callable, Dict, List, Sequence
+from typing import Dict, List, Sequence
 
 import numpy as np
 
@@ -13,7 +13,7 @@ from zmxtools.utils.polar import cart2pol
 __all__ = ['Polynomial']
 
 
-class Polynomial(Callable):
+class Polynomial:
     """
     A class to represent Cartesian multivariate polynomials.
 
@@ -30,12 +30,12 @@ class Polynomial(Callable):
         :param coefficients: The coefficients as a multi-dimensional array with the N-th dimension corresponding to the
             N-th independent coordinate.
         :param labels: The names or symbols of the independent variables in order. This is used to display or to select
-            the arguments by name. By default x₀, x₁, x₂, x₃, ... is used.
+            the arguments by name. By default, x₀, x₁, x₂, x₃, ... is used.
         :param exponents: The optional exponents of the polynomial. By default these are 0, 1, 2, ...
         """
-        self.__coefficients = None
-        self.coefficients = coefficients
-        self.__symbols = ()
+        self.__coefficients: array_type = asarray(coefficients)
+        self.coefficients = self.coefficients
+        self.__symbols: tuple[str, ...] = ()
         self.labels = labels
         self.__exponents = tuple[Sequence[int | float | complex]]()
         self.exponents = exponents
@@ -57,7 +57,7 @@ class Polynomial(Callable):
             assert s in self.labels, f'Unknown coordinate symbol, {s}. Must be one of {self.labels}.'
 
         # Convert arguments to standard form
-        arg_dict: Dict[str, array_type] = defaultdict[str, array_type](float)  # Default to 0
+        arg_dict: Dict[str, array_type] = defaultdict[str, array_type](lambda: asarray(0))  # Default to 0
         for symbol, arg in zip(self.labels, args):
             arg_dict[symbol] = asarray(arg)
         for symbol2, arg2 in kwargs.items():
@@ -69,7 +69,8 @@ class Polynomial(Callable):
 
         calculation_axes = tuple(range(-self.coefficients.ndim, 0))  # The axes of the multi-variate polynomial
 
-        def calc_product_rec(coordinates: array_type, exponents) -> array_type:
+        def calc_product_rec(coordinates: Sequence[array_type], exponents: Sequence[Sequence[int | float | complex]],
+                             ) -> array_type:
             coordinate = np.expand_dims(coordinates[0], axis=calculation_axes)
             exponents_for_this_axis = np.expand_dims(exponents[0], axis=tuple(range(-(len(exponents) - 1), 0)))
             result = coordinate ** exponents_for_this_axis
@@ -158,10 +159,10 @@ class Polynomial(Callable):
             non_zero_exponents = [_ != 0 for _ in exponents]
             coefficients = self.coefficients.swapaxes(axis, -1)
             coefficients = coefficients[..., non_zero_exponents]  # Drop the vanishing exponents of axis _
-            exponents = np.asarray(exponents)[non_zero_exponents]
+            exponents = [e for e, nz in zip(exponents, non_zero_exponents) if nz]
             derivative_coefficients = (coefficients * exponents).swapaxes(-1, axis)
             derivative_exponents = list(self.exponents)
-            derivative_exponents[axis] = exponents - 1
+            derivative_exponents[axis] = [_ - 1 for _ in exponents]
             result.append(Polynomial(coefficients=derivative_coefficients,
                                      labels=self.labels,
                                      exponents=derivative_exponents,
@@ -246,7 +247,7 @@ class Polynomial(Callable):
         """Scale this ``Polynomial`` with the number on its right."""
         return Polynomial(coefficients=right * self.coefficients, labels=self.labels, exponents=self.exponents)
 
-    def __truediv__(self, left: Polynomial | int | float | complex) -> Polynomial:
+    def __truediv__(self, left: int | float | complex) -> Polynomial:
         """Divide this ``Polynomial`` using the `/` operation."""
         return self * (1 / left)
 
@@ -260,7 +261,7 @@ class Polynomial(Callable):
 
         def format_coefficient(coefficient: complex, product_str: str) -> str:
             if coefficient.real == 0:
-                match coefficient.imag:
+                match int(coefficient.imag):
                     case -1:
                         return ' - i'
                     case 0:

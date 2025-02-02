@@ -1,10 +1,14 @@
 import warnings
-from typing import Sequence, TypeAlias
 
 import numpy as np
 
-array_type = np.ndarray
-array_like: TypeAlias = array_type | int | float | complex | Sequence['array_like']
+any_numeric_dtype = (np.uint8 | np.uint16 | np.uint32 | np.uint64 |
+                     np.int8 | np.int16 | np.int32 | np.int64 |
+                     np.float16 | np.float32 | np.float64 | np.float128 |
+                     np.complex64 | np.complex128 | np.complex256
+                     )
+array_type = np.typing.NDArray[any_numeric_dtype]
+array_like = np.typing.ArrayLike
 
 
 def asarray(_: array_like, dtype=np.complex64) -> array_type:
@@ -16,23 +20,23 @@ def asarray(_: array_like, dtype=np.complex64) -> array_type:
 
 
 def stack(*args: array_like) -> array_type:
-    """Stacks values into a (higher dimensional) array."""
-    return np.stack(*args, axis=-1)
+    """Stacks values into a (higher dimensional) array by adding a dimension on the right."""
+    return np.stack(args, axis=-1)
 
 
 def dot(a: array_like, b: array_like) -> array_type:
-    """Multiplies two arrays and sums their elements."""
-    return np.dot(a, b)
+    """Multiplies two arrays and sums their elements along the right-most dimension."""
+    return einsum('...i,...i->...i', a, b)
 
 
 def cross(a: array_like, b: array_like) -> array_type:
-    """Computes the cross product of two arrays."""
-    return np.cross(a, b)
+    """Computes the cross product of two arrays along the right-most dimension."""
+    return np.cross(a, asarray(b), axis=-1)
 
 
 def einsum(subscripts: str, *args: array_like) -> array_type:
     """Computes the tensor product using the einstein summation convention."""
-    return np.einsum(subscripts, *args)
+    return np.einsum(subscripts, *(asarray(arg) for arg in args))
 
 
 def norm(_: array_like) -> array_type:

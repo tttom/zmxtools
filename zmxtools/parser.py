@@ -62,27 +62,28 @@ class OrderedCommandDict:
             contents = input_file.read()
             if len(contents) == 0:
                 raise EOFError(f'Empty file: 0 bytes read from {input_file.name}.')
-            if not isinstance(contents, str):
-                # Attempt to parse the byte-contents of the file using different encodings.
-                commands = None
-                for encoding_to_try in encodings:
-                    try:
-                        commands = cls.from_str(contents.decode(encoding_to_try), spaces_per_indent=spaces_per_indent)
+            if isinstance(contents, str):
+                return cls.from_str(contents, spaces_per_indent=spaces_per_indent)
+            # Attempt to parse the byte-contents of the file using different encodings.
+            commands = None
+            for encoding_to_try in encodings:
+                try:
+                    commands = cls.from_str(contents.decode(encoding_to_try), spaces_per_indent=spaces_per_indent)
 
-                        def is_ascii(name: str) -> bool:
-                            return all((_ <= 128 and 0x30 <= ord(c) < 0x7F) for _, c in enumerate(name))
+                    def is_ascii(name: str) -> bool:
+                        return all((_ <= 128 and 0x30 <= ord(c) < 0x7F) for _, c in enumerate(name))
 
-                        if all(is_ascii(name) for name in commands.names):
-                            log.debug(f'File {input_file.name} appears to be encoded using {encoding_to_try}.')
-                            break
-                        log.debug('Strange command detected. ' +
-                                  f'File {input_file.name} does not seem to be encoded using {encoding_to_try}!',
-                                  )
-                    except UnicodeError as err:
-                        log.debug(f'File {input_file.name} not encoded using {encoding_to_try}! UnicodeError: {err}')
-                if commands is None:
-                    raise IOError(f'Could not read {input_file.name}.')
-        return commands
+                    if all(is_ascii(name) for name in commands.names):
+                        log.debug(f'File {input_file.name} appears to be encoded using {encoding_to_try}.')
+                        break
+                    log.debug('Strange command detected. ' +
+                              f'File {input_file.name} does not seem to be encoded using {encoding_to_try}!',
+                              )
+                except UnicodeError as err:
+                    log.debug(f'File {input_file.name} not encoded using {encoding_to_try}! UnicodeError: {err}')
+            if commands is not None:
+                return commands
+            raise IOError(f'Could not decode {input_file.name} with either of {encodings}.')
 
     @property
     def names(self) -> Sequence[str]:
@@ -122,19 +123,18 @@ class OrderedCommandDict:
             return name_or_command in self.names
         return name_or_command in self.__commands
 
-    def __getitem__(self, item: int | Tuple | slice | str) -> Command | OrderedCommandDict:
+    def __getitem__(self, item: int | slice | str | Tuple[int | slice | str]) -> Command | OrderedCommandDict:
         """
         Returns a command at a specific integer index or a `CommandSequence` with all commands with the specified name.
         """
-        if not isinstance(item, Tuple):
+        if not isinstance(item, tuple):
             item = (item, )
         current_index = item[0]
         other_indices = item[1:]
         if isinstance(current_index, int):
-            if current_index < len(self.__commands):
-                result = self.__commands[current_index]
-            else:
+            if current_index >= len(self.__commands):
                 raise IndexError(f'Only {len(self.__commands)} available. Index {current_index} does not exist.')
+            result = self.__commands[current_index]
         elif isinstance(current_index, slice):
             result = OrderedCommandDict(self.__commands[current_index])
         else:  # isinstance(item, str)

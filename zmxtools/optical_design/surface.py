@@ -6,9 +6,8 @@ import numpy as np
 
 from zmxtools.optical_design import log
 from zmxtools.optical_design.geometry import IDENTITY, Positionable, SphericalTransform, Transform
+from zmxtools.optical_design.header import Element, Medium
 from zmxtools.optical_design.light import LightPath, Wavefront
-from zmxtools.optical_design.medium import Medium
-from zmxtools.optical_design.optic import Element
 from zmxtools.utils.array import array_like, array_type, asarray
 
 log.getChild(__name__)
@@ -57,9 +56,9 @@ class Interface(Positionable):
         light_path = light_path.to(self.transform.inv)  # This transform should make the z-axis normal to the interface.
         w = light_path.wavefront
 
-        def flip(vector: array_type) -> array_type:
+        def flip(vector: array_like) -> array_type:
             """Reverse the z-component. This assumes that the transform rotates the z-axis to the surface normal."""
-            return vector * asarray([1.0, 1.0, -1.0], float)
+            return asarray(vector) * asarray((1.0, 1.0, -1.0), float)
 
         return light_path.interact(electric_field=flip(w.electric_field), magnetizing_field=flip(w.magnetizing_field),
                                    k=flip(w.k), direction=flip(w.direction),
