@@ -25,7 +25,7 @@ def cart2pol(y: array_like, x: array_like) -> Tuple[array_type, array_type]:
     return rho, phi
 
 
-def pol2cart(rho: array_like, phi: array_like) -> Tuple[array_type, array_type]:
+def pol2cart(rho: array_like, phi: array_like) -> Tuple[array_like, array_like]:
     """
     Convert polar coordinates to Cartesian coordinates.
 
