@@ -1,15 +1,12 @@
 import unittest
-import numpy.testing as npt
+
+import numpy as np
+from numpy import testing as npt
 
 from zmxtools.utils.array import to_length
 
-import numpy as np
-
 
 class TestPadToLength(unittest.TestCase):
-    def setUp(self):
-        pass
-
     def test_pad_to_length(self):
         npt.assert_array_equal(to_length(np.array([1, 2, 3, 4]), 5), np.array([1, 2, 3, 4, 0]),
                                err_msg="Could not extend array by one.")

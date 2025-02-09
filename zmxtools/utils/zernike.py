@@ -30,7 +30,7 @@ from typing import Callable, Optional
 import numpy as np
 
 from zmxtools.utils import script
-from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils.array import INTEGER_TYPE, SCALAR_TYPE, array_like, array_type, asarray
 from zmxtools.utils.factorial_fraction import factorial_product_fraction
 from zmxtools.utils.polar import cart2pol
 
@@ -46,7 +46,7 @@ __all__ = ['index2orders', 'orders2index',
            ]
 
 
-def index2orders(j_index: array_like) -> (array_type, array_type):
+def index2orders(j_index: array_like[INTEGER_TYPE]) -> tuple[array_type[INTEGER_TYPE], array_type[INTEGER_TYPE]]:
     """
     Converts Zernike indices, js > 0, to a tuple (radial degree m, azimuthal frequency n), for which 0 <= m <= n.
 
@@ -59,9 +59,9 @@ def index2orders(j_index: array_like) -> (array_type, array_type):
     :param j_index: The standard Zernike index, or an ndarray thereof.
     :return: a tuple (n, m) of order subscripts or ndarrays thereof.
     """
-    j_index = asarray(j_index, int)
+    j_index = np.asarray(j_index, int)
 
-    n = asarray(np.ceil((np.sqrt(9 + 8 * j_index) - 1) / 2) - 1, dtype=int)
+    n = np.asarray(np.ceil((np.sqrt(9 + 8 * j_index) - 1) / 2) - 1, int)
     m = 2 * j_index - n * (n + 2)
 
     n[j_index < 0] = -1  # Mark all indexes less than 0 as invalid
@@ -69,7 +69,7 @@ def index2orders(j_index: array_like) -> (array_type, array_type):
     return n, m
 
 
-def noll2orders(j_index: array_like) -> (array_type, array_type):
+def noll2orders(j_index: array_like[INTEGER_TYPE]) -> tuple[array_type[INTEGER_TYPE], array_type[INTEGER_TYPE]]:
     """
     Converts Noll indices, js > 0, to a tuple (radial degree m, azimuthal frequency n), for which 0 <= m <= n.
 
@@ -98,7 +98,7 @@ def noll2orders(j_index: array_like) -> (array_type, array_type):
     return n, m
 
 
-def orders2index(n: array_like, m: array_like = 0) -> array_type:
+def orders2index(n: array_like[INTEGER_TYPE], m: array_like[INTEGER_TYPE] = 0) -> array_type[INTEGER_TYPE]:
     """
     Converts a Zernike order (radial degree n, azimuthal frequency m), to standard OSA/ANSI j-indices.
 
@@ -122,7 +122,7 @@ def orders2index(n: array_like, m: array_like = 0) -> array_type:
     return j_index
 
 
-def orders2noll(n: array_like, m: array_like = 0) -> array_type:
+def orders2noll(n: array_like[INTEGER_TYPE], m: array_like[INTEGER_TYPE] = 0) -> array_type[INTEGER_TYPE]:
     """
     Converts a Zernike coordinate (radial degree n, azimuthal frequency m), to Noll indexes.
 
@@ -149,7 +149,7 @@ def orders2noll(n: array_like, m: array_like = 0) -> array_type:
     return j_index
 
 
-def index2noll(j_index: array_like) -> array_type:
+def index2noll(j_index: array_like[INTEGER_TYPE]) -> array_type[INTEGER_TYPE]:
     """
     Converts a Zernike index or indices, js > 0, to Noll indexes.
 
@@ -164,7 +164,7 @@ def index2noll(j_index: array_like) -> array_type:
     return orders2noll(*index2orders(j_index))
 
 
-def noll2index(j_index: array_like) -> array_type:
+def noll2index(j_index: array_like[INTEGER_TYPE]) -> array_type[INTEGER_TYPE]:
     """
     Converts a Noll index or indices, js > 0, to a Zernike index or indices, js > 0.
 
@@ -183,7 +183,7 @@ def noll2index(j_index: array_like) -> array_type:
     return orders2index(*noll2orders(j_index))
 
 
-def orders2fringe(n: array_like, m: array_like = 0) -> array_type:
+def orders2fringe(n: array_like[INTEGER_TYPE], m: array_like[INTEGER_TYPE] = 0) -> array_type[INTEGER_TYPE]:
     """
     Converts a Zernike coordinate (radial degree n, azimuthal frequency m), to fringe (University of Arizona) indexes.
 
@@ -209,7 +209,7 @@ def orders2fringe(n: array_like, m: array_like = 0) -> array_type:
     return j_index
 
 
-def fringe2orders(j_index: array_like) -> (array_type, array_type):
+def fringe2orders(j_index: array_like[INTEGER_TYPE]) -> tuple[array_type[INTEGER_TYPE], array_type[INTEGER_TYPE]]:
     """
     Converts a fringe (University of Arizona) index or indices, js > 0, to a degree tuple (radial m, azimuthal n).
 
@@ -236,7 +236,7 @@ def fringe2orders(j_index: array_like) -> (array_type, array_type):
     return n, m
 
 
-def index2fringe(j_index: array_like) -> array_type:
+def index2fringe(j_index: array_like[INTEGER_TYPE]) -> array_type[INTEGER_TYPE]:
     """
     Converts a Zernike index or indices, js > 0, to fringe (University of Arizona) indexes.
 
@@ -251,7 +251,7 @@ def index2fringe(j_index: array_like) -> array_type:
     return orders2fringe(*index2orders(j_index))
 
 
-def fringe2index(j_index: array_like) -> array_type:
+def fringe2index(j_index: array_like[INTEGER_TYPE]) -> array_type[INTEGER_TYPE]:
     """
     Converts a fringe (University of Arizona) index or indices, js > 0, to a Zernike index or indices, js > 0.
 
@@ -275,9 +275,9 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
     """
 
     def __init__(self,
-                 index: Optional[array_like] = None,
-                 n: Optional[array_like] = None,
-                 m: Optional[array_like] = None,
+                 index: Optional[array_like[INTEGER_TYPE]] = None,
+                 n: Optional[array_like[INTEGER_TYPE]] = None,
+                 m: Optional[array_like[INTEGER_TYPE]] = None,
                  odd_and_even: bool = False,
                  ):
         """
@@ -350,7 +350,8 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
 
         self.odd_and_even = odd_and_even
 
-    def __call__(self, rho: array_like = 0, phi: array_like = 0) -> array_type:
+    def __call__(self, rho: array_like[SCALAR_TYPE] = 0, phi: array_like[SCALAR_TYPE] = 0,
+                 ) -> array_type[SCALAR_TYPE]:
         """
         Returns the Zernike polynomial of order (n, m) evaluated in polar coordinates at rho and phi.
 
@@ -368,7 +369,7 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         """
         return self.polar(rho=rho, phi=phi)
 
-    def polar(self, rho: array_like = 0, phi: array_like = 0) -> array_type:
+    def polar(self, rho: array_like[SCALAR_TYPE] = 0, phi: array_like[SCALAR_TYPE] = 0) -> array_type[SCALAR_TYPE]:
         """
         Returns the Zernike polynomial of order (n, m) evaluated in polar coordinates at rho and phi.
 
@@ -395,36 +396,36 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         return normalization * self.__polynomial_r(np.abs(rho)) * zernike_phasor
 
     @property
-    def n(self) -> array_type:
+    def n(self) -> array_type[INTEGER_TYPE]:
         """Get the radial order of the Zernike polynomial."""
         return self.__n
 
     @n.setter
-    def n(self, new_radial_order: array_like):
+    def n(self, new_radial_order: array_like[INTEGER_TYPE]):
         """Set the radial order of the Zernike polynomial."""
         self.__n = asarray(new_radial_order, int)
 
     @property
-    def m(self) -> array_type:
+    def m(self) -> array_type[INTEGER_TYPE]:
         """Get the azimuthal order of the Zernike polynomial."""
         return self.__m
 
     @m.setter
-    def m(self, new_azimuthal_order: array_like):
+    def m(self, new_azimuthal_order: array_like[INTEGER_TYPE]):
         """Set the azimuthal order of the Zernike polynomial."""
         self.__m = asarray(new_azimuthal_order, int)
 
     @property
-    def index(self) -> array_type:
+    def index(self) -> array_type[INTEGER_TYPE]:
         """Get the standard OSA/ANSI index of the Zernike polynomial."""
         return orders2index(n=self.n, m=self.m)
 
     @index.setter
-    def index(self, new_index: array_like):
+    def index(self, new_index: array_like[INTEGER_TYPE]):
         """Set the standard OSA/ANSI index of the Zernike polynomial."""
         self.n, self.m = index2orders(new_index)
 
-    def cartesian(self, y: array_like, x: array_like) -> array_type:
+    def cartesian(self, y: array_like[SCALAR_TYPE], x: array_like[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
         """
         The Zernike polynomial values as a function of the Cartesian axis.
 
@@ -435,7 +436,8 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         """
         return self.polar(rho=np.sqrt(y**2 + x**2), phi=np.arctan2(y, x))
 
-    def polar_gradient(self, rho: array_like = 0, phi: array_like = 0) -> array_type:
+    def polar_gradient(self, rho: array_like[SCALAR_TYPE] = 0, phi: array_like[SCALAR_TYPE] = 0,
+                       ) -> array_type[SCALAR_TYPE]:
         """
         Returns the gradient from polar coordinates.
 
@@ -470,10 +472,12 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
     def name(self) -> str:
         """The latin name of this basis Zernike polynomial."""
         def radial_multiplicity(_: int) -> str:
+            """Returns a string that describes the radial multiplicity of a basis polynomial for a given number."""
             prefixes = '0-', 'prim', 'second', 'terti', 'quatern', 'quint', 'sext', 'sept', 'oct'
             return (prefixes[_] if _ < len(prefixes) else f'{_}-') + 'ary '
 
         def azimulthal_multiplicity(m: int) -> str:
+            """Returns a string that describes the azimulthal multiplicity of a basis polynomial for a given number."""
             abs_m = abs(m)
             special_names = ['spherical', 'coma', 'astigmatism']
             if abs_m < len(special_names):
@@ -481,11 +485,8 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
             prefixes = '0-', '1-', '2-', 'tre', 'quadra', 'penta', 'hexa', 'hepta', 'octa', 'nona', 'deca'
             return (prefixes[abs_m] if abs_m < len(prefixes) else f'{abs_m}-') + 'foil'
 
-        def get_single_name(m: array_type, n: array_type) -> str:
-            ms, ns = np.broadcast_arrays(m, n)
-            if ms.ndim > 0:
-                return f"[{', '.join(get_single_name(m, n) for m, n in zip(ms, ns))}]"
-            m, n = ms, ns
+        def get_single_name(m: int, n: int) -> str:
+            """Returns the description of single basis polyonomial."""
             if m == 0:
                 if n == 0:
                     name = 'piston'
@@ -511,7 +512,13 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
                 name += azimulthal_multiplicity(m)
             return name
 
-        return get_single_name(self.m, self.n)
+        def get_name_recursive(m: array_like[INTEGER_TYPE], n: array_like[INTEGER_TYPE]) -> str:
+            m_full, n_full = np.broadcast_arrays(m, n)
+            if m_full.ndim > 0:
+                return '[' + ', '.join(get_name_recursive(*slices) for slices in zip(m_full, n_full)) + ']'
+            return get_single_name(m_full.item(), n_full.item())
+
+        return get_name_recursive(self.m, self.n)
 
     def __str__(self) -> str:
         """Return a compact representation of this polynomial as a unicode string."""
@@ -521,7 +528,7 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         """Return a representation of this polynomial as a string."""
         return f'{self.__class__.__name__}({self.index}) = {self.name}'
 
-    def __polynomial_r(self, rho: array_like = 0):
+    def __polynomial_r(self, rho: array_like[SCALAR_TYPE] = 0):
         """
         Calculate the radial polynomial component, for all rho in a matrix.
 
@@ -540,7 +547,9 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         return self.__polynomial_r_static(self.n, np.abs(self.m), rho)
 
     @staticmethod  # TODO: may need caching
-    def __polynomial_r_static(n: array_like, m: array_like, rho: array_like = 0) -> array_type:
+    def __polynomial_r_static(n: array_like[INTEGER_TYPE], m: array_like[INTEGER_TYPE],
+                              rho: array_like[SCALAR_TYPE] = 0,
+                              ) -> array_type[SCALAR_TYPE]:
         """
         Calculate the radial polynomial, for all rho in a matrix.
 
@@ -548,8 +557,8 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
         Output: a matrix of the same shape as rho, or the multidimensional 0 indicating an all zero result in case
         the difference n - m is odd.
 
-        :param n: A non-negative integer or array_like indicating the radial order.
-        :param m: An integer or array_like indicating the azimuthal order.
+        :param n: A non-negative integer or array_like[INTEGER_TYPE] indicating the radial order.
+        :param m: An integer or array_like[INTEGER_TYPE] indicating the azimuthal order.
         :param rho: An nd-array with the radial distances. Non-negativeness is enforced.
 
         :return: The polynomial values in an nd-array of the same shape as rho, but broadcasted with n and m.
@@ -574,7 +583,7 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
             n_i = n.ravel()[idx]
             m_i = m.ravel()[idx]
             rho_i = rho[..., idx]
-            if np.mod(n_i - m_i, 2) == 0:  # Skip odd differences, for these the result is zero.
+            if (n_i - m_i) % 2 == 0:  # Skip odd differences, for these the result is zero.
                 hd = (n_i - m_i) // 2
                 hs = (n_i + m_i) // 2
                 rho_pow = rho_i**m_i
@@ -593,7 +602,7 @@ class BasisPolynomial(Callable):  # todo: refactor so that this inherits from Po
 class Polynomial(Callable):
     """A class to represent linear combinations of Zernike polynomials, which permit basic arithmetic operations."""
 
-    def __init__(self, coefficients: array_like = (), indices: array_like = ()):
+    def __init__(self, coefficients: array_like[INTEGER_TYPE] = (), indices: array_like[INTEGER_TYPE] = ()):
         """
         Construct an object that represents superpositions of basis-Zernike polynomials.
 
@@ -608,9 +617,9 @@ class Polynomial(Callable):
         self.indices = indices
 
     def __call__(self,
-                 rho: Optional[array_like] = None, phi: Optional[array_like] = None,
-                 y: Optional[array_like] = None, x: Optional[array_like] = None,
-                 ) -> array_type:
+                 rho: Optional[array_like[INTEGER_TYPE]] = None, phi: Optional[array_like[INTEGER_TYPE]] = None,
+                 y: Optional[array_like[INTEGER_TYPE]] = None, x: Optional[array_like[INTEGER_TYPE]] = None,
+                 ) -> array_type[INTEGER_TYPE]:
         """
         Evaluate this polynomial at polar, cartesian, or complex coordinates.
 
@@ -632,7 +641,7 @@ class Polynomial(Callable):
         return self.polar(rho=rho, phi=phi)
 
     @property
-    def indices(self) -> array_like:
+    def indices(self) -> array_like[INTEGER_TYPE]:
         """The standard ISO/ANSI indices of the basis polynomials."""
         if self.__indices.size >= self.coefficients.size:
             return self.__indices[:self.coefficients.size]
@@ -643,19 +652,19 @@ class Polynomial(Callable):
         return indices
 
     @indices.setter
-    def indices(self, new_indices: array_like):
+    def indices(self, new_indices: array_like[INTEGER_TYPE]):
         self.__polynomials = None
         if not np.array_equal(self.__indices, new_indices):
             self.__polynomials = None
             self.__indices = np.array(new_indices)
 
     @property
-    def coefficients(self) -> array_type:
+    def coefficients(self) -> array_type[INTEGER_TYPE]:
         """The coefficients corresponding to each of index as listed by the `indices` property."""
         return self.__coefficients
 
     @coefficients.setter
-    def coefficients(self, new_coefficients: array_like):
+    def coefficients(self, new_coefficients: array_like[INTEGER_TYPE]):
         if not np.array_equal(self.__coefficients, new_coefficients):
             self.__polynomials = None
             self.__coefficients = np.array(new_coefficients)
@@ -668,23 +677,23 @@ class Polynomial(Callable):
         return self.__polynomials
 
     @property
-    def n(self) -> array_type:
+    def n(self) -> array_type[INTEGER_TYPE]:
         """The radial order of the Zernike polynomial."""
         return index2orders(self.indices)[0]
 
     @n.setter
-    def n(self, new_radial_order: array_like):
+    def n(self, new_radial_order: array_like[INTEGER_TYPE]):
         """Set the radial order of the Zernike polynomial."""
         n, m = index2orders(self.indices)
         self.indices = orders2index(new_radial_order, m)
 
     @property
-    def m(self) -> array_type:
+    def m(self) -> array_type[INTEGER_TYPE]:
         """The azimuthal order of the Zernike polynomial."""
         return index2orders(self.indices)[1]
 
     @m.setter
-    def m(self, new_azimuthal_order: array_like):
+    def m(self, new_azimuthal_order: array_like[INTEGER_TYPE]):
         """Set the azimuthal order of the Zernike polynomial."""
         n, m = index2orders(self.indices)
         self.indices = orders2index(n, new_azimuthal_order)
@@ -694,7 +703,7 @@ class Polynomial(Callable):
         """The highest order of this Zernike polyonomial combination."""
         return 1 + np.amax(self.indices)
 
-    def complex(self, z: array_like = 0) -> array_type:
+    def complex(self, z: array_like[INTEGER_TYPE] = 0) -> array_type[INTEGER_TYPE]:
         """
         Evaluate this polynomial in the complex plane, where the real and imaginary parts are the Cartesian coordinates.
 
@@ -705,7 +714,7 @@ class Polynomial(Callable):
         """
         return self.cartesian(y=asarray(z, complex).imag, x=asarray(z, complex).real)
 
-    def cartesian(self, y: array_like = 0, x: array_like = 0) -> array_type:
+    def cartesian(self, y: array_like[INTEGER_TYPE] = 0, x: array_like[INTEGER_TYPE] = 0) -> array_type[INTEGER_TYPE]:
         """
         Evaluate this polynomial at Cartesian coordinates.
 
@@ -716,7 +725,7 @@ class Polynomial(Callable):
         """
         return self.polar(rho=np.sqrt(y**2 + x**2), phi=np.arctan2(y, x))
 
-    def polar(self, rho: array_like = 0, phi: array_like = 0) -> array_type:
+    def polar(self, rho: array_like[INTEGER_TYPE] = 0, phi: array_like[INTEGER_TYPE] = 0) -> array_type[INTEGER_TYPE]:
         """
         Evaluate this polynomial at polar coordinates.
 
@@ -731,7 +740,7 @@ class Polynomial(Callable):
         mat = self.polynomials(rho, phi)
         return mat @ self.coefficients
 
-    def __add__(self, other: array_like | Polynomial) -> Polynomial:
+    def __add__(self, other: array_like[INTEGER_TYPE] | Polynomial) -> Polynomial:
         """
         Return a polynomial that represents that sum of this and another polynomial.
 
@@ -748,7 +757,7 @@ class Polynomial(Callable):
         combined_coefficients = [new_coefficients[ci] for ci in combined_indices]
         return Polynomial(coefficients=combined_coefficients, indices=combined_indices)
 
-    def __radd__(self, other: array_like) -> Polynomial:
+    def __radd__(self, other: array_like[INTEGER_TYPE]) -> Polynomial:
         """
         Return a polynomial that represents that sum of this and another polynomial.
 
@@ -756,11 +765,11 @@ class Polynomial(Callable):
         """
         return other + self
 
-    def __neg__(self, other: array_like | Polynomial) -> Polynomial:
+    def __neg__(self, other: array_like[INTEGER_TYPE] | Polynomial) -> Polynomial:
         """Return the negated Polynomial, with the sign of all coefficients changed."""
         return Polynomial(coefficients=-self.coefficients, indices=self.indices)
 
-    def __sub__(self, other: array_like | Polynomial) -> Polynomial:
+    def __sub__(self, other: array_like[INTEGER_TYPE] | Polynomial) -> Polynomial:
         """
         Return a polynomial that represents that difference of this and another polynomial.
 
@@ -768,7 +777,7 @@ class Polynomial(Callable):
         """
         return self + (-other)
 
-    def __rsub__(self, other: array_like) -> Polynomial:
+    def __rsub__(self, other: array_like[INTEGER_TYPE]) -> Polynomial:
         """
         Return a polynomial that represents that difference of this and another polynomial.
 
@@ -846,13 +855,13 @@ class Fit(Polynomial):
     """A class to fits Zernike polynomials up to the given order."""
 
     def __init__(self,
-                 z: array_like,
-                 y: Optional[array_like] = None,
-                 x: Optional[array_like] = None,
-                 rho: Optional[array_like] = None,
-                 phi: Optional[array_like] = None,
-                 weights: array_like = 1,
-                 order: array_like = 15,
+                 z: array_like[INTEGER_TYPE],
+                 y: Optional[array_like[INTEGER_TYPE]] = None,
+                 x: Optional[array_like[INTEGER_TYPE]] = None,
+                 rho: Optional[array_like[INTEGER_TYPE]] = None,
+                 phi: Optional[array_like[INTEGER_TYPE]] = None,
+                 weights: array_like[INTEGER_TYPE] = 1,
+                 order: array_like[INTEGER_TYPE] = 15,
                  ):
         """
         Construct an object to fit Zernike polynomials up to the given order.
@@ -926,7 +935,7 @@ class Fit(Polynomial):
         self.coefficients = coefficients
 
     @property
-    def contravariant(self) -> array_type:
+    def contravariant(self) -> array_type[INTEGER_TYPE]:
         """
         The contravariant coefficients of the Zernike polynomial fit.
 
@@ -936,7 +945,7 @@ class Fit(Polynomial):
         return self.coefficients
 
     @property
-    def covariant(self) -> array_type:
+    def covariant(self) -> array_type[INTEGER_TYPE]:
         """
         The covariant coefficients of this fit.
 
@@ -964,10 +973,13 @@ class Fit(Polynomial):
         return f'{self.__class__.__name__}(coefficients={self.coefficients})'
 
 
-def fit(z: array_like, y: Optional[array_like] = None, x: Optional[array_like] = None,
-        rho: Optional[array_like] = None, phi: Optional[array_like] = None,
-        weights: array_like = 1.0,
-        order: array_like = 15,
+def fit(z: array_like[INTEGER_TYPE],
+        y: Optional[array_like[INTEGER_TYPE]] = None,
+        x: Optional[array_like[INTEGER_TYPE]] = None,
+        rho: Optional[array_like[INTEGER_TYPE]] = None,
+        phi: Optional[array_like[INTEGER_TYPE]] = None,
+        weights: array_like[INTEGER_TYPE] = 1.0,
+        order: array_like[INTEGER_TYPE] = 15,
         ) -> Fit:
     """
     Fits Zernike polynomial up to the given order and returns a Fit object.
@@ -989,14 +1001,14 @@ def fit(z: array_like, y: Optional[array_like] = None, x: Optional[array_like] =
     return Fit(z=z, y=y, x=x, rho=rho, phi=phi, weights=weights, order=order)
 
 
-def fit_coefficients(z: array_like,
-                     y: Optional[array_like] = None,
-                     x: Optional[array_like] = None,
-                     rho: Optional[array_like] = None,
-                     phi: Optional[array_like] = None,
-                     weights: array_like = 1.0,
+def fit_coefficients(z: array_like[INTEGER_TYPE],
+                     y: Optional[array_like[INTEGER_TYPE]] = None,
+                     x: Optional[array_like[INTEGER_TYPE]] = None,
+                     rho: Optional[array_like[INTEGER_TYPE]] = None,
+                     phi: Optional[array_like[INTEGER_TYPE]] = None,
+                     weights: array_like[INTEGER_TYPE] = 1.0,
                      order: int = 15,
-                     ) -> array_type:
+                     ) -> array_type[INTEGER_TYPE]:
     """
     Fits (multiple) Zernike polynomials up to the given order.
 

@@ -1,9 +1,11 @@
 import numpy as np
 
-from zmxtools.utils.array import array_like, array_type, asarray, to_length
+from zmxtools.utils.array import INTEGER_TYPE, array_like, array_type, asarray, to_length
 
 
-def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> array_type:
+def factorial_fraction(numerator: array_like[INTEGER_TYPE] = 0,
+                       denominator: array_like[INTEGER_TYPE] = 0,
+                       ) -> array_type[INTEGER_TYPE]:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -29,8 +31,9 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: tuple[array_like] | int = 1, denominators: tuple[array_like] | int = 1,
-                               ) -> array_type:
+def factorial_product_fraction(numerators: tuple[array_like[INTEGER_TYPE]] | int = 1,
+                               denominators: tuple[array_like[INTEGER_TYPE]] | int = 1,
+                               ) -> array_type[INTEGER_TYPE]:
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 

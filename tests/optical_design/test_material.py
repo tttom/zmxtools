@@ -1,13 +1,15 @@
 import unittest
 
-import numpy.testing as npt
 import numpy as np
+from numpy import testing as npt
 
 from zmxtools.optical_design.material import ModelGlassMaterial
 
 
 class TestMaterial(unittest.TestCase):
+    """A class to test the ``Material`` class."""
     def setUp(self):
+        """This code is executed again before every test to ensure that the tests are independent."""
         self.vacuum = ModelGlassMaterial('Vacuum')
         self.constant = ModelGlassMaterial('Water', 1.33)
         self.glass = ModelGlassMaterial('FusedSilica', 1.4584, 67.82)

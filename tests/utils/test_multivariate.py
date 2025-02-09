@@ -1,11 +1,11 @@
 import unittest
-import numpy.testing as npt
-
-from zmxtools.utils.multivariate import Polynomial
-from zmxtools.utils.array import array_type
 
 import numpy as np
+from numpy import testing as npt
+
 from tests.utils import log
+from zmxtools.utils.multivariate import Polynomial
+from zmxtools.utils.array import array_type
 
 
 class TestPolynomial(unittest.TestCase):

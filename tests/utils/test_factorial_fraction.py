@@ -1,13 +1,14 @@
 import unittest
-import numpy.testing as npt
-
-from zmxtools.utils import factorial_fraction
 
 import numpy as np
+from numpy import testing as npt
+
+from zmxtools.utils import factorial_fraction
 
 
 class TestFactorialFraction(unittest.TestCase):
     def setUp(self):
+        """This code is executed again before every test to ensure that the tests are independent."""
         self.f0 = factorial_fraction(0)
         self.f1 = factorial_fraction(1)
         self.f4 = factorial_fraction(4)

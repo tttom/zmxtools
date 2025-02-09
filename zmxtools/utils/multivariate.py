@@ -7,7 +7,7 @@ from typing import Dict, List, Sequence
 import numpy as np
 
 from zmxtools.utils import script
-from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
 from zmxtools.utils.polar import cart2pol
 
 __all__ = ['Polynomial']
@@ -17,30 +17,30 @@ class Polynomial:
     """
     A class to represent Cartesian multivariate polynomials.
 
-    Generic exponents are allowed, positive and negative, i.e. as a Laurent polynomial.
+    Generic exponents are allowed, both positive and negative, i.e. as a Laurent polynomial.
     https://en.wikipedia.org/wiki/Laurent_polynomial
     """
 
-    def __init__(self, coefficients: array_like, labels: Sequence[str] = (),
+    def __init__(self, coefficients: array_like[SCALAR_TYPE], labels: Sequence[str] = (),
                  exponents: Sequence[Sequence[int | float | complex]] = (),
                  ):
         """
         Construct a multivariate polynomial object that can be evaluated at specific points or array's thereof.
 
-        :param coefficients: The coefficients as a multi-dimensional array with the N-th dimension corresponding to the
+        :param coefficients: The coefficients as a multidimensional array with the N-th dimension corresponding to the
             N-th independent coordinate.
         :param labels: The names or symbols of the independent variables in order. This is used to display or to select
             the arguments by name. By default, x₀, x₁, x₂, x₃, ... is used.
-        :param exponents: The optional exponents of the polynomial. By default these are 0, 1, 2, ...
+        :param exponents: The optional exponents of the polynomial. By default, these are just 0, 1, 2, ...
         """
-        self.__coefficients: array_type = asarray(coefficients)
+        self.__coefficients: array_type[SCALAR_TYPE] = asarray(coefficients)
         self.coefficients = self.coefficients
         self.__symbols: tuple[str, ...] = ()
         self.labels = labels
         self.__exponents = tuple[Sequence[int | float | complex]]()
         self.exponents = exponents
 
-    def __call__(self, *args: array_like, **kwargs: array_like) -> array_type:
+    def __call__(self, *args: array_like[SCALAR_TYPE], **kwargs: array_like[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
         """
         The evaluated value of this polynomial at the specified coordinates.
 
@@ -56,8 +56,8 @@ class Polynomial:
         for s in kwargs:
             assert s in self.labels, f'Unknown coordinate symbol, {s}. Must be one of {self.labels}.'
 
-        # Convert arguments to standard form
-        arg_dict: Dict[str, array_type] = defaultdict[str, array_type](lambda: asarray(0))  # Default to 0
+        # Convert arguments to standard form. Default to 0
+        arg_dict: Dict[str, array_type[SCALAR_TYPE]] = defaultdict[str, array_type[SCALAR_TYPE]](lambda: asarray(0))
         for symbol, arg in zip(self.labels, args):
             arg_dict[symbol] = asarray(arg)
         for symbol2, arg2 in kwargs.items():
@@ -69,8 +69,9 @@ class Polynomial:
 
         calculation_axes = tuple(range(-self.coefficients.ndim, 0))  # The axes of the multi-variate polynomial
 
-        def calc_product_rec(coordinates: Sequence[array_type], exponents: Sequence[Sequence[int | float | complex]],
-                             ) -> array_type:
+        def calc_product_rec(coordinates: Sequence[array_type[SCALAR_TYPE]],
+                             exponents: Sequence[Sequence[int | float | complex]],
+                             ) -> array_type[SCALAR_TYPE]:
             coordinate = np.expand_dims(coordinates[0], axis=calculation_axes)
             exponents_for_this_axis = np.expand_dims(exponents[0], axis=tuple(range(-(len(exponents) - 1), 0)))
             result = coordinate ** exponents_for_this_axis
@@ -83,7 +84,7 @@ class Polynomial:
         return np.sum(self.coefficients * calc_product_rec(arguments, self.exponents), axis=calculation_axes)
 
     @property
-    def coefficients(self) -> array_type:
+    def coefficients(self) -> array_type[SCALAR_TYPE]:
         """
         The multi-variate polynomial's coefficients as a multi-dimensional array.
 
@@ -93,7 +94,7 @@ class Polynomial:
         return self.__coefficients.copy()
 
     @coefficients.setter
-    def coefficients(self, new_coefficients: array_like):
+    def coefficients(self, new_coefficients: array_like[SCALAR_TYPE]):
         self.__coefficients = asarray(new_coefficients)
 
     @property
@@ -198,7 +199,7 @@ class Polynomial:
         del other_symbols
 
         # Extend the shape of coefficients and pad the coefficients
-        def pad(arr: array_type, nb_new: int, axis: int) -> array_type:
+        def pad(arr: array_type[SCALAR_TYPE], nb_new: int, axis: int) -> array_type[SCALAR_TYPE]:
             pad_shape = list(arr.shape)
             pad_shape[axis] = nb_new
             return np.concatenate([arr, np.zeros_like(arr, shape=pad_shape)], axis=axis)
@@ -307,7 +308,7 @@ class Polynomial:
 class PolarPolynomial(Polynomial):
     """A class to represent polynomials in polar coordinates."""
 
-    def __init__(self, coefficients: array_like,
+    def __init__(self, coefficients: array_like[SCALAR_TYPE],
                  labels: Sequence[str] = ('ρ', 'ϕ'),
                  exponents: Sequence[Sequence[int | float | complex]] = (),
                  ):
@@ -325,7 +326,7 @@ class PolarPolynomial(Polynomial):
         cartesian_labels = (labels[0], f'exp(-i{labels[1]})')  # or 'e⁻ⁱᵠ'
         super().__init__(coefficients=coefficients, labels=cartesian_labels, exponents=exponents)
 
-    def __call__(self, rho: array_like = 0, phi: array_like = 0) -> array_type:
+    def __call__(self, rho: array_like[SCALAR_TYPE] = 0, phi: array_like[SCALAR_TYPE] = 0) -> array_type[SCALAR_TYPE]:
         """
         Calculates the ``PolarPolynomial``'s values at the specified polar coordinates.
 
@@ -338,12 +339,13 @@ class PolarPolynomial(Polynomial):
         """
         return super().__call__(rho, np.exp(-1j * asarray(phi)))
 
-    def cartesian(self, y: array_like, x: array_like) -> array_type:
+    def cartesian(self, y: array_like[SCALAR_TYPE], x: array_like[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
         """Compute the values at Cartesian coordinates. The coordinates are broadcast as necessary."""
         rho, phi = cart2pol(y, x)
         return self(rho, phi)
 
-    def cartesian_grad(self, y: array_like, x: array_like, axis: int = 0) -> array_type:
+    def cartesian_grad(self, y: array_like[SCALAR_TYPE], x: array_like[SCALAR_TYPE], axis: int = 0,
+                       ) -> array_type[SCALAR_TYPE]:
         g = self.grad()
 
         rho, phi = cart2pol(y, x)

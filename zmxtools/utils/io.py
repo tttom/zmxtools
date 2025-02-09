@@ -48,7 +48,8 @@ class BytesFile:
 
     def close(self) -> None:
         """Close the file or stream."""
-        self.__content_stream.close()
+        if self.__content_stream is not None:
+            self.__content_stream.close()
         self.__content_stream = None
 
     def __enter__(self) -> typing.Self:
@@ -69,5 +70,5 @@ class BytesFile:
 
 
 BinaryFileLike = BytesFile | typing.BinaryIO
-FileLike = BinaryFileLike | typing.IO
+FileLike = BinaryFileLike | typing.TextIO
 PathLike = pathlib.Path | str

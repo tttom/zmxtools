@@ -1,14 +1,13 @@
 """
 A module to convert :ph:class:``numpy.ndarray``s between Cartesian and polar coordinates.
 """
-from typing import Tuple
-
 import numpy as np
 
-from zmxtools.utils.array import array_like, array_type
+from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
 
 
-def cart2pol(y: array_like, x: array_like) -> Tuple[array_type, array_type]:
+def cart2pol(y: array_like[SCALAR_TYPE], x: array_like[SCALAR_TYPE],
+             ) -> tuple[array_type[SCALAR_TYPE], array_type[SCALAR_TYPE]]:
     """
     Convert Cartesian coordinates to polar coordinates.
 
@@ -25,7 +24,8 @@ def cart2pol(y: array_like, x: array_like) -> Tuple[array_type, array_type]:
     return rho, phi
 
 
-def pol2cart(rho: array_like, phi: array_like) -> Tuple[array_like, array_like]:
+def pol2cart(rho: array_like[SCALAR_TYPE], phi: array_like[SCALAR_TYPE],
+             ) -> tuple[array_type[SCALAR_TYPE], array_type[SCALAR_TYPE]]:
     """
     Convert polar coordinates to Cartesian coordinates.
 
@@ -36,4 +36,5 @@ def pol2cart(rho: array_like, phi: array_like) -> Tuple[array_like, array_like]:
     :param phi: The azimuthal coordinate.
     :return: A tuple, (y, x), with the respective Cartesian coordinates.
     """
+    rho = asarray(rho)
     return rho * np.sin(phi), rho * np.cos(phi)

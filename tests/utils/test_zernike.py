@@ -1,12 +1,12 @@
 import unittest
-import numpy.testing as npt
-
-from zmxtools.utils.zernike import (index2orders, orders2index,
-                                    noll2orders, orders2noll, noll2index, index2noll,
-                                    fringe2orders, orders2fringe, fringe2index, index2fringe,
-                                    BasisPolynomial, Polynomial, fit)
 
 import numpy as np
+from numpy import testing as npt
+
+from zmxtools.utils.zernike import (BasisPolynomial, Polynomial, fit, fringe2index, fringe2orders,
+                                    index2fringe, index2noll, index2orders, noll2index, noll2orders,
+                                    orders2index, orders2fringe, orders2noll,
+                                    )
 
 
 class TestPolynomial(unittest.TestCase):

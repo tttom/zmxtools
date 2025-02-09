@@ -8,7 +8,7 @@ from zmxtools.optical_design import log
 from zmxtools.optical_design.geometry import IDENTITY, Positionable, SphericalTransform, Transform
 from zmxtools.optical_design.header import Element, Medium
 from zmxtools.optical_design.light import LightPath, Wavefront
-from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
 
 log.getChild(__name__)
 
@@ -56,7 +56,7 @@ class Interface(Positionable):
         light_path = light_path.to(self.transform.inv)  # This transform should make the z-axis normal to the interface.
         w = light_path.wavefront
 
-        def flip(vector: array_like) -> array_type:
+        def flip(vector: array_like[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
             """Reverse the z-component. This assumes that the transform rotates the z-axis to the surface normal."""
             return asarray(vector) * asarray((1.0, 1.0, -1.0), float)
 
@@ -145,10 +145,10 @@ INFINITE_APERTURE = Aperture()
 class DiskAperture(Aperture):
     """A class to represent circular or annular apertures."""
 
-    outer_radius: array_type
-    inner_radius: array_type
+    outer_radius: array_type[SCALAR_TYPE]
+    inner_radius: array_type[SCALAR_TYPE]
 
-    def __init__(self, outer_radius: array_like = np.inf, inner_radius: array_like = 0,
+    def __init__(self, outer_radius: array_like[SCALAR_TYPE] = np.inf, inner_radius: array_like[SCALAR_TYPE] = 0,
                  transform: Transform = IDENTITY,
                  ):
         """
@@ -236,7 +236,7 @@ class AnalyticSurface(Surface):
 class PlanarSurface(AnalyticSurface):
     """A planar surface, normal to the z-axis in its local coordinate system as specified by self.transform."""
 
-    def distance(self, wavefront: Wavefront) -> array_type:
+    def distance(self, wavefront: Wavefront) -> array_type[SCALAR_TYPE]:
         """The distance in units of wavefront.d to the intersection point of this element."""
         return - wavefront.position[..., 2] / wavefront.direction[..., 2]
 
@@ -248,7 +248,7 @@ class SphericalSurface(AnalyticSurface):
     TODO: Implement conic constant
     """
 
-    def __init__(self, curvature: array_type,
+    def __init__(self, curvature: array_type[SCALAR_TYPE],
                  interface: Optional[Interface] = None, aperture: Optional[Aperture] = None,
                  transform: Transform = IDENTITY,
                  ):
@@ -268,11 +268,11 @@ class SphericalSurface(AnalyticSurface):
         super().__init__(interface=interface, aperture=aperture, transform=transform)
 
     @property
-    def radius_of_curvature(self) -> array_type:
+    def radius_of_curvature(self) -> array_type[SCALAR_TYPE]:
         """The radius of curvature of this surface."""
         return 1.0 / self.curvature
 
-    def distance(self, wavefront: Wavefront) -> array_type:
+    def distance(self, wavefront: Wavefront) -> array_type[SCALAR_TYPE]:
         """Returns the analytic signed distance to the surface in units of the direction-vector."""
         wavefront = wavefront.to(self.transform.inv)
         p_rel_curv = wavefront.position * self.curvature - asarray([0, 0, 1])
