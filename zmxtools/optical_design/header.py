@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from zmxtools.optical_design import log
 from zmxtools.optical_design.geometry import IDENTITY, Transform
 from zmxtools.optical_design.light import LightPath, Wavefront
-from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type
 
 log = log.getChild(__name__)
 
@@ -45,7 +45,7 @@ class Element:
         """
         raise NotImplementedError
 
-    def distance(self, wavefront: Wavefront) -> array_type[SCALAR_TYPE]:
+    def distance(self, wavefront: Wavefront) -> array_type[SCALAR_TYPEVAR]:
         """
         The signed distance in units of wavefront.direction to the intersection point of this element.
 
@@ -87,9 +87,9 @@ class Medium:
         """
         raise NotImplementedError
 
-    def complex_refractive_index(self, wavenumber: array_like[SCALAR_TYPE], position: array_like[SCALAR_TYPE],
-                                 electric_field: array_like[SCALAR_TYPE], magnetizing_field: array_like[SCALAR_TYPE],
-                                 ) -> array_type[SCALAR_TYPE]:
+    def complex_refractive_index(self, wavenumber: array_like[SCALAR_TYPEVAR], position: array_like[SCALAR_TYPEVAR],
+                                 electric_field: array_like[SCALAR_TYPEVAR], magnetizing_field: array_like[SCALAR_TYPEVAR],
+                                 ) -> array_type[SCALAR_TYPEVAR]:
         """
         The complex refractive index as a function of wavenumber, position, and the electromagnetic fields.
 

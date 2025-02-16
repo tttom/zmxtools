@@ -18,7 +18,7 @@ from zmxtools.optical_design.source import Source
 from zmxtools.optical_design.surface import DiskAperture, SnellInterface, Surface
 from zmxtools.parser import Command, OrderedCommandDict
 from zmxtools.utils import zernike
-from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray, norm
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray, norm
 from zmxtools.utils.io import FileLike, PathLike
 
 log = log.getChild(__name__)
@@ -99,9 +99,9 @@ class ZmxSource(Source):
     """
 
     def __init__(self, medium: Medium,
-                 E: array_like[SCALAR_TYPE], H: array_like[SCALAR_TYPE],
-                 p: array_like[SCALAR_TYPE], d: array_like[SCALAR_TYPE],
-                 wavelengths: array_like[SCALAR_TYPE], wavelength_weights: array_like[SCALAR_TYPE],
+                 E: array_like[SCALAR_TYPEVAR], H: array_like[SCALAR_TYPEVAR],
+                 p: array_like[SCALAR_TYPEVAR], d: array_like[SCALAR_TYPEVAR],
+                 wavelengths: array_like[SCALAR_TYPEVAR], wavelength_weights: array_like[SCALAR_TYPEVAR],
                  surface: ZmxSurface,
                  ):
         """
@@ -415,37 +415,37 @@ class ZmxSurface(Surface):
             parameter_index -= 1
             # The number on file seems to be pre-computed. No need to * factor + offset
 
-        def standard_sag(r2: array_like[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
+        def standard_sag(r2: array_like[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
             return self.curvature * r2 / (1 + (1 - (1 + self.conic_constant) * self.curvature ** 2 * r2) ** 0.5)
 
-        def odd_asphere_sag(r2: array_like[SCALAR_TYPE], coefficients: array_like[SCALAR_TYPE],
-                            ) -> array_type[SCALAR_TYPE]:
+        def odd_asphere_sag(r2: array_like[SCALAR_TYPEVAR], coefficients: array_like[SCALAR_TYPEVAR],
+                            ) -> array_type[SCALAR_TYPEVAR]:
             sag = 0
             r = r2 ** 0.5
             for _, c in enumerate(coefficients):
                 sag = sag + c * (r ** (_ + 1))
             return standard_sag(r2) * sag
 
-        def even_asphere_sag(r2: array_like[SCALAR_TYPE], coefficients: array_like[SCALAR_TYPE],
-                             ) -> array_type[SCALAR_TYPE]:
+        def even_asphere_sag(r2: array_like[SCALAR_TYPEVAR], coefficients: array_like[SCALAR_TYPEVAR],
+                             ) -> array_type[SCALAR_TYPEVAR]:
             sag = 0
             for _, c in enumerate(coefficients):
                 sag = sag + c * (r2 ** (_ + 1))
             return standard_sag(r2) * sag
 
-        def zernike_sag(position: array_like[SCALAR_TYPE], coefficients: array_like[SCALAR_TYPE],
-                        indices: array_like[SCALAR_TYPE] = (),
-                        radius: array_type[SCALAR_TYPE] = 1.0,
-                        ) -> array_type[SCALAR_TYPE]:
+        def zernike_sag(position: array_like[SCALAR_TYPEVAR], coefficients: array_like[SCALAR_TYPEVAR],
+                        indices: array_like[SCALAR_TYPEVAR] = (),
+                        radius: array_type[SCALAR_TYPEVAR] = 1.0,
+                        ) -> array_type[SCALAR_TYPEVAR]:
             position = asarray(position)
             rho = norm(position[..., :2]) / radius
             phi = np.arctan2(position[..., 1], position[..., 0])
             z = zernike.Polynomial(coefficients=coefficients, indices=indices)
             return z(rho, phi)
 
-        def poly_sag(position: array_type[SCALAR_TYPE], coefficients: array_like[SCALAR_TYPE],
-                     radius: array_type[SCALAR_TYPE] = 1.0,
-                     ) -> array_type[SCALAR_TYPE]:
+        def poly_sag(position: array_type[SCALAR_TYPEVAR], coefficients: array_like[SCALAR_TYPEVAR],
+                     radius: array_type[SCALAR_TYPEVAR] = 1.0,
+                     ) -> array_type[SCALAR_TYPEVAR]:
             p = asarray(position) / radius
             sag = 0
             for _, c in enumerate(coefficients):
@@ -536,7 +536,7 @@ class ZmxSurface(Surface):
             case 'TOROIDAL':
                 # self.parameters has [extrapolate_zernike, radius_of_rotation, coefficients]
                 # data_x [nb_zernikes, norm_radius, *zernike_terms], and VPAR also seems to contain some info?
-                def toroidal_sag(p: array_type[SCALAR_TYPE]) -> array_like[SCALAR_TYPE]:
+                def toroidal_sag(p: array_type[SCALAR_TYPEVAR]) -> array_like[SCALAR_TYPEVAR]:
                     p = asarray(p)
                     z_in_plane = even_asphere_sag(p[..., 1] ** 2, self.parameters[2:])
                     radius_of_rotation = self.parameters[1]  # if self.parameters[1] != 0 else np.inf

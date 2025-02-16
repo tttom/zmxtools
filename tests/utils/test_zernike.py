@@ -3,18 +3,78 @@ import unittest
 import numpy as np
 from numpy import testing as npt
 
-from zmxtools.utils.zernike import (BasisPolynomial, Polynomial, fit, fringe2index, fringe2orders,
+from zmxtools.utils.zernike import (PolynomialBasis, Polynomial, Fit, fringe2index, fringe2orders,
                                     index2fringe, index2noll, index2orders, noll2index, noll2orders,
                                     orders2index, orders2fringe, orders2noll,
                                     )
 
 
+class TestPolynomialBasis(unittest.TestCase):
+    def test_constructor(self):
+        b = PolynomialBasis(4)
+        npt.assert_array_equal(b.index, [4])
+        npt.assert_equal(b.name, 'defocus')
+
+        b = PolynomialBasis(n=2, m=-2)
+        npt.assert_array_equal(b.index, [3])
+        npt.assert_equal(b.name, 'oblique astigmatism')
+
+        b = PolynomialBasis(n=2, m=[0, -2])
+        npt.assert_array_equal(b.index, [4, 3])
+        npt.assert_equal(b.name, '[defocus, oblique astigmatism]')
+
+        b = PolynomialBasis([4, 3])
+        npt.assert_array_equal(b.index, [4, 3])
+        npt.assert_equal(b.name, '[defocus, oblique astigmatism]')
+
+        b = PolynomialBasis(n=[[0], [2]], m=[0, -2])
+        npt.assert_array_equal(b.index, np.array([[0, -1], [4, 3]]), err_msg='Broadcasting of indices not working.')
+        npt.assert_equal(b.name, '[[piston, undefined], [defocus, oblique astigmatism]]')
+
+        b = PolynomialBasis(np.arange(1 + 2 + 3 + 4 + 5))
+        npt.assert_equal(b.name,
+                         '[piston, tilt, tip, oblique astigmatism, defocus, vertical astigmatism, ' +
+                         'vertical trefoil, vertical coma, horizontal coma, oblique trefoil, ' +
+                         'oblique quadrafoil, oblique secondary astigmatism, primary spherical, ' +
+                         'vertical secondary astigmatism, vertical quadrafoil]'
+                         )
+
+        npt.assert_raises(ValueError, lambda: PolynomialBasis())
+
+    def test_setters(self):
+        b = PolynomialBasis(0)
+        npt.assert_array_equal(b.index, [0])
+        npt.assert_array_equal(b.n, [0])
+        npt.assert_array_equal(b.m, [0])
+
+        b.n = 2
+        npt.assert_array_equal(b.n, [2])
+        npt.assert_array_equal(b.m, [0])
+        npt.assert_array_equal(b.index, [4])
+
+        b.index = 4
+        npt.assert_array_equal(b.index, [4])
+        npt.assert_array_equal(b.n, [2])
+        npt.assert_array_equal(b.m, [0])
+
+        b.index = 1
+        npt.assert_array_equal(b.index, [1])
+        npt.assert_array_equal(b.n, [1])
+        npt.assert_array_equal(b.m, [-1])
+
+        b.n = 2
+        b.m = -2
+        npt.assert_array_equal(b.n, [2])
+        npt.assert_array_equal(b.m, [-2])
+        npt.assert_array_equal(b.index, [3])
+
+
 class TestPolynomial(unittest.TestCase):
     def test_zernike_index(self):
-        piston = BasisPolynomial(0)
-        tilt = BasisPolynomial(1)
-        tip = BasisPolynomial(2)
-        defocus = BasisPolynomial(4)
+        piston = PolynomialBasis(0)
+        tilt = PolynomialBasis(1)
+        tip = PolynomialBasis(2)
+        defocus = PolynomialBasis(4)
         npt.assert_equal(str(piston), 'Z₀⁰')
         npt.assert_equal(piston(0), 1, 'Piston fit failed')
         npt.assert_equal(piston(1/2), 1, 'Piston fit failed')
@@ -41,8 +101,8 @@ class TestPolynomial(unittest.TestCase):
                                 )
 
     def test_zernike_index_array(self):
-        ab4 = BasisPolynomial([0, 2, 1, 4])
-        ab22 = BasisPolynomial([[0, 2], [1, 4]])
+        ab4 = PolynomialBasis([0, 2, 1, 4])
+        ab22 = PolynomialBasis([[0, 2], [1, 4]])
 
         npt.assert_equal(ab4.name, '[piston, tip, tilt, defocus]')
         npt.assert_equal(ab22.name, '[[piston, tip], [tilt, defocus]]')
@@ -124,9 +184,52 @@ class TestPolynomial(unittest.TestCase):
                                       'Array of aberrations failed at (rho, theta)=(1, pi/2)',
                                       )
 
-    def test_error(self):
+    def test_setters(self):
+        b = Polynomial([1])
+        b.coefficients[0] = -2
+        npt.assert_array_equal(b.coefficients, [-2])
+        npt.assert_array_equal(b.indices, [0])
+        npt.assert_equal(str(b), '-2Z₀⁰')
+        npt.assert_equal(repr(b), f'Polynomial(coefficients={b.coefficients}, indices={b.indices})')
+
+        b.indices = 4
+        npt.assert_array_equal(b.indices, [4])
+        npt.assert_array_equal(b.n, [2])
+        npt.assert_array_equal(b.m, [0])
+        npt.assert_array_equal(b.coefficients, [-2])
+        npt.assert_equal(str(b), '-2Z₂⁰')
+        npt.assert_equal(repr(b), f'Polynomial(coefficients={b.coefficients}, indices={b.indices})')
+
+        b.n = 1
+        b.m = -1
+        npt.assert_array_equal(b.n, [1])
+        npt.assert_array_equal(b.m, [-1])
+        npt.assert_array_equal(b.indices, [1])
+        npt.assert_array_equal(b.coefficients, [-2])
+        npt.assert_equal(str(b), '-2Z₁⁻¹')
+
+        b.n = 2
+        b.m = 0
+        b.coefficients = 3
+        npt.assert_array_equal(b.n, [2])
+        npt.assert_array_equal(b.m, [0])
+        npt.assert_array_equal(b.indices, [4])
+        npt.assert_array_equal(b.coefficients, [3])
+        npt.assert_equal(str(b), '3Z₂⁰')
+
+        b2 = Polynomial([0, 0, 0, 1, 2, 3])
+        npt.assert_array_equal(b2.indices, np.arange(6))
+        npt.assert_array_equal(b2.coefficients, [0, 0, 0, 1, 2, 3])
+        npt.assert_equal(str(b2), 'Z₂⁻²+2Z₂⁰+3Z₂²')
+
+        b0 = Polynomial(0)
+        npt.assert_equal(str(b0), '0')
+        b0 = Polynomial([])
+        npt.assert_equal(str(b0), '0')
+
+    def test_value_error(self):
         with npt.assert_raises(ValueError):
-            BasisPolynomial(2, 0)
+            PolynomialBasis(2, 0)
 
     def test_zernike_superposition(self):
         test_args = [(0, 0), (1, 0), (-1, 0), (1, np.pi), (1, np.pi/2), (1, np.pi/4), (0.5, 0.0), (0.5, np.pi/8)]
@@ -136,7 +239,7 @@ class TestPolynomial(unittest.TestCase):
         npt.assert_array_equal(s.coefficients, test_coefficients)
         assert s.order == 4, f'Zernike superposition polynomial order incorrect for {s}.'
         npt.assert_array_equal(s.indices, np.arange(len(test_coefficients)))
-        bs = lambda rho, phi: sum(c * BasisPolynomial(_)(rho, phi) for _, c in enumerate(test_coefficients))
+        bs = lambda rho, phi: sum(c * PolynomialBasis(_)(rho, phi) for _, c in enumerate(test_coefficients))
 
         for args in test_args:
             npt.assert_array_equal(s(*args), bs(*args), err_msg=f'Failed at point (rho, phi) = {args}')
@@ -153,45 +256,87 @@ class TestPolynomial(unittest.TestCase):
         assert s2.order == 5, f'Zernike superposition polynomial order incorrect for {s2} with indices {test_indices}.'
         npt.assert_array_equal(s2.coefficients, test_coefficients)
         npt.assert_array_equal(s2.indices, test_indices)
-        bs2 = lambda rho, phi: sum(c * BasisPolynomial(test_indices[_])(rho, phi)
+        bs2 = lambda rho, phi: sum(c * PolynomialBasis(test_indices[_])(rho, phi)
                                    for _, c in enumerate(test_coefficients)
                                    )
 
         for args in test_args:
             npt.assert_array_equal(s2(*args), bs2(*args), err_msg=f'Failed at point (rho, phi) = {args}')
 
+    def test_arithmetic(self):
+        b = Polynomial(3)
+        npt.assert_array_equal(b.coefficients, 3)
+        b = b + 4
+        npt.assert_array_equal(b.coefficients, 7)
+        b = b + b
+        npt.assert_array_equal(b.coefficients, 14)
+        b += 6
+        npt.assert_array_equal(b.coefficients, 20)
+        b = 10 + b
+        npt.assert_array_equal(b.coefficients, 30)
+        b = 3.3 + b
+        npt.assert_array_equal(b.coefficients, 33.3)
+
+        b = Polynomial(3)
+        b -= 2
+        npt.assert_array_equal(b.coefficients, 1)
+        b *= 5
+        npt.assert_array_equal(b.coefficients, 5)
+        b /= 2
+        npt.assert_array_equal(b.coefficients, 2.5)
+
+        b = Polynomial([2, 3, 4], indices=[3, 4, 5])
+        npt.assert_array_equal(b.coefficients, [2, 3, 4])
+        b *= 2
+        npt.assert_array_equal(b.coefficients, [4, 6, 8])
+        b += 2
+        npt.assert_array_equal(b.indices, [0, 3, 4, 5])
+        npt.assert_array_equal(b.coefficients, [2, 4, 6, 8])
+
     def test_zernike_fit_cartesian(self):
         rng = np.linspace(-1, 1, 32)
         y, x = rng[:, np.newaxis], rng[np.newaxis, :]
 
-        piston = BasisPolynomial(0)
-        f = fit(z=piston.cartesian(y=y, x=x), y=y, x=x, order=5)
+        piston = PolynomialBasis(0)
+        f = Fit(z=piston.cartesian(y=y, x=x), y=y, x=x, order=5)
         npt.assert_array_almost_equal(f.coefficients, np.array([1, 0, 0, 0, 0]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
+        # npt.assert_array_almost_equal(f.error, 0, decimal=10)  # FIXME
 
-        defocus = BasisPolynomial(4)
-        f = fit(z=defocus.cartesian(y=y, x=x), y=y, x=x, order=5)
+        defocus = PolynomialBasis(4)
+        f = Fit(z=defocus.cartesian(y=y, x=x), y=y, x=x, order=5)
         npt.assert_array_almost_equal(f.coefficients, np.array([0, 0, 0, 0, 1]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
 
         s = Polynomial([4, 3, 2, 0, 1])
-        f = fit(z=s.cartesian(y=y, x=x), y=y, x=x, order=5)
+        f = Fit(z=s.cartesian(y=y, x=x), y=y, x=x, order=5)
         npt.assert_array_almost_equal(f.coefficients, np.array([4, 3, 2, 0, 1]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
+
+        piston = PolynomialBasis(0)
+        f = Fit(z=piston.cartesian(y=y, x=x), order=5)
+        npt.assert_array_almost_equal(f.coefficients, np.array([1, 0, 0, 0, 0]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
 
     def test_zernike_fit_polar(self):
         nb_subdivisions = 32
         rho = np.linspace(0, 1, nb_subdivisions)[:, np.newaxis]
         phi = np.linspace(-np.pi, np.pi, nb_subdivisions + 1, endpoint=False)[np.newaxis, :]
 
-        piston = BasisPolynomial(0)
-        f = fit(z=piston(rho=rho, phi=phi), rho=rho, phi=phi, order=5)
+        piston = PolynomialBasis(0)
+        f = Fit(z=piston(rho=rho, phi=phi), rho=rho, phi=phi, order=5)
         npt.assert_array_almost_equal(f.coefficients, np.array([1, 0, 0, 0, 0]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
 
-        defocus = BasisPolynomial(4)
-        f = fit(z=defocus(rho=rho, phi=phi), rho=rho, phi=phi, order=5)
+        defocus = PolynomialBasis(4)
+        f = Fit(z=defocus(rho=rho, phi=phi), rho=rho, phi=phi, order=5)
         npt.assert_array_almost_equal(f.coefficients, np.array([0, 0, 0, 0, 1]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
 
         s = Polynomial([4, 3, 2, 0, 1])
-        f = fit(z=s(rho=rho, phi=phi), rho=rho, phi=phi, order=5)
+        f = Fit(z=s(rho=rho, phi=phi), rho=rho, phi=phi, order=5)
         npt.assert_array_almost_equal(f.coefficients, np.array([4, 3, 2, 0, 1]), decimal=8)
+        npt.assert_equal(str(f), f'Fit({f.coefficients})')
 
 
 class TestIndexConversion(unittest.TestCase):

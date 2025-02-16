@@ -22,7 +22,7 @@ import numpy as np
 
 from zmxtools import log, parser
 from zmxtools.optical_design import material
-from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray, to_length
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray, to_length
 from zmxtools.utils.io import FileLike, PathLike
 
 __all__ = ['AgfMaterialLibrary',
@@ -176,7 +176,7 @@ class AgfMixin:
     command: parser.Command
 
     name: str
-    wavenumber_limits: array_type[SCALAR_TYPE]
+    wavenumber_limits: array_type[SCALAR_TYPEVAR]
     description: str
     density: float  # in kg / m^3
     glass_code: str
@@ -184,9 +184,9 @@ class AgfMixin:
     ignore_thermal_expansion: bool
     resistance: material.MaterialResistance
 
-    permittivity_coefficients: array_type[SCALAR_TYPE]
-    specified_wavenumber_transmission_thickness: array_type[SCALAR_TYPE]
-    thermal_coefficients: array_type[SCALAR_TYPE]
+    permittivity_coefficients: array_type[SCALAR_TYPEVAR]
+    specified_wavenumber_transmission_thickness: array_type[SCALAR_TYPEVAR]
+    thermal_coefficients: array_type[SCALAR_TYPEVAR]
 
     def __init__(self, command: parser.Command):
         """
@@ -250,10 +250,10 @@ class AgfMixin:
 
     def adjust_refractive_index_function(
         self,
-        refractive_index_at_reference_function: Callable[[array_type[SCALAR_TYPE]], array_type[SCALAR_TYPE]],
-        wavenumber: array_type[SCALAR_TYPE],
-        temperature: array_type[SCALAR_TYPE], pressure: array_type[SCALAR_TYPE],
-    ) -> array_type[SCALAR_TYPE]:
+        refractive_index_at_reference_function: Callable[[array_type[SCALAR_TYPEVAR]], array_type[SCALAR_TYPEVAR]],
+        wavenumber: array_type[SCALAR_TYPEVAR],
+        temperature: array_type[SCALAR_TYPEVAR], pressure: array_type[SCALAR_TYPEVAR],
+    ) -> array_type[SCALAR_TYPEVAR]:
         """
         An auxiliary method that returns the complex refractive index function.
 
@@ -307,7 +307,7 @@ class AgfMixin:
             transmission = lambda _: np.ones_like(_.real)
             transmission_thickness = lambda _: np.ones_like(_.real)
 
-        def extinction_coefficient(k: array_like[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
+        def extinction_coefficient(k: array_like[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
             """Determine the extinction coefficient from the wavenumber, transmission, and thickness."""
             return -0.5 / k * np.log(transmission(k)) / transmission_thickness(k)
 
@@ -329,8 +329,8 @@ class SchottAgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the Schott formula."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 1 with relative permittivity.
@@ -357,8 +357,8 @@ class Sellmeier1AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the first Sellmeier formula."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 2 with relative permittivity.
@@ -388,8 +388,8 @@ class Sellmeier2AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the 2nd Sellmeier formula."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 4 with relative permittivity.
@@ -436,8 +436,8 @@ class Sellmeier4AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the 4th Sellmeier formula."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 9 with relative permittivity.
@@ -474,8 +474,8 @@ class HerzbergerAgfMaterial(AgfMixin, material.FunctionMaterial):
     """A class to represent materials that are described by the Herzberger formula."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 3 (Herzberger).
@@ -494,7 +494,7 @@ class HerzbergerAgfMaterial(AgfMixin, material.FunctionMaterial):
         """
         AgfMixin.__init__(self, command)
 
-        def refractive_index_at_reference_function(wavenumber: array_type[SCALAR_TYPE]) -> array_type[SCALAR_TYPE]:
+        def refractive_index_at_reference_function(wavenumber: array_type[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
             """The refractive index at the reference temperature and pressure, as a function of wavenumber."""
             wavelength_um = 2 * np.pi / wavenumber / 1e-6
             wavelength_um2 = wavelength_um ** 2
@@ -525,8 +525,8 @@ class ConradyAgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the Conrady formula."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 5 with reference refractive index.
@@ -556,8 +556,8 @@ class HandbookOfOptics1AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 7 with relative permittivity.
@@ -589,8 +589,8 @@ class HandbookOfOptics2AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the second equation given in the Handbook of Optics."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material using AGF formula 8 with relative permittivity.
@@ -622,8 +622,8 @@ class Extended1AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the Extended1 equation."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material with formula 10 with relative permittivity.
@@ -654,8 +654,8 @@ class Extended2AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the Extended2 equation."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material with formula 12 with relative permittivity.
@@ -684,8 +684,8 @@ class Extended3AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the Extended3 equation."""
 
     def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPE]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPE]] = None,
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         r"""
         Construct a material with formula 13 with relative permittivity.

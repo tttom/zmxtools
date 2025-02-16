@@ -3,11 +3,11 @@ A module to convert :ph:class:``numpy.ndarray``s between Cartesian and polar coo
 """
 import numpy as np
 
-from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray
 
 
-def cart2pol(y: array_like[SCALAR_TYPE], x: array_like[SCALAR_TYPE],
-             ) -> tuple[array_type[SCALAR_TYPE], array_type[SCALAR_TYPE]]:
+def cart2pol(y: array_like[SCALAR_TYPEVAR], x: array_like[SCALAR_TYPEVAR],
+             ) -> tuple[array_type[SCALAR_TYPEVAR], array_type[SCALAR_TYPEVAR]]:
     """
     Convert Cartesian coordinates to polar coordinates.
 
@@ -24,8 +24,8 @@ def cart2pol(y: array_like[SCALAR_TYPE], x: array_like[SCALAR_TYPE],
     return rho, phi
 
 
-def pol2cart(rho: array_like[SCALAR_TYPE], phi: array_like[SCALAR_TYPE],
-             ) -> tuple[array_type[SCALAR_TYPE], array_type[SCALAR_TYPE]]:
+def pol2cart(rho: array_like[SCALAR_TYPEVAR], phi: array_like[SCALAR_TYPEVAR],
+             ) -> tuple[array_type[SCALAR_TYPEVAR], array_type[SCALAR_TYPEVAR]]:
     """
     Convert polar coordinates to Cartesian coordinates.
 

@@ -6,7 +6,7 @@ import numpy as np
 
 from zmxtools.optical_design import log
 from zmxtools.optical_design.geometry import IDENTITY, Positionable, Transform
-from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray
 
 log = log.getChild(__name__)
 
@@ -15,10 +15,10 @@ class Wavefront(Positionable):
     """A representation of a wavefront (or collection thereof) as a collection of rays."""
 
     def __init__(self,
-                 electric_field: array_like[SCALAR_TYPE], magnetizing_field: array_like[SCALAR_TYPE],
-                 position: array_like[SCALAR_TYPE] = 0,
-                 k: Optional[array_like[SCALAR_TYPE]] = None, direction: Optional[array_like[SCALAR_TYPE]] = None,
-                 k0: Optional[array_like[SCALAR_TYPE]] = None, ct: array_like[SCALAR_TYPE] = 0,
+                 electric_field: array_like[SCALAR_TYPEVAR], magnetizing_field: array_like[SCALAR_TYPEVAR],
+                 position: array_like[SCALAR_TYPEVAR] = 0,
+                 k: Optional[array_like[SCALAR_TYPEVAR]] = None, direction: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 k0: Optional[array_like[SCALAR_TYPEVAR]] = None, ct: array_like[SCALAR_TYPEVAR] = 0,
                  transform: Transform = IDENTITY,
                  ):
         """
@@ -56,22 +56,22 @@ class Wavefront(Positionable):
         return self
 
     @property
-    def position(self) -> array_type[SCALAR_TYPE]:
+    def position(self) -> array_type[SCALAR_TYPEVAR]:
         """The relative position of the definition of each ray."""
         return self.__transform.point(position=self.__p, coordinate=self.__p)
 
     @property
-    def k(self) -> array_type[SCALAR_TYPE]:
+    def k(self) -> array_type[SCALAR_TYPEVAR]:
         """The relative local wavevector: ||k|| / k0 = n."""
         return self.__transform.vector(vector=self.__k, coordinate=self.__p)
 
     @property
-    def direction(self) -> array_type[SCALAR_TYPE]:
+    def direction(self) -> array_type[SCALAR_TYPEVAR]:
         """The relative ray direction, which can be different from k for anisotropic materials."""
         return self.__transform.vector(vector=self.__d, coordinate=self.__p)
 
     @property
-    def electric_field(self) -> array_type[SCALAR_TYPE]:
+    def electric_field(self) -> array_type[SCALAR_TYPEVAR]:
         """
         Electric field density, E, in the local coordinate system.
 
@@ -80,7 +80,7 @@ class Wavefront(Positionable):
         return self.__transform.vector(vector=self.__E, coordinate=self.__p)
 
     @property
-    def magnetizing_field(self) -> array_type[SCALAR_TYPE]:
+    def magnetizing_field(self) -> array_type[SCALAR_TYPEVAR]:
         """
         The magnetizing field, H, density in the local coordinate system.
 
@@ -89,7 +89,7 @@ class Wavefront(Positionable):
         return self.__transform.vector(vector=self.__H, coordinate=self.__p)
 
     @property
-    def shape(self) -> array_type[SCALAR_TYPE]:
+    def shape(self) -> array_type[SCALAR_TYPEVAR]:
         """The shape of the ray bundle that makes up the wavefront."""
         return asarray(np.broadcast_shapes(self.electric_field.shape[:-1], self.magnetizing_field.shape[:-1],
                                            self.position.shape[:-1], self.k.shape[:-1], self.direction.shape[:-1],
@@ -109,7 +109,7 @@ class Wavefront(Positionable):
         return self.shape.size
 
     @property
-    def refractive_index(self) -> array_type[SCALAR_TYPE]:
+    def refractive_index(self) -> array_type[SCALAR_TYPEVAR]:
         """The local real refractive index for each ray's wavelength, position, E, and H."""
         return np.linalg.norm(self.k) / self.k0
 
@@ -155,7 +155,7 @@ class LightPath(Positionable):
         self.__wavefronts.append(wavefront)
         return self
 
-    def propagate(self, distance: array_like[SCALAR_TYPE]) -> LightPath:
+    def propagate(self, distance: array_like[SCALAR_TYPEVAR]) -> LightPath:
         """
         Append a new wavefront that is propagated further by the specified distance (in units of  d ).
 
@@ -174,9 +174,9 @@ class LightPath(Positionable):
         )
 
     def interact(self,
-                 electric_field: Optional[array_like[SCALAR_TYPE]] = None,
-                 magnetizing_field: Optional[array_like[SCALAR_TYPE]] = None,
-                 k: Optional[array_like[SCALAR_TYPE]] = None, direction: Optional[array_like[SCALAR_TYPE]] = None,
+                 electric_field: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 magnetizing_field: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 k: Optional[array_like[SCALAR_TYPEVAR]] = None, direction: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ) -> LightPath:
         """
         Append a new wavefront at the same position, p, but with different k, E, and H vectors.

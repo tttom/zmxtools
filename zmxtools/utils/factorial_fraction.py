@@ -1,11 +1,11 @@
 import numpy as np
 
-from zmxtools.utils.array import INTEGER_TYPE, array_like, array_type, asarray, to_length
+from zmxtools.utils.array import NP_FLOAT_TYPE, NP_INT_TYPE, array_like, array_type, asarray, to_length
 
 
-def factorial_fraction(numerator: array_like[INTEGER_TYPE] = 0,
-                       denominator: array_like[INTEGER_TYPE] = 0,
-                       ) -> array_type[INTEGER_TYPE]:
+def factorial_fraction(numerator: array_like[NP_INT_TYPE] = 0,
+                       denominator: array_like[NP_INT_TYPE] = 0,
+                       ) -> array_type[NP_INT_TYPE]:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -31,9 +31,9 @@ def factorial_fraction(numerator: array_like[INTEGER_TYPE] = 0,
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: tuple[array_like[INTEGER_TYPE]] | int = 1,
-                               denominators: tuple[array_like[INTEGER_TYPE]] | int = 1,
-                               ) -> array_type[INTEGER_TYPE]:
+def factorial_product_fraction(numerators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
+                               denominators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
+                               ) -> array_type[NP_FLOAT_TYPE]:
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -50,24 +50,24 @@ def factorial_product_fraction(numerators: tuple[array_like[INTEGER_TYPE]] | int
         denominators = (denominators, )
 
     max_numerator = 1
-    data_shape = np.array((), dtype=np.uint32)
+    data_shape: array_type[NP_INT_TYPE] = asarray((), dtype=int)
     for n in numerators:
-        n = np.array(n)
-        if n.size > 0:
-            max_numerator = np.maximum(max_numerator, np.max(n))
-            # Expand data_shape so it encompasses all arguments
-            if n.ndim > data_shape.size:
-                data_shape = to_length(data_shape, n.ndim, 0)
-            data_shape = np.maximum(data_shape, np.array(n.shape, dtype=int))
+        n_arr: array_type[NP_INT_TYPE] = asarray(n)
+        if n_arr.size > 0:
+            max_numerator = np.maximum(max_numerator, np.amax(n_arr))
+            # Expand data_shape so that it encompasses all arguments
+            if n_arr.ndim > data_shape.size:
+                data_shape = to_length(data_shape, n_arr.ndim, 0)
+            data_shape = np.maximum(data_shape, n_arr.shape)
     max_denominator = 1
     for d in denominators:
-        d = np.array(d)
-        if d.size > 0:
-            max_denominator = np.maximum(max_denominator, np.amax(d))
+        d_arr: array_type[NP_INT_TYPE] = asarray(d)
+        if d_arr.size > 0:
+            max_denominator = np.maximum(max_denominator, np.amax(d_arr))
             # Expand data_shape so it encompasses all arguments
-            if d.ndim > data_shape.size:
-                data_shape = to_length(data_shape, d.ndim, 0)
-            data_shape = np.maximum(data_shape, np.array(d.shape, dtype=int))
+            if d_arr.ndim > data_shape.size:
+                data_shape = to_length(data_shape, d_arr.ndim, 0)
+            data_shape = np.maximum(data_shape, d_arr.shape)
 
     # Check if we should better do this as the inverse fraction and revert it at the end
     inverse_calculation = max_denominator > max_numerator
@@ -76,7 +76,7 @@ def factorial_product_fraction(numerators: tuple[array_like[INTEGER_TYPE]] | int
         max_numerator, max_denominator = max_denominator, max_numerator
 
     # Do the calculation starting from all 2! factors
-    result = np.ones(shape=data_shape, dtype=float)
+    result: array_type[NP_FLOAT_TYPE] = np.ones(shape=data_shape, dtype=float)
 
     # Multiply only the factors that don't cancel on both sides of the fraction
     for idx in np.arange(2, 1 + np.maximum(max_numerator, max_denominator)):
@@ -85,7 +85,7 @@ def factorial_product_fraction(numerators: tuple[array_like[INTEGER_TYPE]] | int
         numerator_idx_factors -= sum((idx <= np.asarray(_)) for _ in numerators)
         result *= np.array(idx, dtype=float) ** numerator_idx_factors
 
-    result = result.reshape(data_shape)
+    result = result.reshape(tuple(data_shape))
 
     if inverse_calculation:
         result = 1.0 / result
