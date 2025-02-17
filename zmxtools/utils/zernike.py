@@ -26,23 +26,30 @@ from __future__ import annotations
 
 from collections import defaultdict
 from math import prod
-from typing import Dict, TypeVar, assert_type
+from typing import Dict, assert_type
 
 import numpy as np
 
-from zmxtools.utils import script
-from zmxtools.utils.array import (FLOAT_TYPE, INT_TYPE, NP_COMPLEX_TYPE, NP_FLOAT_TYPE, NP_INT_TYPE,
-                                  array_like, array_type, asarray)
+from zmxtools.utils import log, script
+from zmxtools.utils.array import (
+    FLOAT_TYPE,
+    INT_TYPE,
+    NP_COMPLEX_TYPE,
+    NP_FLOAT_TYPE,
+    NP_INT_TYPE,
+    array_like,
+    array_type,
+    asarray,
+)
 from zmxtools.utils.factorial_fraction import factorial_product_fraction
 from zmxtools.utils.polar import cart2pol
-from zmxtools.utils import log
 
 log = log.getChild(__name__)
 
 __all__ = ['index2orders', 'orders2index',
            'noll2orders', 'orders2noll', 'index2noll', 'noll2index',
            'fringe2orders', 'orders2fringe', 'index2fringe', 'fringe2index',
-           'PolynomialBasis', 'Polynomial', 'Fit', 'fit',
+           'PolynomialBasis', 'Polynomial', 'Fit',
            'piston',
            'tip', 'tilt',
            'oblique_astigmatism', 'defocus', 'vertical_astigmatism',
@@ -53,9 +60,9 @@ __all__ = ['index2orders', 'orders2index',
 
 def index2orders(index: array_like[NP_INT_TYPE]) -> tuple[array_type[NP_INT_TYPE], array_type[NP_INT_TYPE]]:
     """
-    Converts Zernike indices, js > 0, to a tuple (radial degree m, azimuthal frequency n), for which 0 <= m <= n.
+    Converts Zernike indices, j > 0, to a tuple (radial degree m, azimuthal frequency n), for which 0 <= m <= n.
 
-    When multiple values are specified, m and n will have the same shape as the input js.
+    When multiple values are specified, m and n will have the same shape as the input indices, j.
 
     The standard OSA/ANSI ordering starts at 0. https://en.wikipedia.org/wiki/Zernike_polynomials
 
@@ -462,72 +469,6 @@ class PolynomialBasis:
 
         return get_name_recursive(self.n, self.m)
 
-    @staticmethod  # TODO: may need caching
-    def __polynomial_r_static(n: array_type[NP_INT_TYPE], m: array_type[NP_INT_TYPE],
-                              rho: array_type[NP_FLOAT_TYPE],
-                              ) -> array_type[NP_FLOAT_TYPE]:
-        """
-        Calculate the radial polynomial, for all rho in a matrix.
-
-        Prerequisites: m >= 0, rho >= 0, mod(n - m, 2) == 0
-        Output: a matrix of the same shape as rho, or the multidimensional 0 indicating an all zero result in case
-        the difference n - m is odd.
-
-        :param n: A non-negative integer or array_like[NP_INT_TYPE] indicating the radial order.
-        :param m: An integer or array_like[NP_INT_TYPE] indicating the azimuthal order.
-        :param rho: An nd-array with the radial distances. Non-negativeness is enforced.
-
-        :return: The polynomial values in an nd-array of the same shape as rho, but broadcasted with n and m.
-        """
-        n_m_dim: int = n.ndim
-
-        # Expand the output to the shape of that of rho_i broadcasted with n and m
-        if rho.ndim < 1:
-            rho = rho[..., np.newaxis]
-        output_shape = (*rho.shape[:rho.ndim - n_m_dim], *np.maximum(np.array(n.shape),
-                                                                     np.array(rho.shape[rho.ndim - n_m_dim:]),
-                                                                     ))
-        calculation_shape = (*output_shape[:len(output_shape) - n_m_dim],
-                             prod(output_shape[len(output_shape) - n_m_dim:]),
-                             )
-        rho = np.broadcast_to(rho, shape=output_shape)
-
-        # Start with the first n_m_dim dimensions flattened
-        result = np.zeros(shape=calculation_shape)
-        rho = np.reshape(rho, shape=calculation_shape)
-        for idx in range(n.size):
-            n_i: int = int(n.ravel()[idx])
-            m_i: int = int(m.ravel()[idx])
-            rho_i = rho[..., idx]
-            if (n_i - m_i) % 2 == 0:  # Skip odd differences, for these the result is zero.
-                hd = (n_i - m_i) // 2
-                hs = (n_i + m_i) // 2
-                rho_pow = rho_i ** m_i
-                rho_sqd = rho_i ** 2
-
-                coefficients = (-1) ** hd * factorial_product_fraction(hs, (hd, m_i))
-                result[..., idx] = coefficients * rho_pow
-                for k in range(hd - 1, -1, -1):  # note the coefficients are from small powers to large
-                    rho_pow *= rho_sqd  # For speedup: rho_pow = rho_i ** (n_i - 2 * coefficients)
-                    coefficients *= - (n_i - k) * (k + 1) / (hs - k) / (hd - k)
-                    result[..., idx] += coefficients * rho_pow
-
-        return result.reshape(output_shape)
-
-    def __polynomial_r(self, rho: array_type[NP_FLOAT_TYPE]):
-        """
-        Calculate the radial polynomial component, for all rho in a matrix.
-
-        prerequisites: m >= 0, rho >= 0, mod(n - m, 2) == 0
-        Output: a matrix of the same shape as rho, or the multidimensional 0 indicating an all zero result in case the
-        difference n - m is odd.
-
-        :param rho: An nd-array with the radial distances. This array must have singleton. Non negativeness is enforced.
-
-        :return: The polynomial values in an nd-array of the same shape as rho, but broadcasted with n and m.
-        """
-        return self.__polynomial_r_static(self.n, np.abs(self.m), np.abs(rho))
-
     def polar(self, rho: array_like[NP_FLOAT_TYPE] = 0, phi: array_like[NP_FLOAT_TYPE] = 0,
               ) -> array_type[NP_FLOAT_TYPE]:
         """
@@ -620,6 +561,72 @@ class PolynomialBasis:
         """Return a representation of this polynomial as a string."""
         return f'{self.__class__.__name__}({self.index}) = {self.name}'
 
+    @staticmethod  # TODO: may need caching
+    def __polynomial_r_static(n: array_type[NP_INT_TYPE], m: array_type[NP_INT_TYPE],
+                              rho: array_type[NP_FLOAT_TYPE],
+                              ) -> array_type[NP_FLOAT_TYPE]:
+        """
+        Calculate the radial polynomial, for all rho in a matrix.
+
+        Prerequisites: m >= 0, rho >= 0, mod(n - m, 2) == 0
+        Output: a matrix of the same shape as rho, or the multidimensional 0 indicating an all zero result in case
+        the difference n - m is odd.
+
+        :param n: A non-negative integer or array_like[NP_INT_TYPE] indicating the radial order.
+        :param m: An integer or array_like[NP_INT_TYPE] indicating the azimuthal order.
+        :param rho: An nd-array with the radial distances. Non-negativeness is enforced.
+
+        :return: The polynomial values in an nd-array of the same shape as rho, but broadcasted with n and m.
+        """
+        n_m_dim: int = n.ndim
+
+        # Expand the output to the shape of that of rho_i broadcasted with n and m
+        if rho.ndim < 1:
+            rho = rho[..., np.newaxis]
+        output_shape = (*rho.shape[:rho.ndim - n_m_dim], *np.maximum(np.array(n.shape),
+                                                                     np.array(rho.shape[rho.ndim - n_m_dim:]),
+                                                                     ))
+        calculation_shape = (*output_shape[:len(output_shape) - n_m_dim],
+                             prod(output_shape[len(output_shape) - n_m_dim:]),
+                             )
+        rho = np.broadcast_to(rho, shape=output_shape)
+
+        # Start with the first n_m_dim dimensions flattened
+        result = np.zeros(shape=calculation_shape)
+        rho = np.reshape(rho, shape=calculation_shape)
+        for idx in range(n.size):
+            n_i: int = int(n.ravel()[idx])
+            m_i: int = int(m.ravel()[idx])
+            rho_i = rho[..., idx]
+            if (n_i - m_i) % 2 == 0:  # Skip odd differences, for these the result is zero.
+                hd = (n_i - m_i) // 2
+                hs = (n_i + m_i) // 2
+                rho_pow = rho_i ** m_i
+                rho_sqd = rho_i ** 2
+
+                coefficients = (-1) ** hd * factorial_product_fraction(hs, (hd, m_i))
+                result[..., idx] = coefficients * rho_pow
+                for k in range(hd - 1, -1, -1):  # note the coefficients are from small powers to large
+                    rho_pow *= rho_sqd  # For speedup: rho_pow = rho_i ** (n_i - 2 * coefficients)
+                    coefficients *= - (n_i - k) * (k + 1) / (hs - k) / (hd - k)
+                    result[..., idx] += coefficients * rho_pow
+
+        return result.reshape(output_shape)
+
+    def __polynomial_r(self, rho: array_type[NP_FLOAT_TYPE]):
+        """
+        Calculate the radial polynomial component, for all rho in a matrix.
+
+        prerequisites: m >= 0, rho >= 0, mod(n - m, 2) == 0
+        Output: a matrix of the same shape as rho, or the multidimensional 0 indicating an all zero result in case the
+        difference n - m is odd.
+
+        :param rho: An nd-array with the radial distances. This array must have singleton. Non negativeness is enforced.
+
+        :return: The polynomial values in an nd-array of the same shape as rho, but broadcasted with n and m.
+        """
+        return self.__polynomial_r_static(self.n, np.abs(self.m), np.abs(rho))
+
 
 # Some definitions for convenience. For more names, check the PolynomialBasis.name property.
 piston = PolynomialBasis(n=0, m=0)
@@ -655,9 +662,37 @@ class Polynomial:
         self.__polynomial_basis: PolynomialBasis = PolynomialBasis(
             index=np.atleast_1d(
                 asarray(indices) if indices is not None
-                else np.arange(self.__coefficients.size).reshape(self.__coefficients.shape)
+                else np.arange(self.__coefficients.size).reshape(self.__coefficients.shape),
             ),
         )
+
+    def __call__(self,
+                 rho: array_like[NP_FLOAT_TYPE] | array_like[NP_COMPLEX_TYPE] | None = None,
+                 phi: array_like[NP_FLOAT_TYPE] | None = None,
+                 y: array_like[NP_FLOAT_TYPE] | None = None,
+                 x: array_like[NP_FLOAT_TYPE] | None = None,
+                 ) -> array_type[NP_FLOAT_TYPE]:
+        """
+        Evaluate this polynomial at polar, cartesian, or complex coordinates.
+
+        When neither rho or phi are specified, Carthesian coordinates are assumed.
+        When rho is specified, but not phi, rho is assumed to contain complex coordinates.
+        When both rho and phi are specified, polar coordinates are assumed.
+
+        :param rho: The radial coordinate between 0 and 1, or complex Argand-diagram coordinates.
+        :param phi: The angular coordinate in radians.
+        :param y: The vertical coordinate between -1 and 1.
+        :param x: The horizontal coordinate between -1 and 1.
+
+        :return: The value of the polynomial at the specified coordinates.
+        """
+        if rho is None:
+            assert x is not None, 'Either x and y, or rho must be specified; however, rho and x are not specified.'
+            assert y is not None, 'Either x and y, or rho must be specified; however, rho and y are not specified.'
+            return self.cartesian(y=y, x=x)
+        if phi is None:
+            return self.complex(z=rho)
+        return self.polar(rho=asarray(rho).real, phi=phi)
 
     @property
     def basis(self) -> PolynomialBasis:
@@ -752,33 +787,6 @@ class Polynomial:
         """
         return self.cartesian(y=asarray(z, complex).imag, x=asarray(z, complex).real)
 
-    def __call__(self,
-                 rho: array_like[NP_FLOAT_TYPE] | array_like[NP_COMPLEX_TYPE] | None = None,
-                 phi: array_like[NP_FLOAT_TYPE] | None = None,
-                 y: array_like[NP_FLOAT_TYPE] | None = None,
-                 x: array_like[NP_FLOAT_TYPE] | None = None,
-                 ) -> array_type[NP_FLOAT_TYPE]:
-        """
-        Evaluate this polynomial at polar, cartesian, or complex coordinates.
-
-        When neither rho or phi are specified, Carthesian coordinates are assumed.
-        When rho is specified, but not phi, rho is assumed to contain complex coordinates.
-        When both rho and phi are specified, polar coordinates are assumed.
-
-        :param rho: The radial coordinate between 0 and 1, or complex Argand-diagram coordinates.
-        :param phi: The angular coordinate in radians.
-        :param y: The vertical coordinate between -1 and 1.
-        :param x: The horizontal coordinate between -1 and 1.
-
-        :return: The value of the polynomial at the specified coordinates.
-        """
-        if rho is None:
-            assert x is not None and y is not None, 'Either x and y, or rho must be specified.'
-            return self.cartesian(y=y, x=x)
-        if phi is None:
-            return self.complex(z=rho)
-        return self.polar(rho=asarray(rho).real, phi=phi)
-
     def __add__(self, other: FLOAT_TYPE | Polynomial) -> Polynomial:
         """
         Return a polynomial that represents the sum of this and another polynomial.
@@ -788,13 +796,11 @@ class Polynomial:
         if not isinstance(other, Polynomial):
             other = piston * other
         assert_type(other, Polynomial)
-        # DICT_TYPE = Dict[array_like[NP_INT_TYPE], array_like[NP_FLOAT_TYPE] | array_like[NP_COMPLEX_TYPE]]
         new_coefficients: Dict[int, float] = defaultdict(float)
         for _, c in zip(self.indices, self.coefficients):
             new_coefficients[int(_)] = float(c.item())  # copy
         for _, d in zip(other.indices, other.coefficients):
-            _ = int(_)
-            new_coefficients[_] += float(d)  # add
+            new_coefficients[int(_)] += float(d)  # add
         combined_indices = sorted(new_coefficients.keys())
         combined_coefficients = [new_coefficients[ci] for ci in combined_indices]
         return Polynomial(coefficients=combined_coefficients, indices=combined_indices)
@@ -1007,39 +1013,3 @@ class Fit(Polynomial):
     def __str__(self) -> str:
         """The representation of this object as a string."""
         return f'{self.__class__.__name__}({self.coefficients})'
-
-
-def fit(z: array_like[NP_FLOAT_TYPE],
-        y: array_like[NP_FLOAT_TYPE] | None = None,
-        x: array_like[NP_FLOAT_TYPE] | None = None,
-        rho: array_like[NP_FLOAT_TYPE] | None = None,
-        phi: array_like[NP_FLOAT_TYPE] | None = None,
-        weight: array_like[NP_FLOAT_TYPE] | None = None,
-        order: INT_TYPE = 15,
-        ) -> Fit:
-    """
-    Fits Zernike polynomial up to the given order and returns a Fit object.
-
-    TODO: Remove this function as it does not seem to give any benefit over using the Fit class directly.
-
-    The fit object holds the coefficients, the polynomial, and the fitting error.
-
-    See also the :py:class:``Fit`` class.
-
-    :param z: The real function to fit, as an nd-array where the right-most dimensions are indexed by
-            either ``x`` and ``y`` or by ``rho`` and ``phi``.
-    :param y: The second Cartesian coordinate, which must broadcast with ``z`` and can be up to 2-dimensional.
-        Default: covering the range [-1, 1)
-    :param x: The first Cartesian coordinate, which must broadcast with ``z`` and can be up to 2-dimensional.
-        Default: covering the range [-1, 1)
-    :param rho: Alternative radial coordinate when not using Cartesian coordinates, which must broadcast with
-        ``z`` and can be up to 2-dimensional.
-    :param phi: Alternative azimuthal coordinate when not using Cartesian coordinates, which must broadcast with ``z``
-        and can be up to 2-dimensional.
-    :param weight: An nd-array with per-value coefficients for the fit, which must broadcast with ``z``.
-        Default: None = uniform weighting on the unit disk, weighted by rho in case of polar coordinate specification.
-    :param order: The number of polynomial terms to consider.
-
-    :return: The Fit object representing the polynomial.
-    """
-    return Fit(z=z, y=y, x=x, rho=rho, phi=phi, weight=weight, order=order)

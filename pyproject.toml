@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "zmxtools"
 description = "Toolkit to read Zemax OpticStudio files."
-version = "0.3.0"
+version = "0.2.0"
 license = "AGPL3"
 authors = ["Tom Vettenburg <tom.vettenburg@gmail.com>", "Wouter Vermaelen"]
 readme = "README.md"

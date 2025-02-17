@@ -35,7 +35,8 @@ class HomogeneousMedium(Medium):
 
     def complex_refractive_index(self, wavenumber: array_like[SCALAR_TYPEVAR],
                                  position: array_like[SCALAR_TYPEVAR],
-                                 electric_field: array_like[SCALAR_TYPEVAR], magnetizing_field: array_like[SCALAR_TYPEVAR],
+                                 electric_field: array_like[SCALAR_TYPEVAR],
+                                 magnetizing_field: array_like[SCALAR_TYPEVAR],
                                  ) -> array_type[SCALAR_TYPEVAR]:
         """The complex refractive index as a function of wavenumber, position, and the electromagnetic fields."""
         return self.material.complex_refractive_index(wavenumber=wavenumber)  # todo: implement birefringence

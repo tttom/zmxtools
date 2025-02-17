@@ -494,7 +494,8 @@ class HerzbergerAgfMaterial(AgfMixin, material.FunctionMaterial):
         """
         AgfMixin.__init__(self, command)
 
-        def refractive_index_at_reference_function(wavenumber: array_type[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
+        def refractive_index_at_reference_function(wavenumber: array_type[SCALAR_TYPEVAR],
+                                                   ) -> array_type[SCALAR_TYPEVAR]:
             """The refractive index at the reference temperature and pressure, as a function of wavenumber."""
             wavelength_um = 2 * np.pi / wavenumber / 1e-6
             wavelength_um2 = wavelength_um ** 2

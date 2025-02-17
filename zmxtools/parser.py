@@ -207,8 +207,8 @@ class Command:
         :param children: An optional sub-tree of sub-commands.
         """
         self.name: str = name
-        self.argument: Optional[str] = argument
-        self.children: Optional[OrderedCommandDict] = children
+        self.argument: str | None = argument
+        self.children: OrderedCommandDict | None = children
 
     @property
     def words(self) -> Sequence[str]:

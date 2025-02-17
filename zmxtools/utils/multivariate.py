@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from typing import Dict, List, Sequence, Generator
+from typing import Dict, Generator, List, Sequence
 
 import numpy as np
 
@@ -294,7 +294,8 @@ class Polynomial:
                                      )
         products_strs: Generator[str, None, None] = (''.join(_) for _ in products)
         terms = [format_coefficient(c.item(), p) + p
-                 for c, p in zip(self.coefficients.ravel(), products_strs) if c != 0
+                 for c, p in zip(self.coefficients.ravel(), products_strs)
+                 if c != 0
                  ]
         if len(terms) == 0:
             return '0.0'
@@ -310,11 +311,12 @@ class Polynomial:
 
     def __eq__(self, other: Polynomial | object) -> bool:
         """Returns True if these polynomials are functionally identical."""
+        if not isinstance(other, Polynomial):
+            return False
         return bool(
-            isinstance(other, Polynomial) and
             self.shape == other.shape and np.all(self.coefficients == other.coefficients) and
             all(s == o for s, o in zip(self.labels, other.labels)) and
-            all(tuple(s) == tuple(o) for s, o in zip(self.exponents, other.exponents))
+            all(tuple(s) == tuple(o) for s, o in zip(self.exponents, other.exponents)),
         )
 
 
