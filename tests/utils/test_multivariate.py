@@ -5,7 +5,7 @@ from numpy import testing as npt
 
 from tests.utils import log
 from zmxtools.utils.multivariate import Polynomial
-from zmxtools.utils.array import array_type
+from zmxtools.utils.array import array_like
 
 
 class TestPolynomial(unittest.TestCase):
@@ -170,7 +170,7 @@ class TestPolynomial(unittest.TestCase):
         self.check_eq(p0, Polynomial([2 / 2, 7 / 2], 'x'))
 
     def test_evaluation(self):
-        def compare_array(a: array_type, b: array_type):
+        def compare_array(a: array_like, b: array_like):
             npt.assert_equal(a.ndim, np.asarray(b).ndim, err_msg=f'ndim of arrays {a} != {b}')
             npt.assert_equal(a.shape, np.asarray(b).shape, err_msg=f'shape of arrays {a} != {b}')
             npt.assert_equal(a, b, err_msg=f'Arrays {a} != {b}')
