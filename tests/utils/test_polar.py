@@ -1,7 +1,7 @@
 import unittest
 
-import numpy.testing as npt
 import numpy as np
+from numpy import testing as npt
 
 from zmxtools.utils.polar import cart2pol, pol2cart
 

@@ -9,8 +9,11 @@ We follow [Semantic Versions](https://semver.org/).
 - Breaking changes to the API:
   - `zar.load` is renamed to `zar.unpack` and yields `BytesFile` objects instead
   - all functions now take file-like objects
-- Added new module to interpret `.zmx` files
-
+- Added optical_design module to interpret `.zmx` and `.agf` glass files. Key functionality:
+  - An optic.OpticalDesign object is returned for each `.zmx` file, refering to `Material` objects.
+  - A `material.MaterialLibrary` object is returned for each `.agf` file, containing a set of `Materials`s.
+  - Added utility functions to represent and fit Zernike polynomials for the corresponding surface types.
+- Fixed issue https://github.com/tttom/zmxtools/issues/2
 
 ## Releases 0.1
 The first release series provides basic decompression and conversion tools,

@@ -1,7 +1,7 @@
 import unittest
 
-import numpy.testing as npt
 import numpy as np
+from numpy import testing as npt
 
 from zmxtools.optical_design.geometry import (EulerRotation, IDENTITY, Scaling, Translation,
                                               SphericalTransform, InverseSphericalTransform)

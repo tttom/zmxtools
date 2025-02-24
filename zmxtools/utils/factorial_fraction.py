@@ -1,9 +1,11 @@
 import numpy as np
 
-from zmxtools.utils.array import to_length, array_like, array_type
+from zmxtools.utils.array import NP_FLOAT_TYPE, NP_INT_TYPE, array_like, array_type, asarray, to_length
 
 
-def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -> array_type:
+def factorial_fraction(numerator: array_like[NP_INT_TYPE] = 0,
+                       denominator: array_like[NP_INT_TYPE] = 0,
+                       ) -> array_type[NP_INT_TYPE]:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
@@ -11,17 +13,17 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     :param denominator: An integer or array of integers.
     :return: A number or array of numbers of the same shape as the inputs.
     """
-    numerator = np.array(numerator)
-    denominator = np.array(denominator)
-    difference = np.array(numerator - denominator)
+    numerator_arr = asarray(numerator, dtype=int)
+    denominator_arr = asarray(denominator, dtype=int)
+    difference = numerator_arr - denominator_arr
     data_shape = difference.shape
 
     result = np.ones(shape=data_shape, dtype=float)
 
-    for idx in np.arange(2, 1 + np.maximum(np.amax(numerator), np.amax(denominator))):
+    for idx in np.arange(2, 1 + np.maximum(np.amax(numerator_arr), np.amax(denominator_arr))):
         # Iterate both the numerator and the denominator
-        num_bool = np.logical_and(denominator < idx, idx <= numerator)  # either 0 or 1 for every element
-        den_bool = np.logical_and(numerator < idx, idx <= denominator)  # either 0 or 1, but never both 1
+        num_bool = np.logical_and(denominator_arr < idx, idx <= numerator_arr)  # either 0 or 1 for every element
+        den_bool = np.logical_and(numerator_arr < idx, idx <= denominator_arr)  # either 0 or 1, but never both 1
         # either 1/idx, 1, or idx for every element
         result[num_bool] *= idx
         result[den_bool] *= 1 / idx
@@ -29,16 +31,16 @@ def factorial_fraction(numerator: array_like = 0, denominator: array_like = 0) -
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: array_like | tuple[array_like] = (),
-                               denominators: array_like | tuple[array_like] = (),
-                               ) -> array_type:
+def factorial_product_fraction(numerators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
+                               denominators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
+                               ) -> array_type[NP_FLOAT_TYPE]:
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 
     If either input argument is not a tuple, it is wrapped in one.
 
-    :param numerators: A set of integers or arrays of integers.
-    :param denominators: A set of integers or arrays of integers.
+    :param numerators: A tuple of integers or arrays of integers.
+    :param denominators: A tuple of integers or arrays of integers.
 
     :return: A number or array of numbers of the same shape as the inputs.
     """
@@ -48,24 +50,24 @@ def factorial_product_fraction(numerators: array_like | tuple[array_like] = (),
         denominators = (denominators, )
 
     max_numerator = 1
-    data_shape = np.array((), dtype=np.uint32)
+    data_shape: array_type[NP_INT_TYPE] = asarray((), dtype=int)
     for n in numerators:
-        n = np.asarray(n)
-        if n.size > 0:
-            max_numerator = np.maximum(max_numerator, np.max(n))
-            # Expand data_shape so it encompasses all arguments
-            if n.ndim > data_shape.size:
-                data_shape = to_length(data_shape, n.ndim, 0)
-            data_shape = np.maximum(data_shape, np.array(n.shape, dtype=int))
+        n_arr: array_type[NP_INT_TYPE] = asarray(n)
+        if n_arr.size > 0:
+            max_numerator = np.maximum(max_numerator, np.amax(n_arr))
+            # Expand data_shape so that it encompasses all arguments
+            if n_arr.ndim > data_shape.size:
+                data_shape = to_length(data_shape, n_arr.ndim, 0)
+            data_shape = np.maximum(data_shape, n_arr.shape)
     max_denominator = 1
     for d in denominators:
-        d = np.asarray(d)
-        if d.size > 0:
-            max_denominator = np.maximum(max_denominator, np.amax(d))
+        d_arr: array_type[NP_INT_TYPE] = asarray(d)
+        if d_arr.size > 0:
+            max_denominator = np.maximum(max_denominator, np.amax(d_arr))
             # Expand data_shape so it encompasses all arguments
-            if d.ndim > data_shape.size:
-                data_shape = to_length(data_shape, d.ndim, 0)
-            data_shape = np.maximum(data_shape, np.array(d.shape, dtype=int))
+            if d_arr.ndim > data_shape.size:
+                data_shape = to_length(data_shape, d_arr.ndim, 0)
+            data_shape = np.maximum(data_shape, d_arr.shape)
 
     # Check if we should better do this as the inverse fraction and revert it at the end
     inverse_calculation = max_denominator > max_numerator
@@ -74,7 +76,7 @@ def factorial_product_fraction(numerators: array_like | tuple[array_like] = (),
         max_numerator, max_denominator = max_denominator, max_numerator
 
     # Do the calculation starting from all 2! factors
-    result = np.ones(shape=data_shape, dtype=float)
+    result: array_type[NP_FLOAT_TYPE] = np.ones(shape=data_shape, dtype=float)
 
     # Multiply only the factors that don't cancel on both sides of the fraction
     for idx in np.arange(2, 1 + np.maximum(max_numerator, max_denominator)):
@@ -83,7 +85,7 @@ def factorial_product_fraction(numerators: array_like | tuple[array_like] = (),
         numerator_idx_factors -= sum((idx <= np.asarray(_)) for _ in numerators)
         result *= np.array(idx, dtype=float) ** numerator_idx_factors
 
-    result = result.reshape(data_shape)
+    result = result.reshape(tuple(data_shape))
 
     if inverse_calculation:
         result = 1.0 / result

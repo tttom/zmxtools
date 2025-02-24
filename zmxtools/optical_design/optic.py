@@ -10,7 +10,7 @@ from zmxtools.optical_design.header import Element, Medium
 from zmxtools.optical_design.light import LightPath, Wavefront
 from zmxtools.optical_design.source import Source
 from zmxtools.optical_design.surface import Surface
-from zmxtools.utils.array import array_type
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_type
 
 log = log.getChild(__name__)
 
@@ -37,7 +37,7 @@ class CompoundElement(Element):
             light = m.propagate_to(light, next_optic)
         return self.elements[-1].transmit_into(light, medium)  # trace out
 
-    def distance(self, wavefront: Wavefront) -> array_type:
+    def distance(self, wavefront: Wavefront) -> array_type[SCALAR_TYPEVAR]:
         """The distance in units of wavefront.d to the intersection point of this element."""
         return self.elements[0].distance(wavefront)
 

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Iterator, Optional, Sequence
+from typing import Callable, Iterator, Optional, Sequence, TypeAlias
 
 import numpy as np
 
 from zmxtools.optical_design import log
 from zmxtools.utils import const_c
-from zmxtools.utils.array import array_like, array_type, asarray
+from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray
 
 __all__ = ['log', 'CiddorAir', 'FunctionMaterial', 'Material', 'MaterialLibrary', 'MaterialResistance',
            'ModelGlassMaterial', 'PolynomialMaterial', 'SimpleAir', 'Vacuum', 'VACUUM',
@@ -72,12 +72,13 @@ class MaterialResistance:
 class Material:
     """A class to represent a material as glass."""
 
-    __wavenumber_limits: array_type
-    __temperature: array_type
-    __pressure: array_type
+    __wavenumber_limits: array_type[SCALAR_TYPEVAR]
+    __temperature: array_type[SCALAR_TYPEVAR]
+    __pressure: array_type[SCALAR_TYPEVAR]
 
-    def __init__(self, name: str = '', wavenumber_limits: array_like = (0, np.inf),
-                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
+    def __init__(self, name: str = '', wavenumber_limits: array_like[SCALAR_TYPEVAR] = (0, np.inf),
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         """
         Construct a new Material object to present a material at a given temperature and pressure.
@@ -95,76 +96,76 @@ class Material:
         self.pressure = pressure
 
     @property
-    def wavenumber_limits(self) -> array_type:
+    def wavenumber_limits(self) -> array_type[SCALAR_TYPEVAR]:
         """The lower and upper bound of the validity of this representation."""
         return self.__wavenumber_limits
 
     @wavenumber_limits.setter
-    def wavenumber_limits(self, new_value: array_like):
+    def wavenumber_limits(self, new_value: array_like[SCALAR_TYPEVAR]):
         self.__wavenumber_limits = np.sort(asarray(new_value).real)
 
     @property
-    def wavelength_limits(self) -> array_type:
+    def wavelength_limits(self) -> array_type[SCALAR_TYPEVAR]:
         """The lower and upper bound of the validity of this representation."""
         return 2 * np.pi / self.wavenumber_limits[::-1]
 
     @wavelength_limits.setter
-    def wavelength_limits(self, new_value: array_like):
+    def wavelength_limits(self, new_value: array_like[SCALAR_TYPEVAR]):
         self.wavenumber_limits = 2 * np.pi / asarray(new_value)[::-1]
 
     @property
-    def angular_frequency_limits(self) -> array_type:
+    def angular_frequency_limits(self) -> array_type[SCALAR_TYPEVAR]:
         """The lower and upper bound of the validity of this representation."""
         return self.wavenumber_limits * const_c
 
     @angular_frequency_limits.setter
-    def angular_frequency_limits(self, new_value: array_like):
+    def angular_frequency_limits(self, new_value: array_like[SCALAR_TYPEVAR]):
         self.wavenumber_limits = asarray(new_value) / const_c
 
     @property
-    def temperature(self) -> array_type:
+    def temperature(self) -> array_type[SCALAR_TYPEVAR]:
         """The temperature that this material is at."""
         return self.__temperature
 
     @temperature.setter
-    def temperature(self, new_value: array_like):
+    def temperature(self, new_value: array_like[SCALAR_TYPEVAR]):
         if new_value is None:
             new_value = 20.0 + 273.15
         self.__temperature = asarray(new_value).real
 
     @property
-    def pressure(self) -> array_type:
+    def pressure(self) -> array_type[SCALAR_TYPEVAR]:
         """The pressure that this material is at."""
         return self.__pressure
 
     @pressure.setter
-    def pressure(self, new_value: array_like):
+    def pressure(self, new_value: array_like[SCALAR_TYPEVAR]):
         if new_value is None:
             new_value = 101.13e3  # in Pa, 1 atm
         self.__pressure = asarray(new_value).real
 
     @property
-    def refractive_index_C(self) -> array_type:
+    def refractive_index_C(self) -> array_type[SCALAR_TYPEVAR]:
         """The refractive index at the Hydrogen Balmer series Hα C-line (deep red)."""
         return self.refractive_index(wavelength=656.2725e-9)  # in air
 
     @property
-    def refractive_index_d(self) -> array_type:
+    def refractive_index_d(self) -> array_type[SCALAR_TYPEVAR]:
         """The refractive index at the He D3-line or d-line (Green)."""
         return self.refractive_index(wavelength=587.5618e-9)
 
     @property
-    def refractive_index_F(self) -> array_type:
+    def refractive_index_F(self) -> array_type[SCALAR_TYPEVAR]:
         """The refractive index at the Hydrogen Balmer series Hβ F-line (cyan)."""
         return self.refractive_index(wavelength=486.1327e-9)
 
     @property
-    def refractive_index_g(self) -> array_type:
+    def refractive_index_g(self) -> array_type[SCALAR_TYPEVAR]:
         """The refractive index at the Mercury g-line (blue)."""
         return self.refractive_index(wavelength=435.8343e-9)
 
     @property
-    def constringence(self) -> array_type:
+    def constringence(self) -> array_type[SCALAR_TYPEVAR]:
         """
         The Abbe number or Vd. High values indicate low dispersion.
 
@@ -174,7 +175,7 @@ class Material:
             return (self.refractive_index_d - 1) / (self.refractive_index_F - self.refractive_index_C)
 
     @property
-    def relative_partial_dispersion_g_F(self) -> array_type:
+    def relative_partial_dispersion_g_F(self) -> array_type[SCALAR_TYPEVAR]:
         """
         Relative partial dispersion between the g and F lines, P_{g,F}.
 
@@ -185,10 +186,10 @@ class Material:
                     ) / (self.refractive_index_F - self.refractive_index_C)
 
     def permittivity(self, /,
-                     wavenumber: Optional[array_like] = None,
-                     wavelength: Optional[array_like] = None,
-                     angular_frequency: Optional[array_like] = None,
-                     ) -> array_type:
+                     wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                     wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                     angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                     ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the relative permittivity for this material at the specified wavenumbers.
 
@@ -206,10 +207,10 @@ class Material:
                                              ) ** 2
 
     def complex_refractive_index(self, /,
-                                 wavenumber: Optional[array_like] = None,
-                                 wavelength: Optional[array_like] = None,
-                                 angular_frequency: Optional[array_like] = None,
-                                 ) -> array_type:
+                                 wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                                 wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                                 angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                                 ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the complex refractive index for this material at the specified wavenumbers.
 
@@ -229,10 +230,10 @@ class Material:
         ))
 
     def refractive_index(self, /,
-                         wavenumber: Optional[array_like] = None,
-                         wavelength: Optional[array_like] = None,
-                         angular_frequency: Optional[array_like] = None,
-                         ) -> array_type:
+                         wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                         wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                         angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                         ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the real refractive index for this material at the specified wavenumbers.
 
@@ -250,10 +251,10 @@ class Material:
                                              ).real
 
     def extinction_coefficient(self,
-                               wavenumber: Optional[array_like] = None,
-                               wavelength: Optional[array_like] = None,
-                               angular_frequency: Optional[array_like] = None,
-                               ) -> array_type:
+                               wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                               wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                               angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                               ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the extinction coefficient, κ, for this material at the specified wavenumbers.
 
@@ -270,11 +271,11 @@ class Material:
                                              angular_frequency=angular_frequency,
                                              ).imag
 
-    def transmittance(self, thickness: array_like = 1.0,
-                      wavenumber: Optional[array_like] = None,
-                      wavelength: Optional[array_like] = None,
-                      angular_frequency: Optional[array_like] = None,
-                      ) -> array_type:
+    def transmittance(self, thickness: array_like[SCALAR_TYPEVAR] = 1.0,
+                      wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                      wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                      angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                      ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the internal transmission, excluding Fresnel reflections, through a piece of this material.
 
@@ -300,10 +301,10 @@ class Material:
         return np.exp(-2 * wavenumber * self.extinction_coefficient(wavenumber=wavenumber) * asarray(thickness).real)
 
     def absorption_coefficient(self,
-                               wavenumber: Optional[array_like] = None,
-                               wavelength: Optional[array_like] = None,
-                               angular_frequency: Optional[array_like] = None,
-                               ) -> array_type:
+                               wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                               wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                               angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                               ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the absorption coefficient, α, for this material at the specified wavenumbers.
 
@@ -339,14 +340,23 @@ class Material:
         return hash(self) == hash(other)
 
 
+MATERIAL_PROPERTY_FUNCTION_TYPE: TypeAlias = Callable[
+    [array_type[SCALAR_TYPEVAR],
+     array_type[SCALAR_TYPEVAR],
+     array_type[SCALAR_TYPEVAR],
+     ],
+    array_type[SCALAR_TYPEVAR],
+]
+
+
 class FunctionMaterial(Material):
     """A class to represent a material as glass."""
 
     def __init__(
-        self, name: str = '', wavenumber_limits: array_like = (0, np.inf),
-        temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
-        permittivity_function: Optional[Callable[[array_type, array_type, array_type], array_type]] = None,
-        complex_refractive_index_function: Optional[Callable[[array_type, array_type, array_type], array_type]] = None,
+        self, name: str = '', wavenumber_limits: array_like[SCALAR_TYPEVAR] = (0, np.inf),
+        temperature: Optional[array_like[SCALAR_TYPEVAR]] = None, pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
+        permittivity_function: None | MATERIAL_PROPERTY_FUNCTION_TYPE = None,
+        complex_refractive_index_function: None | MATERIAL_PROPERTY_FUNCTION_TYPE = None,
     ):
         """
         Construct a new Material object to present a material at a given temperature and pressure.
@@ -376,10 +386,10 @@ class FunctionMaterial(Material):
         ) if complex_refractive_index_function is not None else lambda k, t, p: permittivity_function(k, t, p) ** 0.5
 
     def permittivity(self,
-                     wavenumber: Optional[array_like] = None,
-                     wavelength: Optional[array_like] = None,
-                     angular_frequency: Optional[array_like] = None,
-                     ) -> array_type:
+                     wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                     wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                     angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                     ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the relative permittivity for this material at the specified wavenumbers.
 
@@ -403,10 +413,10 @@ class FunctionMaterial(Material):
         return self.__permittivity_function(wavenumber, self.temperature, self.pressure)
 
     def complex_refractive_index(self,
-                                 wavenumber: Optional[array_like] = None,
-                                 wavelength: Optional[array_like] = None,
-                                 angular_frequency: Optional[array_like] = None,
-                                 ) -> array_type:
+                                 wavenumber: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                                 wavelength: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                                 angular_frequency: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                                 ) -> array_type[SCALAR_TYPEVAR]:
         """
         Calculates the complex refractive index for this material at the specified wavenumbers.
 
@@ -431,7 +441,15 @@ class FunctionMaterial(Material):
         return self.__complex_refractive_index_function(wavenumber, self.temperature, self.pressure)
 
 
-AdjustRIType = Callable[[Callable[[array_type], array_type], array_type, array_type, array_type], array_type]
+UPDATE_REFRACTIVE_INDEX_TYPE: TypeAlias = Callable[
+    [
+        Callable[[array_type[SCALAR_TYPEVAR]], array_type[SCALAR_TYPEVAR]],
+        array_type[SCALAR_TYPEVAR],
+        array_type[SCALAR_TYPEVAR],
+        array_type[SCALAR_TYPEVAR],
+    ],
+    array_type[SCALAR_TYPEVAR],
+]
 
 
 class ModelGlassMaterial(FunctionMaterial):
@@ -462,9 +480,9 @@ class ModelGlassMaterial(FunctionMaterial):
         :param refractive_index: The refractive index at the central d-line of 587.5618nm.
         :param constringence: The constringence or Abbe number. If not specified, a constant refractive index is used.
         """
-        # The
         # Based on fitting to multiple glass catalogs.
-        # https://github.com/mjhoptics/opticalglass/blob/da28441f269e32b121c9042ca405e5bdc997c678/notebooks/Buchdahl%20models.ipynb#L365
+        # https://github.com/mjhoptics/opticalglass/blob/da28441f269e32b121c9042ca405e5bdc997c678/notebooks/
+        # Buchdahl%20models.ipynb#L365
         coefficients_intercept = -0.064667
         coefficients_slope = -1.604048
 
@@ -472,7 +490,7 @@ class ModelGlassMaterial(FunctionMaterial):
         center_wavelength = 587.5618e-9  # yellow helium line, d
         short_wavelength = 486.1327e-9  # blue hydrogen line, F
 
-        def buchdahl_chromatic_coordinate(wavelength: array_like) -> array_type:
+        def buchdahl_chromatic_coordinate(wavelength: array_like[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
             """
             Calculate the Buchdahl chromatic coordinate.
 
@@ -480,7 +498,8 @@ class ModelGlassMaterial(FunctionMaterial):
             :return: An array, omega, of the same shape with the Buchdahl coordinates.
             """
             wavelength_difference = asarray(wavelength) - center_wavelength
-            return 1 / (2.5 + 1e-6 / wavelength_difference)
+            with np.errstate(divide='ignore'):
+                return 1 / (2.5 + 1e-6 / wavelength_difference)
 
         omega_long = buchdahl_chromatic_coordinate(long_wavelength)  # red hydrogen line, C
         omega_short = buchdahl_chromatic_coordinate(short_wavelength)  # blue hydrogen line, F
@@ -488,8 +507,10 @@ class ModelGlassMaterial(FunctionMaterial):
         omega_extent = omega_short - omega_long
         omega_squared_extent = omega_short ** 2 - omega_long ** 2
 
-        def complex_refractive_index_function(wavenumber: array_like, t: array_like = 1, p: array_like = 1,
-                                              ) -> array_type:
+        def complex_refractive_index_function(wavenumber: array_like[SCALAR_TYPEVAR],
+                                              t: array_like[SCALAR_TYPEVAR] = 1,
+                                              p: array_like[SCALAR_TYPEVAR] = 1,
+                                              ) -> array_type[SCALAR_TYPEVAR]:
             """
             Computes the complex refractive index at a given wavenumber.
 
@@ -522,11 +543,14 @@ class ModelGlassMaterial(FunctionMaterial):
 class PolynomialMaterial(FunctionMaterial):
     """A class to represent materials with a refractive index distribution that is described by a polynomial."""
 
-    def __init__(self, name: str = '', wavenumber_limits: array_like = (0, np.inf),
-                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
+    def __init__(self, name: str = '', wavenumber_limits: array_like[SCALAR_TYPEVAR] = (0, np.inf),
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  refractive_index_model: bool = False,
-                 factors_um: array_like = (), exponents: array_like = (), poles_um2: array_like = (),
-                 adjust_refractive_index_function: AdjustRIType = lambda n, t, p: n,
+                 factors_um: array_like[SCALAR_TYPEVAR] = (),
+                 exponents: array_like[SCALAR_TYPEVAR] = (),
+                 poles_um2: array_like[SCALAR_TYPEVAR] = (),
+                 adjust_refractive_index_function: UPDATE_REFRACTIVE_INDEX_TYPE = lambda n, t, p: n,
                  ):
         r"""
         Construct a material with a relative permittivity or refractive index that is given a rational polynomial.
@@ -562,7 +586,7 @@ class PolynomialMaterial(FunctionMaterial):
             *(np.nan for _ in range(len(self.factors_um) - len(poles_um2))),
         ])  # NaN-pad to same length
 
-        def formula(wavenumber: array_type) -> array_type:
+        def formula(wavenumber: array_type[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
             """
             The permittivity or refractive index (when refractive_index_model == True) as a function of wavenumber.
 
@@ -614,9 +638,12 @@ VACUUM = Vacuum()
 class CiddorAir(FunctionMaterial):
     """A class to represent a glass that is represented by th Ciddor formula."""
 
-    def __init__(self, name: str = 'air', wavenumber_limits: array_like = (2 * np.pi / 1700e-3, 2 * np.pi / 300e-3),
-                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
-                 relative_humidity: Optional[array_like] = None, co2_mole_fraction: Optional[array_like] = None,
+    def __init__(self, name: str = 'air',
+                 wavenumber_limits: array_like[SCALAR_TYPEVAR] = (2 * np.pi / 1700e-3, 2 * np.pi / 300e-3),
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 relative_humidity: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 co2_mole_fraction: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         """
         Construct a new Material object to present air at a given temperature, pressure, humidity, and CO2 level.
@@ -634,8 +661,9 @@ class CiddorAir(FunctionMaterial):
         self.relative_humidity = relative_humidity if relative_humidity is not None else 0.5
         self.co2_mole_fraction = co2_mole_fraction if co2_mole_fraction is not None else 450e-6
 
-        def refractive_index_function(wavenumber: array_type, t: array_type, p: array_type,
-                                      ) -> array_type:
+        def refractive_index_function(wavenumber: array_type[SCALAR_TYPEVAR],
+                                      t: array_type[SCALAR_TYPEVAR], p: array_type[SCALAR_TYPEVAR],
+                                      ) -> array_type[SCALAR_TYPEVAR]:
             # https://emtoolbox.nist.gov/Wavelength/Documentation.asp#AppendixAIII
 
             w = [295.235, 2.6422, -0.03238, 0.004028]
@@ -703,8 +731,10 @@ class CiddorAir(FunctionMaterial):
 class SimpleAir(FunctionMaterial):
     """A class to represent air in a relatively simple way."""
 
-    def __init__(self, name: str = 'air', wavenumber_limits: array_like = (2 * np.pi / 1700e-3, 2 * np.pi / 300e-3),
-                 temperature: Optional[array_like] = None, pressure: Optional[array_like] = None,
+    def __init__(self, name: str = 'air',
+                 wavenumber_limits: array_like[SCALAR_TYPEVAR] = (2 * np.pi / 1700e-3, 2 * np.pi / 300e-3),
+                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
+                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
                  ):
         """
         Construct a new Material object to present air at a given temperature and pressure.
@@ -715,8 +745,9 @@ class SimpleAir(FunctionMaterial):
         :param temperature: The temperature in degrees Kelvin, K.
         :param pressure: The pressure in Pa = N/m^2.
         """
-        def refractive_index_function(wavenumber: array_type, t: array_type, p: array_type,
-                                      ) -> array_type:
+        def refractive_index_function(wavenumber: array_type[SCALAR_TYPEVAR],
+                                      t: array_type[SCALAR_TYPEVAR], p: array_type[SCALAR_TYPEVAR],
+                                      ) -> array_type[SCALAR_TYPEVAR]:
             wavelength = 2 * np.pi / wavenumber
             spatial_frequency_um_sqd = 1 / (wavelength / 1e-6)**2
             pressure_reference = 101325  # 1 atm
@@ -817,9 +848,9 @@ class MaterialLibrary:
         return self.materials.__iter__()
 
     def find_all(self, name_pattern: str | re.Pattern | None,
-                 wavenumber: array_like = (np.inf, 0),
-                 wavelength: array_like = (0, np.inf),
-                 angular_frequency: array_like = (np.inf, 0),
+                 wavenumber: array_like[SCALAR_TYPEVAR] = (np.inf, 0),
+                 wavelength: array_like[SCALAR_TYPEVAR] = (0, np.inf),
+                 angular_frequency: array_like[SCALAR_TYPEVAR] = (np.inf, 0),
                  ) -> Sequence[Material]:
         """
         Lists all matching materials.
