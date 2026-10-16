@@ -1,6 +1,6 @@
-import unittest
 from typing import cast
 
+import pytest
 from numpy import testing as npt
 
 from zmxtools.parser import Command, OrderedCommandDict
@@ -8,7 +8,7 @@ from zmxtools.utils import array as arr
 from zmxtools.utils.io import BytesFile
 
 
-class TestArrayHelpers(unittest.TestCase):
+class TestArrayHelpers:
     def test_concatenate(self):
         npt.assert_array_equal(arr.concatenate([1, 2], [3, 4]), [1, 2, 3, 4])
 
@@ -33,7 +33,7 @@ class TestArrayHelpers(unittest.TestCase):
         npt.assert_array_equal(arr.to_length([1], 3, value=9), [1, 9, 9])
 
 
-class TestBytesFile(unittest.TestCase):
+class TestBytesFile:
     def test_from_path(
         self,
     ):
@@ -57,9 +57,9 @@ class TestBytesFile(unittest.TestCase):
         bf.close()  # closing twice is fine
 
 
-class TestParserExtras(unittest.TestCase):
+class TestParserExtras:
     def test_base_from_str_not_implemented(self):
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             OrderedCommandDict.from_str("X 1")
 
     def test_from_file_text_stream(self):
@@ -89,7 +89,7 @@ class TestParserExtras(unittest.TestCase):
         npt.assert_equal(len(d[0:2]), 2)
         npt.assert_equal(len(d["A"]), 2)
         npt.assert_equal(cast("Command", d["A", 1]).argument, "3")
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             d[17]
 
     def test_words_and_numbers(self):
@@ -130,10 +130,6 @@ class TestParserExtras(unittest.TestCase):
         npt.assert_equal(len(parent.commands_of("C")), 1)
         npt.assert_equal("C" in parent, True)
         npt.assert_equal(len(parent), 1)
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             Command("NoChildren")[0]
         npt.assert_equal(str(Command("B")), "B")
-
-
-if __name__ == "__main__":
-    unittest.main()

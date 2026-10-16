@@ -1,6 +1,5 @@
-import unittest
-
 import numpy as np
+import pytest
 from numpy import testing as npt
 
 from zmxtools.optical_design.material import (
@@ -17,10 +16,10 @@ from zmxtools.optical_design.material import (
 )
 
 
-class TestMaterial(unittest.TestCase):
+class TestMaterial:
     """A class to test the ``Material`` class."""
 
-    def setUp(self):
+    def setup_method(self):
         """This code is executed again before every test to ensure that the tests are independent."""
         self.vacuum = ModelGlassMaterial("Vacuum")
         self.constant = ModelGlassMaterial("Water", 1.33)
@@ -127,7 +126,7 @@ class TestMaterial(unittest.TestCase):
         npt.assert_equal(a == "N-BK7", False)
 
 
-class TestMaterialResistance(unittest.TestCase):
+class TestMaterialResistance:
     def test_resistance_value(self):
         v = MaterialResistanceValue(2)
         npt.assert_equal(float(v), 2.0)
@@ -153,7 +152,7 @@ class TestMaterialResistance(unittest.TestCase):
         npt.assert_equal(repr(r).startswith("MaterialResistance(climate=MaterialResistanceValue"), True)
 
 
-class TestFunctionMaterial(unittest.TestCase):
+class TestFunctionMaterial:
     def test_permittivity_function(self):
         m = FunctionMaterial(
             "eps",
@@ -165,7 +164,7 @@ class TestFunctionMaterial(unittest.TestCase):
         npt.assert_allclose(m.refractive_index(angular_frequency=2 * np.pi / 500e-9 * 299792458.0), 1.5)
 
     def test_no_functions(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             FunctionMaterial("none")
 
     def test_polynomial_material(self):
@@ -199,8 +198,8 @@ class TestFunctionMaterial(unittest.TestCase):
         npt.assert_equal(repr(air).startswith("CiddorAir("), True)
 
 
-class TestMaterialLibrary(unittest.TestCase):
-    def setUp(self):
+class TestMaterialLibrary:
+    def setup_method(self):
         self.library = MaterialLibrary(
             "test",
             "a test library",
@@ -224,11 +223,11 @@ class TestMaterialLibrary(unittest.TestCase):
         npt.assert_equal(self.library.materials[0].name, "N-BK7")
         npt.assert_equal(self.library["SF11"].name, "SF11")  # ty: ignore[unresolved-attribute]
         npt.assert_equal(self.library["sf11"], None)
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             self.library[17]
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             self.library[-1]
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             self.library[3.14]  # ty: ignore[invalid-argument-type]
 
     def test_iter(self):
@@ -245,7 +244,3 @@ class TestMaterialLibrary(unittest.TestCase):
 
     def test_repr(self):
         npt.assert_equal(repr(self.library).startswith("MaterialLibrary(test,"), True)
-
-
-if __name__ == "__main__":
-    unittest.main()

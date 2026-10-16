@@ -1,4 +1,3 @@
-import unittest
 from typing import cast
 
 import numpy as np
@@ -44,7 +43,7 @@ SURF 2
     )
 
 
-class TestZmxSurfaces(unittest.TestCase):
+class TestZmxSurfaces:
     def test_standard_sag(self):
         design = standard_design()
         surface = design.surfaces[1]
@@ -292,9 +291,9 @@ SURF 2
         surface = design.surfaces[1]
         npt.assert_equal(surface.blackbox_filename, "my_blackbox.zbb")
 
-    def test_not_implemented_types(self):
+    def test_not_implemented_types(self, subtests):
         for surface_type in ("BICONICX", "GRID_SAG", "IRREGULA", "SOMETHINGNEW"):
-            with self.subTest(surface_type=surface_type):
+            with subtests.test(surface_type=surface_type):
                 design = build(
                     f"""SURF 0
   TYPE STANDARD
@@ -363,7 +362,7 @@ SURF 2
         npt.assert_allclose(surface.floating_aperture, 1)
 
 
-class TestZmxOpticalDesign(unittest.TestCase):
+class TestZmxOpticalDesign:
     def test_surfaces_and_media(self):
         design = standard_design()
         npt.assert_equal(len(design.surfaces), 3)
@@ -383,9 +382,9 @@ class TestZmxOpticalDesign(unittest.TestCase):
         design = zmx.ZmxOpticalDesign.from_str(HEADER.replace("MODE SEQ", "MODE XYZ") + "SURF 0\nSURF 1\n")
         npt.assert_equal(design.sequential, False)
 
-    def test_units(self):
+    def test_units(self, subtests):
         for code, expected in (("IN", 25.4e-3), ("FEET", 304.8e-3), ("METER", 1.0), ("KM", 1e3)):
-            with self.subTest(code=code):
+            with subtests.test(code=code):
                 design = zmx.ZmxOpticalDesign.from_str(HEADER.replace("UNIT MM", f"UNIT {code}") + "SURF 0\nSURF 1\n")
                 npt.assert_allclose(design.unit, expected)
 
@@ -447,7 +446,3 @@ SURF 1
         design = standard_design()
         reparsed = zmx.ZmxOpticalDesign.from_str(str(design))
         npt.assert_equal(len(reparsed.surfaces), len(design.surfaces))
-
-
-if __name__ == "__main__":
-    unittest.main()

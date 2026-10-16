@@ -1,5 +1,3 @@
-import unittest
-
 import numpy as np
 from numpy import testing as npt
 
@@ -20,7 +18,7 @@ from zmxtools.utils.zernike import (
 )
 
 
-class TestZernikeExtras(unittest.TestCase):
+class TestZernikeExtras:
     def test_polar_gradient(self):
         b = PolynomialBasis(n=2, m=0)
         g = b.polar_gradient(0.5, 0.25)
@@ -39,7 +37,7 @@ class TestZernikeExtras(unittest.TestCase):
         v = p(0.4 + 0.3j)
         npt.assert_allclose(v, p(y=0.3, x=0.4))
 
-    def test_basis_names(self):
+    def test_basis_names(self, subtests):
         names = {
             (0, 0): "piston",
             (1, -1): "tilt",
@@ -56,7 +54,7 @@ class TestZernikeExtras(unittest.TestCase):
             (5, 3): "horizontal",
         }
         for (n, m), expected in names.items():
-            with self.subTest(n=n, m=m):
+            with subtests.test(n=n, m=m):
                 npt.assert_equal(str(PolynomialBasis(n=n, m=m).name).startswith(expected), True)
 
     def test_polynomial_arithmetic(self):
@@ -108,7 +106,3 @@ class TestZernikeExtras(unittest.TestCase):
         npt.assert_equal(np.all(np.isfinite(fit.error)), True)
         npt.assert_equal(str(fit) != "", True)
         npt.assert_equal(repr(fit) != "", True)
-
-
-if __name__ == "__main__":
-    unittest.main()

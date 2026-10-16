@@ -1,5 +1,3 @@
-import unittest
-
 import numpy as np
 from numpy import testing as npt
 
@@ -20,7 +18,7 @@ from zmxtools.utils.zernike import (
 )
 
 
-class TestPolynomialBasis(unittest.TestCase):
+class TestPolynomialBasis:
     def test_constructor(self):
         b = PolynomialBasis(4)
         npt.assert_array_equal(b.index, [4])
@@ -81,7 +79,7 @@ class TestPolynomialBasis(unittest.TestCase):
         npt.assert_array_equal(b.index, [3])
 
 
-class TestPolynomial(unittest.TestCase):
+class TestPolynomial:
     def test_zernike_index(self):
         piston = PolynomialBasis(0)
         tilt = PolynomialBasis(1)
@@ -418,7 +416,7 @@ class TestPolynomial(unittest.TestCase):
         npt.assert_equal(str(f), f"Fit({f.coefficients})")
 
 
-class TestIndexConversion(unittest.TestCase):
+class TestIndexConversion:
     def test_index2orders(self):
         npt.assert_equal(
             index2orders(0),
@@ -514,7 +512,7 @@ class TestIndexConversion(unittest.TestCase):
         )
 
 
-class TestNoll(unittest.TestCase):
+class TestNoll:
     def test_noll2orders(self):
         npt.assert_equal(
             noll2orders(1),
@@ -664,7 +662,7 @@ class TestNoll(unittest.TestCase):
         )
 
 
-class TestFringe(unittest.TestCase):
+class TestFringe:
     def test_fringe2orders(self):
         npt.assert_equal(
             fringe2orders(1),
@@ -812,7 +810,3 @@ class TestFringe(unittest.TestCase):
             test,
             err_msg="index2fringe is not the inverse of fringe2index.",
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

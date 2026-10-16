@@ -1,12 +1,10 @@
-import unittest
-
 import numpy as np
 from numpy import testing as npt
 
 from zmxtools.utils.polar import cart2pol, pol2cart
 
 
-class TestPolar(unittest.TestCase):
+class TestPolar:
     def test_cart2pol_scalar(self):
         npt.assert_array_equal(cart2pol(0, 1), (1, 0))
         npt.assert_array_equal(cart2pol(0, 2), (2, 0))
@@ -49,7 +47,3 @@ class TestPolar(unittest.TestCase):
         npt.assert_almost_equal(pol2cart(4, -np.pi / 2), (-4, 0))
         npt.assert_almost_equal(pol2cart(5, np.arctan2(4, 3)), (4, 3))
         npt.assert_array_equal(pol2cart(0, 0), (0, 0))
-
-
-if __name__ == "__main__":
-    unittest.main()

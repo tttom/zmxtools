@@ -1,5 +1,3 @@
-import unittest
-
 import numpy as np
 from numpy import testing as npt
 
@@ -8,7 +6,7 @@ from zmxtools.utils.array import array_like
 from zmxtools.utils.multivariate import Polynomial
 
 
-class TestPolynomial(unittest.TestCase):
+class TestPolynomial:
     def check_eq(self, p0, p1):
         npt.assert_equal(p0 == p1, True, err_msg=f"{p0!r} == {p0} != {p1} == {p1!r}")
         npt.assert_equal(p1 == p0, True, err_msg=f"{p0!r} == {p0} != {p1} == {p1!r}")
@@ -229,7 +227,3 @@ class TestPolynomial(unittest.TestCase):
         npt.assert_equal(len(g), 2)
         self.check_eq(g[0], Polynomial([[5, 0, 3], [6, -2, -4]], "xy"))
         self.check_eq(g[1], Polynomial([[6, 4], [0, 6], [-1, -4]], "xy"))
-
-
-if __name__ == "__main__":
-    unittest.main()

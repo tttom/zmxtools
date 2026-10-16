@@ -1,12 +1,10 @@
-import unittest
-
 import numpy as np
 from numpy import testing as npt
 
 from zmxtools.utils.array import to_length
 
 
-class TestPadToLength(unittest.TestCase):
+class TestPadToLength:
     def test_pad_to_length(self):
         npt.assert_array_equal(
             to_length(np.array([1, 2, 3, 4]), 5), np.array([1, 2, 3, 4, 0]), err_msg="Could not extend array by one."
@@ -48,7 +46,3 @@ class TestPadToLength(unittest.TestCase):
         npt.assert_array_equal(to_length((1, 2, 3, 4), 2), np.array([1, 2]), err_msg="Could not crop tuple by two.")
         npt.assert_array_equal(to_length(10, 1), np.array([10]), err_msg="Could not crop scalar to same length.")
         npt.assert_array_equal(to_length(10, 0), np.array([], dtype=int), err_msg="Could not crop scalar to zero.")
-
-
-if __name__ == "__main__":
-    unittest.main()

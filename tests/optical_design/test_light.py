@@ -1,6 +1,5 @@
-import unittest
-
 import numpy as np
+import pytest
 from numpy import testing as npt
 
 from zmxtools.optical_design.geometry import IDENTITY, Translation
@@ -32,8 +31,8 @@ def make_wavefront():
     )
 
 
-class TestWavefront(unittest.TestCase):
-    def setUp(self):
+class TestWavefront:
+    def setup_method(self):
         self.w = make_wavefront()
 
     def test_properties(self):
@@ -60,8 +59,8 @@ class TestWavefront(unittest.TestCase):
         npt.assert_allclose(w.direction, [0, 0, 1])
 
 
-class TestLightPath(unittest.TestCase):
-    def setUp(self):
+class TestLightPath:
+    def setup_method(self):
         self.lp = LightPath(make_wavefront())
 
     def test_wavefronts(self):
@@ -95,10 +94,10 @@ class TestLightPath(unittest.TestCase):
         npt.assert_allclose(self.lp.wavefront.position, [0, 0, 5])
 
 
-class TestInterfaces(unittest.TestCase):
+class TestInterfaces:
     def test_interface(self):
         i = Interface()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             i.refract_into(LightPath(make_wavefront()), HomogeneousMedium(VACUUM))
         npt.assert_equal(repr(i).startswith("Interface("), True)
         i.to(Translation((1, 0, 0)))
@@ -134,7 +133,7 @@ class TestInterfaces(unittest.TestCase):
         npt.assert_equal(repr(da).startswith("DiskAperture("), True)
 
 
-class TestSurfaces(unittest.TestCase):
+class TestSurfaces:
     def test_surface(self):
         s = Surface(interface=SnellInterface())
         lp = LightPath(make_wavefront())
@@ -145,7 +144,7 @@ class TestSurfaces(unittest.TestCase):
 
     def test_analytic_surface(self):
         a = AnalyticSurface(interface=SnellInterface())
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             a.distance(make_wavefront())
 
     def test_planar_surface(self):
@@ -171,7 +170,7 @@ class TestSurfaces(unittest.TestCase):
         npt.assert_equal(isinstance(ss3.interface, Interface), True)
 
 
-class TestMedia(unittest.TestCase):
+class TestMedia:
     def test_homogeneous_medium(self):
         m = HomogeneousMedium(VACUUM)
         npt.assert_allclose(
@@ -200,8 +199,8 @@ class TestMedia(unittest.TestCase):
         npt.assert_equal(m.transform is not None, True)
 
 
-class TestOptic(unittest.TestCase):
-    def setUp(self):
+class TestOptic:
+    def setup_method(self):
         self.surface1 = PlanarSurface(interface=SnellInterface(), transform=Translation((0, 0, 0)))
         self.surface2 = PlanarSurface(interface=SnellInterface(), transform=Translation((0, 0, 1)))
         self.medium = HomogeneousMedium(VACUUM)
@@ -245,17 +244,17 @@ class TestOptic(unittest.TestCase):
         npt.assert_array_equal(source.emit().wavefront.direction, [0, 0, 1])
 
 
-class TestHeader(unittest.TestCase):
+class TestHeader:
     def test_element_not_implemented(self):
         from zmxtools.optical_design.header import Element
 
         e = Element()
         lp = LightPath(make_wavefront())
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             e.transmit_to(lp, HomogeneousMedium(VACUUM))
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             e.reflect(lp)
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             e.distance(make_wavefront())
         npt.assert_equal(repr(e).startswith("Element("), True)
 
@@ -264,12 +263,8 @@ class TestHeader(unittest.TestCase):
 
         m = Medium()
         lp = LightPath(make_wavefront())
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             m.propagate_to(lp, PlanarSurface(interface=SnellInterface()))
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             m.complex_refractive_index(wavenumber=1, position=0, electric_field=0, magnetizing_field=0)
         npt.assert_equal(repr(m).startswith("Medium("), True)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,12 +1,11 @@
-import unittest
-
 import numpy as np
+import pytest
 from numpy import testing as npt
 
 from zmxtools.utils.multivariate import PolarPolynomial, Polynomial
 
 
-class TestPolynomialExtras(unittest.TestCase):
+class TestPolynomialExtras:
     def test_exponents_padding(self):
         p = Polynomial([[1, 2], [3, 4]], "xy")
         p.exponents = [[0]]  # too short: padded with range
@@ -14,7 +13,7 @@ class TestPolynomialExtras(unittest.TestCase):
 
     def test_exponents_too_long(self):
         p = Polynomial([1, 2], "x")
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             p.exponents = [[0, 1, 2]]
 
     def test_rsub(self):
@@ -29,7 +28,7 @@ class TestPolynomialExtras(unittest.TestCase):
 
     def test_mul_polynomial_not_implemented(self):
         p = Polynomial([2, 3], "x")
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             p * Polynomial([1], "x")
 
     def test_str_complex(self):
@@ -59,8 +58,8 @@ class TestPolynomialExtras(unittest.TestCase):
         npt.assert_array_equal(np.asarray(p.coefficients), np.asarray(q.coefficients))
 
 
-class TestPolarPolynomialExtras(unittest.TestCase):
-    def setUp(self):
+class TestPolarPolynomialExtras:
+    def setup_method(self):
         self.p = PolarPolynomial([[1, 2, 3], [4, 5, 6]], labels=("rho", "phi"))
 
     def test_call(self):
@@ -81,7 +80,3 @@ class TestPolarPolynomialExtras(unittest.TestCase):
 
     def test_repr(self):
         npt.assert_equal(repr(self.p).startswith("PolarPolynomial("), True)
-
-
-if __name__ == "__main__":
-    unittest.main()

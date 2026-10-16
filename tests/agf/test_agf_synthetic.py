@@ -1,7 +1,7 @@
-import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 from numpy import testing as npt
 
 from zmxtools import agf
@@ -44,7 +44,7 @@ NO_MATERIALS = """TITLE empty library
 """
 
 
-class TestAgfSynthetic(unittest.TestCase):
+class TestAgfSynthetic:
     def test_parse_sellmeier1(self):
         library = agf.AgfMaterialLibrary.from_str(SELLMEIER1)
         npt.assert_equal(len(library.materials), 1)
@@ -57,14 +57,14 @@ class TestAgfSynthetic(unittest.TestCase):
         npt.assert_equal(str(glass).startswith("NM"), True)
         npt.assert_equal(repr(glass).startswith("Sellmeier1AgfMaterial("), True)
 
-    def test_extends(self):
+    def test_extends(self, subtests):
         for text, cls in (
             (EXTENDED, "Extended1AgfMaterial"),
             (SELLMEIER3, "Sellmeier3AgfMaterial"),
             (SELLMEIER4, "Sellmeier4AgfMaterial"),
             (SELLMEIER5, "Sellmeier5AgfMaterial"),
         ):
-            with self.subTest(cls=cls):
+            with subtests.test(cls=cls):
                 library = agf.AgfMaterialLibrary.from_str(text)
                 npt.assert_equal(type(library.materials[0]).__name__, cls)
                 n = library.materials[0].refractive_index(wavelength=587.5618e-9)
@@ -75,7 +75,7 @@ class TestAgfSynthetic(unittest.TestCase):
         npt.assert_equal(len(library.materials), 0)
 
     def test_unknown_formula(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             agf.AgfMaterialLibrary.from_str("NM BAD 99 1.5 60 0 1 1 1\n  LD 0.3 2.5\n  CD 1 1 1 0 0 0\n")
 
     def test_blank_lines(self):
@@ -102,7 +102,3 @@ class TestAgfSynthetic(unittest.TestCase):
 
     def test_as_float(self):
         npt.assert_equal(agf.as_float("1.5e-3"), 1.5e-3)
-
-
-if __name__ == "__main__":
-    unittest.main()

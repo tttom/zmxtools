@@ -1,7 +1,7 @@
-import unittest
 from typing import cast
 
 import numpy as np
+import pytest
 from numpy import testing as npt
 
 from zmxtools.optical_design.geometry import (
@@ -21,8 +21,8 @@ from zmxtools.optical_design.geometry import (
 )
 
 
-class TestGeometry(unittest.TestCase):
-    def setUp(self):
+class TestGeometry:
+    def setup_method(self):
         self.origin = (0, 0, 0)
 
         self.vx = np.array([1, 0, 0])
@@ -76,11 +76,11 @@ class TestGeometry(unittest.TestCase):
 
     def test_transform_base(self):
         t = Transform()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             _ = t.matrix
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             t.homogeneous(self.hvx)
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             _ = t.inv
         npt.assert_equal(str(t), "T")
         npt.assert_equal(repr(t), "Transform()")
@@ -89,7 +89,7 @@ class TestGeometry(unittest.TestCase):
         npt.assert_equal(t == 1, False)
 
         # Transforming by a scalar yields a Scaling compound; the base transform has no inverse
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             t @ 2.0
 
         # A transform composed with its inverse is the identity
@@ -99,7 +99,7 @@ class TestGeometry(unittest.TestCase):
 
     def test_positionable(self):
         p = Positionable()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             p.to(IDENTITY)
 
     def test_scale(self):
@@ -366,7 +366,3 @@ class TestGeometry(unittest.TestCase):
         on_manifold2 = st.point(pos2)
         back2 = ist.point(on_manifold2)
         npt.assert_allclose(back2, pos2, atol=1e-9)
-
-
-if __name__ == "__main__":
-    unittest.main()

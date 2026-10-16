@@ -1,8 +1,8 @@
 import json
-import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 from numpy import testing as npt
 
 from tests.zmx import test_directory
@@ -150,7 +150,7 @@ def synthetic_design() -> oshow.ZmxOpticalDesign:
     return oshow.ZmxOpticalDesign.from_str(SYNTHETIC)
 
 
-class TestGlassFilter(unittest.TestCase):
+class TestGlassFilter:
     def test_vacuum_is_not_glass(self):
         from zmxtools.optical_design.material import VACUUM
 
@@ -188,7 +188,7 @@ class TestGlassFilter(unittest.TestCase):
         npt.assert_equal(np.isfinite(scene["bounds"]["zmin"]), True)
 
 
-class TestLoad(unittest.TestCase):
+class TestLoad:
     def test_load_zmx(self):
         design = oshow.load_design(ZMX_FILE)
         npt.assert_equal(len(design.surfaces) >= 3, True)
@@ -202,11 +202,11 @@ class TestLoad(unittest.TestCase):
         npt.assert_equal(len(design.surfaces) >= 3, True)
 
     def test_load_bad_extension(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             oshow.load_design("some/file.txt")
 
 
-class TestUnzarOutput(unittest.TestCase):
+class TestUnzarOutput:
     def test_load_zip(self):
         import tempfile
 
@@ -233,12 +233,12 @@ class TestUnzarOutput(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 oshow.load_design(tmp)
 
 
-class TestInfinityRays(unittest.TestCase):
-    def setUp(self):
+class TestInfinityRays:
+    def setup_method(self):
         self.scene = oshow.build_scene(oshow.ZmxOpticalDesign.from_str(INFINITY), nb_rays=7)
         self.diameter = 2.0 * self.scene["aperture_stop"]["inner_radius"]
 
@@ -282,18 +282,18 @@ NEW_REAL_WORLD_DESIGNS = (
 )
 
 
-class TestRealWorldDesigns(unittest.TestCase):
-    def test_build_scene(self):
+class TestRealWorldDesigns:
+    def test_build_scene(self, subtests):
         for stem in NEW_REAL_WORLD_DESIGNS:
-            with self.subTest(stem):
+            with subtests.test(stem=stem):
                 scene = oshow.build_scene(oshow.load_design(test_directory / f"{stem}.zmx"), nb_rays=7)
                 points = np.array([p for ray in scene["rays"] for p in ray["points"]])
                 npt.assert_equal(np.all(np.isfinite(points)), True)
                 npt.assert_equal(len(scene["rays"]) >= 7, True)
 
 
-class TestScene(unittest.TestCase):
-    def setUp(self):
+class TestScene:
+    def setup_method(self):
         self.scene = oshow.build_scene(synthetic_design(), nb_rays=7)
 
     def test_structure(self):
@@ -352,7 +352,7 @@ class TestScene(unittest.TestCase):
         npt.assert_allclose(self.scene["image_plane"]["center"][2], self.scene["bounds"]["zmax"])
 
 
-class TestRender(unittest.TestCase):
+class TestRender:
     def test_html_contains_scene(self):
         scene = oshow.build_scene(synthetic_design(), nb_rays=1)
         html = oshow.render_html(scene)
@@ -370,11 +370,11 @@ class TestRender(unittest.TestCase):
         npt.assert_equal("const SERVED = true;" in html, True)
 
 
-class TestCli(unittest.TestCase):
+class TestCli:
     def test_version(
         self,
     ):
-        self.assertEqual(oshow.oshow(["-V"]), 0)
+        assert oshow.oshow(["-V"]) == 0
 
     def test_write_outputs(self):
         import tempfile
@@ -412,7 +412,7 @@ class TestCli(unittest.TestCase):
         npt.assert_equal(code, 2)
 
 
-class TestServe(unittest.TestCase):
+class TestServe:
     def test_serve_endpoints(self):
         import threading
         import urllib.request
@@ -457,7 +457,3 @@ class TestServe(unittest.TestCase):
         npt.assert_equal(b"<!DOCTYPE html>" in page, True)
         thread.join(timeout=5)
         npt.assert_equal(thread.is_alive(), False)
-
-
-if __name__ == "__main__":
-    unittest.main()

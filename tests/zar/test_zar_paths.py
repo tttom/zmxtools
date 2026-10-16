@@ -1,7 +1,7 @@
 import io
-import unittest
 from pathlib import Path
 
+import pytest
 from numpy import testing as npt
 
 from zmxtools import zar
@@ -10,7 +10,7 @@ from zmxtools.utils.io import BytesFile
 ZAR_FILE = Path(__file__).resolve().parent.parent / "data" / "LA1116-Zemax.zar"
 
 
-class TestZarPaths(unittest.TestCase):
+class TestZarPaths:
     def test_extract_str_path(self):
         import tempfile
 
@@ -22,7 +22,7 @@ class TestZarPaths(unittest.TestCase):
 
     def test_extract_stream_raises(self):
         with open(ZAR_FILE, "rb") as f:
-            with self.assertRaises(TypeError):
+            with pytest.raises(TypeError):
                 zar.extract(f, output_path="/tmp/does-not-matter")
 
     def test_repack_str_output(self):
@@ -71,7 +71,3 @@ class TestZarPaths(unittest.TestCase):
         with open(ZAR_FILE, "rb") as f:
             designs = zar.load(f)
         npt.assert_equal(len(designs) >= 1, True)
-
-
-if __name__ == "__main__":
-    unittest.main()
