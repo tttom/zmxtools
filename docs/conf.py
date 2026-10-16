@@ -12,9 +12,9 @@
 
 import datetime
 import sys
+from importlib import metadata
 from pathlib import Path
 
-import tomlkit
 from sphinx.ext import apidoc
 
 code_path = Path(__file__).parent.absolute()
@@ -24,23 +24,22 @@ sys.path.insert(0, code_path.parent.as_posix())  # ReadTheDocs seems to require 
 
 # -- Project information -----------------------------------------------------
 
-def _get_project_meta():
-    with open('../pyproject.toml') as pyproject:
-        file_contents = pyproject.read()
+def _get_project_version() -> str:
+    try:
+        return str(metadata.version('zmxtools'))
+    except metadata.PackageNotFoundError:
+        return '0.0.0'
 
-    return tomlkit.parse(file_contents)['tool']['poetry']
 
-
-pkg_meta = _get_project_meta()
-project = str(pkg_meta['name'])
+project = 'zmxtools'
 
 author = 'Tom Vettenburg'
-copyright = f'{datetime.datetime.now().year}, {author}'  # noqa: WPS125
+copyright = f'{datetime.datetime.now().year}, {author}'  # noqa: A001
 epub_author = author
 epub_publisher = 'ReadTheDocs'
 
 # The short X.Y version
-version = str(pkg_meta['version'])
+version = _get_project_version()
 # The full version, including alpha/beta/rc tags
 release = version
 
@@ -89,7 +88,7 @@ autodoc_default_options = {
                        '__abstractmethods__, __orig_bases__, __parameters__' +
                        '__dataclass_fields__,  __dataclass_params__',
 }
-autodoc_mock_imports = ['coloredlogs']
+autodoc_mock_imports = []
 
 # Set `typing.TYPE_CHECKING` to `True`:
 # https://pypi.org/project/sphinx-autodoc-typehints/
@@ -169,6 +168,6 @@ todo_include_todos = False
 # Building the API Documentation...
 code_path = Path(__file__).parent.parent.resolve()
 docs_path = code_path / 'docs'
-apidoc_path = docs_path / 'source/api'  # a temporary directory
+apidoc_path = docs_path / 'src/api'  # a temporary directory
 # Build api-doc scaffolding
 apidoc.main(['-f', '-d', '-1', '-M', '-o', f'{apidoc_path}', f"{code_path / 'zmxtools'}"])

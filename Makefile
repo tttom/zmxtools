@@ -2,20 +2,19 @@ SHELL:=/usr/bin/env bash
 
 .PHONY: lint
 lint:
-	poetry run mypy zmxtools tests/**/*.py
-	poetry run flake8 .
-	poetry run doc8 -q docs
+	uv run ty check zmxtools tests
+	uv run ruff check zmxtools tests
+	uv run ruff format --check zmxtools tests
+	uv run doc8 README.md CONTRIBUTING.md CHANGELOG.md docs
 
 .PHONY: unit
 unit:
-	poetry run pytest
+	uv run pytest
 
 .PHONY: package
 package:
-	poetry check
-	poetry run pip check
-	poetry run safety check --full-report
+	uv build
+	uv run python -c "import zmxtools; print(zmxtools.__version__)"
 
 .PHONY: test
 test: lint package unit
-

@@ -216,5 +216,5 @@ fabric.properties
 # pyenv
 .python-version
 
-# poetry
-/poetry.lock
+docs/src/api/
+
