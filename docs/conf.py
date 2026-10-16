@@ -170,4 +170,4 @@ code_path = Path(__file__).parent.parent.resolve()
 docs_path = code_path / 'docs'
 apidoc_path = docs_path / 'src/api'  # a temporary directory
 # Build api-doc scaffolding
-apidoc.main(['-f', '-d', '-1', '-M', '-o', f'{apidoc_path}', f"{code_path / 'zmxtools'}"])
+apidoc.main(['-f', '-d', '-1', '-M', '-o', f'{apidoc_path}', f"{code_path / 'src' / 'zmxtools'}"])

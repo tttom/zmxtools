@@ -2,9 +2,9 @@ SHELL:=/usr/bin/env bash
 
 .PHONY: lint
 lint:
-	uv run ty check zmxtools tests
-	uv run ruff check zmxtools tests
-	uv run ruff format --check zmxtools tests
+	uv run ty check src/zmxtools tests
+	uv run ruff check src/zmxtools tests
+	uv run ruff format --check src/zmxtools tests
 	uv run doc8 README.md CONTRIBUTING.md CHANGELOG.md docs
 
 .PHONY: unit
