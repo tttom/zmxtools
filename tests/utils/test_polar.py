@@ -27,17 +27,17 @@ class TestPolar(unittest.TestCase):
         )
         npt.assert_array_equal(
             cart2pol([1, 2, -3], 0),
-            ((1, 2, 3), (np.pi/2, np.pi/2, -np.pi/2)),
+            ((1, 2, 3), (np.pi / 2, np.pi / 2, -np.pi / 2)),
         )
         npt.assert_array_equal(
             cart2pol([[1], [2], [-3]], [[[0]]]),
-            ([[[1], [2], [3]]], [[[np.pi/2], [np.pi/2], [-np.pi/2]]]),
+            ([[[1], [2], [3]]], [[[np.pi / 2], [np.pi / 2], [-np.pi / 2]]]),
         )
         npt.assert_array_equal(
             cart2pol([[0], [1]], [1, 2, -3]),
             (
                 [(1, 2, 3), (np.sqrt(2), np.sqrt(5), np.sqrt(10))],
-                [(0, 0, np.pi), (np.pi/4, np.arctan2(1, 2), np.arctan2(1, -3))],
+                [(0, 0, np.pi), (np.pi / 4, np.arctan2(1, 2), np.arctan2(1, -3))],
             ),
         )
 
@@ -51,5 +51,5 @@ class TestPolar(unittest.TestCase):
         npt.assert_array_equal(pol2cart(0, 0), (0, 0))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
