@@ -11,7 +11,6 @@
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/tttom/ZmxTools)](https://github.com/tttom/ZmxTools)
 [![GitHub last commit](https://img.shields.io/github/last-commit/tttom/ZmxTools)](https://github.com/tttom/ZmxTools)
 [![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/pypi/zmxtools)](https://libraries.io/pypi/zmxtools)
-[![wemake-python-styleguide](https://img.shields.io/badge/style-wemake-000000.svg)](https://github.com/wemake-services/wemake-python-styleguide)
 [![codecov](https://codecov.io/gh/tttom/zmxtools/branch/main/graph/badge.svg)](https://codecov.io/gh/tttom/zmxtools)
 
 ### A toolkit to read Zemax files.
@@ -26,16 +25,23 @@ experimental. You may find the [list of related software](#related-software) bel
 - Repack a ZAR file as a standard zip file using the `unzar -z` command.
 - Integrate into your project as a pure Python 3 library.
 - Parse ZMX and AGF files to Python classes for further processing.
-- Fully typed with annotations and checked with mypy, [PEP561 compatible](https://www.python.org/dev/peps/pep-0561/)
+- Model refractive indices, transmittance, and dispersion of glasses, including the AGF catalog formulas.
+- Zernike polynomial basis, indexing conversions (OSA/ANSI, Noll, Fringe), and least-squares fitting.
+- Fully typed with annotations and checked with [ty](https://github.com/astral-sh/ty), [PEP561 compatible](https://www.python.org/dev/peps/pep-0561/)
 
 ## Installation
 ### Prerequisites
-- Python 3.11 or higher
+- Python 3.13 or higher
 - pip, the Python package manager
 
 To install `zmxtools`, just run the following command in a command shell:
 ```bash
 pip install zmxtools
+```
+
+For development, use [uv](https://docs.astral.sh/uv/) to set up the environment:
+```bash
+uv sync
 ```
 
 ## Usage
@@ -51,6 +57,10 @@ unzar mylens.zar
 Repacking the same zar-archive as a standard zip-archive `mylens.zip` is done with:
 ```console
 unzar mylens.zar -z
+```
+The `--show` option (`-s`) displays the unpacked module in the `oshow` 3D viewer:
+```console
+unzar mylens.zar --show
 ```
 Multiple input files and an alternative output directory can be specified: 
 ```console
@@ -84,13 +94,39 @@ for surface in optical_design.surfaces:
   print(surface.type + (' STOP' if surface.stop else '') + ' surface with ' +
         (f'{1 / surface.curvature / 1e-3:0.3f} mm' if surface.curvature != 0.0 else '∞') +
         f' radius of curvature and {surface.radius * 2 / 1e-3:0.3f} mm aperture.')
-  if surface.distance != 0.0:
-    print(f'  {surface.distance / 1e-3:0.3f} mm spacing with {surface.material.name}' +
+  if surface.spacing != 0.0:
+    print(f'  {surface.spacing / 1e-3:0.3f} mm spacing with {surface.material.name}' +
           f' n={surface.material.complex_refractive_index(wavelength=wavelength)}' +
           f' @ {wavelength / 1e-9:0.1f}nm.')
 ```
 Note that `surface.material` are glass objects that model the optical properties over a range of wavelengths, not just 
 those of the optical model.
+
+### Zernike polynomials
+The `zmxtools.utils.zernike` sub-module provides the Zernike polynomial basis with OSA/ANSI, Noll, and Fringe
+indexing conventions, as well as least-squares fitting of measured surfaces:
+```python
+import numpy as np
+from zmxtools.utils import zernike
+
+p = zernike.Polynomial(coefficients=[0, 0.1, 0.2, -0.05], indices=[0, 1, 2, 3])
+rho, phi = np.meshgrid(np.linspace(0, 1, 32), np.linspace(0, 2 * np.pi, 64))
+values = p(rho, phi)
+fit = zernike.Fit(rho=rho, phi=phi, z=values, order=10)
+print(fit.coefficients, fit.error)
+```
+
+### Viewing a design in 3D
+The `oshow` command renders an optical design interactively in a browser window:
+```console
+oshow -i mylens.zar
+oshow -i mylens.zmx -l schott.agf --watch
+```
+Lenses are drawn as colored semi-transparent solids with spherical shell caps, the
+aperture stop center is at the origin with x/y/z axes, and a ray bundle is traced
+from the source to the image plane. Drag to orbit, wheel to zoom, arrows to pan,
+`Home`/`End`/`PageUp`/`PageDown` to navigate. See the oshow documentation for the
+JSON scene format, model saving, and planned 2D slices.
 
 ## Online documentation
 The latest version of the API Documentation is published on https://zmxtools.readthedocs.io/.

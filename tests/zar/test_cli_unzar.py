@@ -50,6 +50,37 @@ def test_unzar_full():
     log.info(f"Deleted {output_path} directory.")
 
 
+def test_unzar_show():
+    """Tests that --show passes the unpacked output on to oshow."""
+    from unittest import mock
+
+    zar_full_file = next(iter(test_zar_files))
+    output_path = test_directory / "tmp_view"
+    output_zip_full_file = output_path / (zar_full_file.stem + ".zip")
+
+    with mock.patch("zmxtools.gui.oshow") as view:
+        view.return_value = 0
+        exit_code = cli.unzar(["-vvv", f"-i {zar_full_file}", f"-o {output_path}", "--show"])
+        assert exit_code == 0, f"Unzar tool returned error code {exit_code}, though expected 0."
+        view.assert_called_once_with([str(output_path / zar_full_file.stem)])
+    check_dir_and_remove(output_path / zar_full_file.stem)
+
+    with mock.patch("zmxtools.gui.oshow") as view:
+        view.return_value = 1
+        exit_code = cli.unzar(["-vvv", f"-i {zar_full_file}", f"-o {output_path}", "-z", "--show"])
+        assert exit_code == 0, f"Unzar tool returned error code {exit_code}, though expected 0."
+        view.assert_called_once_with([str(output_zip_full_file)])
+    check_zip_and_remove(output_zip_full_file, remove=False)
+
+    with mock.patch("zmxtools.gui.oshow") as view:
+        exit_code = cli.unzar(["-vvv", f"-i {zar_full_file}", f"-o {output_path}", "-z", "--show"])
+        assert exit_code == 1, f"Unzar tool returned error code {exit_code}, though expected 1 since file exists."
+        view.assert_not_called()
+    check_zip_and_remove(output_zip_full_file)
+
+    output_path.rmdir()
+
+
 def test_unzar_non_zar_extension():
     """Checks whether the command line interface is happy to take zar files with a different extension."""
     zar_full_file = next(iter(test_zar_files))

@@ -36,6 +36,7 @@ Changelog = "https://github.com/tttom/zmxtools/blob/main/CHANGELOG.md"
 
 [project.scripts]
 unzar = "zmxtools.cli:unzar"
+oshow = "zmxtools.gui:oshow"
 
 [project.optional-dependencies]
 docs = [

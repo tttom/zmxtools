@@ -8,5 +8,6 @@
   src/api/modules
   src/changelog
   src/contributing
+  src/oshow
   modindex
   genindex

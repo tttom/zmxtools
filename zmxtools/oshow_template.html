@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>oshow - __TITLE__</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:var(--bg,#101018)}
+#info{position:absolute;left:8px;top:8px;color:var(--info,#aaa);font:12px monospace}
+#info b{color:var(--infob,#fff)}
+#theme{position:absolute;right:14px;top:8px;font-size:34px;line-height:1;cursor:pointer;user-select:none;color:var(--btn,#eee)}
+#theme:hover{opacity:0.7}</style>
+</head>
+<body>
+<div id="info"><b>__TITLE__</b><br>drag: orbit &middot; wheel: zoom &middot; arrows: pan<br>
+Home: reset &middot; End: x-axis view &middot; PgUp/PgDn: dolly</div>
+<div id="theme" title="Toggle light/dark mode">&#9680;</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+let SCENE_DATA = __SCENE__;
+const SERVED = __SERVED__;
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 1e-5, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+const scene = new THREE.Scene();
+const THEMES = {
+  dark:  {bg:0x101018, css:'#101018', info:'#aaaaaa', infob:'#ffffff', btn:'#eeeeee'},
+  light: {bg:0xe9e9ef, css:'#e9e9ef', info:'#444444', infob:'#000000', btn:'#222222'},
+};
+let theme = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+function applyTheme(){
+  const t = THEMES[theme];
+  scene.background = new THREE.Color(t.bg);
+  const s = document.documentElement.style;
+  s.setProperty('--bg', t.css);
+  s.setProperty('--info', t.info);
+  s.setProperty('--infob', t.infob);
+  s.setProperty('--btn', t.btn);
+}
+document.getElementById('theme').addEventListener('click', () => {
+  theme = (theme === 'dark') ? 'light' : 'dark';
+  applyTheme();
+});
+applyTheme();
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 0.9);
+key.position.set(0.3, -0.4, 0.6).multiplyScalar(0.1);
+scene.add(key);
+let initial = null;
+function addLine(a, b, color){
+  const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+  const line = new THREE.Line(g, new THREE.LineBasicMaterial({color:color}));
+  line.userData.dyn = true;
+  scene.add(line);
+}
+function build(data){
+  scene.children.filter(c=>c.userData.dyn).forEach(c=>scene.remove(c));
+  const L = data.axes.length;
+  addLine([0,0,0],[L,0,0],0xff5555);
+  addLine([0,0,0],[0,L,0],0x55ff55);
+  addLine([0,0,0],[0,0,L],0x5555ff);
+  const ax = new THREE.BufferGeometry().setFromPoints(
+    data.axis_line.map(p=>new THREE.Vector3(...p)));
+  const axis = new THREE.Line(ax, new THREE.LineBasicMaterial({color:0x888888}));
+  axis.userData.dyn = true;
+  scene.add(axis);
+  for(const lens of data.lenses){
+    for(const m of lens.meshes){
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(m.vertices.flat(), 3));
+      g.setIndex(m.triangles.flat());
+      g.computeVertexNormals();
+      const mesh = new THREE.Mesh(g, new THREE.MeshPhongMaterial(
+        {color:lens.color, transparent:true, opacity:lens.opacity, side:THREE.DoubleSide, depthWrite:false}));
+      mesh.userData.dyn = true;
+      scene.add(mesh);
+    }
+    const lines = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(lens.rim_lines.map(p=>new THREE.Vector3(...p))),
+      new THREE.LineBasicMaterial({color:lens.color}));
+    lines.userData.dyn = true;
+    scene.add(lines);
+  }
+  for(const ray of data.rays){
+    const g = new THREE.BufferGeometry().setFromPoints(ray.points.map(p=>new THREE.Vector3(...p)));
+    const line = new THREE.Line(g, new THREE.LineBasicMaterial({color:ray.color}));
+    line.userData.dyn = true;
+    scene.add(line);
+  }
+  const ip = data.image_plane;
+  const disk = new THREE.Mesh(
+    new THREE.CircleGeometry(ip.radius, 48),
+    new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide}));
+  disk.position.set(ip.center[0], ip.center[1], ip.center[2]);
+  disk.userData.dyn = true;
+  scene.add(disk);
+  const ap = data.aperture_stop;
+  const stop = new THREE.Mesh(
+    new THREE.RingGeometry(ap.inner_radius, ap.outer_radius, 48),
+    new THREE.MeshBasicMaterial({color:0x808088, side:THREE.DoubleSide}));
+  stop.position.set(ap.center[0], ap.center[1], ap.center[2]);
+  stop.userData.dyn = true;
+  scene.add(stop);
+  initial = {pos:new THREE.Vector3(...data.camera.position), tgt:new THREE.Vector3(...data.camera.target)};
+  camera.position.copy(initial.pos);
+  controls.target.copy(initial.tgt);
+  controls.update();
+}
+function extent(b){ return Math.max(b.zmax - b.zmin, 4*b.radius); }
+function xView(){
+  const b = SCENE_DATA.bounds, d = extent(b), zc = (b.zmin + b.zmax)/2;
+  camera.position.set(2.5*d, 0, zc);
+  controls.target.set(0, 0, zc);
+  controls.update();
+}
+addEventListener('keydown', ev => {
+  const b = SCENE_DATA.bounds, pan = 0.05*extent(b);
+  switch(ev.key){
+    case 'Home': camera.position.copy(initial.pos); controls.target.copy(initial.tgt); break;
+    case 'End': xView(); break;
+    case 'PageUp': camera.position.lerp(controls.target, 0.15); break;
+    case 'PageDown': camera.position.sub(controls.target).multiplyScalar(1.18).add(controls.target); break;
+    case 'ArrowLeft': camera.position.x -= pan; controls.target.x -= pan; break;
+    case 'ArrowRight': camera.position.x += pan; controls.target.x += pan; break;
+    case 'ArrowUp': camera.position.y -= pan; controls.target.y -= pan; break;
+    case 'ArrowDown': camera.position.y += pan; controls.target.y += pan; break;
+    default: return;
+  }
+  controls.update();
+  ev.preventDefault();
+});
+build(SCENE_DATA);
+if (SERVED){
+  let version = null;
+  setInterval(async () => {
+    try {
+      const v = await (await fetch('/version')).text();
+      if (version !== null && v !== version){
+        SCENE_DATA = await (await fetch('/scene.json')).json();
+        build(SCENE_DATA);
+      }
+      version = v;
+    } catch (err) {
+      /* Server exited; the embedded scene keeps rendering. */
+    }
+  }, 1000);
+}
+renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script>
+</body>
+</html>
