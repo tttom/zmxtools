@@ -7,14 +7,16 @@ Functions to format strings, or objects that can be converted to strings, as uni
 '₊₋₀ٜ₁₂₃₄₅₆₇₈₉ᵢⱼₖₗₘₙₒₚ'
 """
 
-__all__ = ['sup', 'sub']
+__all__ = ["sub", "sup"]
 
-__SUP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
-                      '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᑫᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ᵝᵞ۹ᵠᵠᵠˣॱ' + '⃰',
-                      )
-__SUB = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ.' + '*',
-                      '₀₁₂₃₄₅₆₇₈₉ₐbcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓyzABCDₑFGₕᵢⱼₖₗₘₙₒₚQᵣₛₜᵤᵥwₓYZ₊₋₌₍₎ᵦᵧᵨᵩᵩᵩᵪٜ' + '͙',
-                      )
+__SUP = str.maketrans(
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ." + "*",
+    "⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᑫᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ᵝᵞ۹ᵠᵠᵠˣॱ" + "⃰",
+)
+__SUB = str.maketrans(
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()βɣρΦϕɸχ." + "*",
+    "₀₁₂₃₄₅₆₇₈₉ₐbcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓyzABCDₑFGₕᵢⱼₖₗₘₙₒₚQᵣₛₜᵤᵥwₓYZ₊₋₌₍₎ᵦᵧᵨᵩᵩᵩᵪٜ" + "͙",
+)
 
 
 def sub(text) -> str:
@@ -23,8 +25,12 @@ def sub(text) -> str:
 
     Note that several letters are missing in unicode and are thus substituted by their case variants or regular letters.
 
-    :param text: A regular txt string or anything that implements the __str__ method.
-    :return: The subscript string.
+    Args:
+        text: A regular txt string or anything that implements the __str__ method.
+
+    Returns:
+        The subscript string.
+
     """
     return str(text).translate(__SUB)
 
@@ -36,7 +42,11 @@ def sup(text) -> str:
     Note that the lowercase 'q' and several uppercase letters are missing in unicode.
     These are substituted by their case variants or regular letters.
 
-    :param text: A regular txt string or anything that implements the __str__ method.
-    :return: The superscript string.
+    Args:
+        text: A regular txt string or anything that implements the __str__ method.
+
+    Returns:
+        The superscript string.
+
     """
     return str(text).translate(__SUP)

@@ -9,8 +9,10 @@ class Source:
         """
         Constructs a new light source in the specified medium, that emits the specified wavefront.
 
-        :param medium: The medium that the light-source is embedded in.
-        :param wavefront: The wavefront it emits.
+        Args:
+            medium: The medium that the light-source is embedded in.
+            wavefront: The wavefront it emits.
+
         """
         self.medium: Medium = medium
         self.wavefront = wavefront

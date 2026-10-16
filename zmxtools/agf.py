@@ -12,28 +12,36 @@ The following projects have been useful references:
  - Optical ToolKit, OTK: https://github.com/draustin/otk
 
 """
+
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import numpy as np
 
 from zmxtools import log, parser
 from zmxtools.optical_design import material
-from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray, to_length
+from zmxtools.utils.array import array_like, array_type, asarray, to_length
 from zmxtools.utils.io import FileLike, PathLike
 
-__all__ = ['AgfMaterialLibrary',
-           'SchottAgfMaterial',
-           'Sellmeier1AgfMaterial', 'Sellmeier2AgfMaterial', 'Sellmeier3AgfMaterial',
-           'Sellmeier4AgfMaterial', 'Sellmeier5AgfMaterial',
-           'HerzbergerAgfMaterial',
-           'ConradyAgfMaterial',
-           'HandbookOfOptics1AgfMaterial', 'HandbookOfOptics2AgfMaterial',
-           'Extended1AgfMaterial', 'Extended2AgfMaterial', 'Extended3AgfMaterial',
-           ]
+__all__ = [
+    "AgfMaterialLibrary",
+    "ConradyAgfMaterial",
+    "Extended1AgfMaterial",
+    "Extended2AgfMaterial",
+    "Extended3AgfMaterial",
+    "HandbookOfOptics1AgfMaterial",
+    "HandbookOfOptics2AgfMaterial",
+    "HerzbergerAgfMaterial",
+    "SchottAgfMaterial",
+    "Sellmeier1AgfMaterial",
+    "Sellmeier2AgfMaterial",
+    "Sellmeier3AgfMaterial",
+    "Sellmeier4AgfMaterial",
+    "Sellmeier5AgfMaterial",
+]
 
 log = log.getChild(__name__)
 
@@ -44,37 +52,45 @@ class AgfOrderedCommandDict(parser.OrderedCommandDict):
         """
         Create a new `parser.OrderedCommandDict` from a multi-line text extracted from an agf file.
 
-        :param file_contents: The text string extracted from an optical file.
-        :param spaces_per_indent: The number of spaces per tab to assumed (default: 0)
+        Args:
+            file_contents: The text string extracted from an optical file.
+            spaces_per_indent: The number of spaces per tab to assumed (default: 0)
 
-        :return: The command dictionary.
+        Returns:
+            The command dictionary.
+
         """
-        def parse_section(lines: Iterator[str],
-                          out: Optional[parser.OrderedCommandDict] = None,
-                          ) -> Tuple[parser.OrderedCommandDict, Optional[parser.Command]]:
+
+        def parse_section(
+            lines: Iterator[str],
+            out: parser.OrderedCommandDict | None = None,
+        ) -> tuple[parser.OrderedCommandDict, parser.Command | None]:
             """
             Auxiliary recursive function to parse a section of the file's lines.
 
-            :param lines: The iterable with the lines to parse.
-            :param out: The optional collection to add to as the result.
+            Args:
+                lines: The iterable with the lines to parse.
+                out: The optional collection to add to as the result.
 
-            :return: A collection of commands, corresponding to the lines in this section.
+            Returns:
+                A collection of commands, corresponding to the lines in this section.
+
             """
             if out is None:
                 out = parser.OrderedCommandDict(spaces_per_indent=spaces_per_indent)
             try:
-                current_material: Optional[parser.Command] = None
+                current_material: parser.Command | None = None
                 while (line := next(lines)) is not None:
-                    match = re.match(r'(\s*)(\S+)(\s.*)?', line)
+                    match = re.match(r"(\s*)(\S+)(\s.*)?", line)
                     if match is None:
                         continue  # skip empty line
 
-                    indent_str, command_name, command_argument = match.groups()
+                    _, command_name, command_argument = match.groups()
                     if command_argument is not None:
                         command_argument = command_argument[1:]
                     next_command = parser.Command(name=command_name, argument=command_argument)
 
-                    if next_command.name == 'NM':
+                    if next_command.name == "NM":
                         out.append(next_command)  # Add as a new material
                         current_material = next_command  # append the following as sub-commands
                     else:
@@ -96,26 +112,37 @@ class AgfMaterialLibrary(material.MaterialLibrary):
         """Construct a new material library from a list of AGF commands that were previously read from file."""
         self.commands = commands
 
-        description: str = '\n'.join(_.argument for _ in self.commands['CC']) if 'CC' in self.commands else ''
-        material_constructors = [SchottAgfMaterial, Sellmeier1AgfMaterial, HerzbergerAgfMaterial,
-                                 Sellmeier2AgfMaterial, ConradyAgfMaterial, Sellmeier3AgfMaterial,
-                                 HandbookOfOptics1AgfMaterial, HandbookOfOptics2AgfMaterial,
-                                 Sellmeier4AgfMaterial, Extended1AgfMaterial, Sellmeier5AgfMaterial,
-                                 Extended2AgfMaterial, Extended3AgfMaterial,
-                                 ]
+        description: str = "\n".join(_.text for _ in self.commands.commands_of("CC")) if "CC" in self.commands else ""
+        material_constructors = [
+            SchottAgfMaterial,
+            Sellmeier1AgfMaterial,
+            HerzbergerAgfMaterial,
+            Sellmeier2AgfMaterial,
+            ConradyAgfMaterial,
+            Sellmeier3AgfMaterial,
+            HandbookOfOptics1AgfMaterial,
+            HandbookOfOptics2AgfMaterial,
+            Sellmeier4AgfMaterial,
+            Extended1AgfMaterial,
+            Sellmeier5AgfMaterial,
+            Extended2AgfMaterial,
+            Extended3AgfMaterial,
+        ]
         materials = list[material.Material]()
-        if 'NM' in self.commands:
-            log.debug(f'Parsed {len(self.commands["NM"])} materials.')
-            for command in self.commands['NM']:
+        if "NM" in self.commands:
+            nm_commands = self.commands.commands_of("NM")
+            log.debug(f"Parsed {len(nm_commands)} materials.")
+            for command in nm_commands:
                 # Some glass names are numbers. Some files contain decimal points in the integer index.
                 formula_index = int(float(command.words[1])) - 1
                 if 0 <= formula_index < len(material_constructors):
                     materials.append(material_constructors[formula_index](command))
                 else:
-                    raise ValueError(f'Unknown dispersion formula number {formula_index + 1}' +
-                                     f" for material {command.words[0]}: {command} with coefficients {command['CD']}.",
-                                     )
-        super().__init__(name='', description=description, materials=materials)
+                    raise ValueError(
+                        f"Unknown dispersion formula number {formula_index + 1}"
+                        + f" for material {command.words[0]}: {command} with coefficients {command['CD']}.",
+                    )
+        super().__init__(name="", description=description, materials=materials)
 
     @staticmethod
     def from_str(contents: str, spaces_per_indent: int = 0) -> AgfMaterialLibrary:
@@ -123,26 +150,32 @@ class AgfMaterialLibrary(material.MaterialLibrary):
         return AgfMaterialLibrary(AgfOrderedCommandDict.from_str(contents, spaces_per_indent=spaces_per_indent))
 
     @staticmethod
-    def from_file(input_path_or_stream: FileLike | PathLike,
-                  spaces_per_indent: int = 0,
-                  encoding: str = 'utf-16',
-                  ) -> AgfMaterialLibrary:
+    def from_file(
+        input_path_or_stream: FileLike | PathLike,
+        spaces_per_indent: int = 0,
+        encoding: str = "utf-16",
+    ) -> AgfMaterialLibrary:
         """
         Reads an agf file into an `AgfMaterialLibrary` representation.
 
-        :param input_path_or_stream: The file to read the optical system from, or its file-path.
-        :param spaces_per_indent: The optional number of spaces for indenting glass properties.
-        :param encoding: The text-encoding to try first.
+        Args:
+            input_path_or_stream: The file to read the optical system from, or its file-path.
+            spaces_per_indent: The optional number of spaces for indenting glass properties.
+            encoding: The text-encoding to try first.
 
-        :return: A representation of the material library.
+        Returns:
+            A representation of the material library.
+
         """
-        result = AgfMaterialLibrary(AgfOrderedCommandDict.from_file(input_path_or_stream,
-                                                                    spaces_per_indent=spaces_per_indent,
-                                                                    encoding=encoding,
-                                                                    ),
-                                    )
-        if result.name == '':
-            result.name = input_path_or_stream.name
+        result = AgfMaterialLibrary(
+            AgfOrderedCommandDict.from_file(
+                input_path_or_stream,
+                spaces_per_indent=spaces_per_indent,
+                encoding=encoding,
+            ),
+        )
+        if result.name == "" and not isinstance(input_path_or_stream, str):
+            result.name = Path(input_path_or_stream.name).name
         return result
 
     def __str__(self) -> str:
@@ -155,7 +188,7 @@ class AgfMaterialLibrary(material.MaterialLibrary):
 
     def __repr__(self) -> str:
         """Return a complete representation of the encoded commands as a single string."""
-        return f'{self.__class__.__name__}(commands={repr(self.commands)})'
+        return f"{self.__class__.__name__}(commands={self.commands!r})"
 
 
 def as_float(number_str: str) -> float:
@@ -165,7 +198,7 @@ def as_float(number_str: str) -> float:
     The minus sign is translated to NaN and INF to infinity.
     """
     number_str = number_str.strip()
-    if number_str != '-':
+    if number_str != "-":
         return float(number_str)
     return np.nan
 
@@ -176,7 +209,7 @@ class AgfMixin:
     command: parser.Command
 
     name: str
-    wavenumber_limits: array_type[SCALAR_TYPEVAR]
+    wavenumber_limits: array_type
     description: str
     density: float  # in kg / m^3
     glass_code: str
@@ -184,9 +217,9 @@ class AgfMixin:
     ignore_thermal_expansion: bool
     resistance: material.MaterialResistance
 
-    permittivity_coefficients: array_type[SCALAR_TYPEVAR]
-    specified_wavenumber_transmission_thickness: array_type[SCALAR_TYPEVAR]
-    thermal_coefficients: array_type[SCALAR_TYPEVAR]
+    permittivity_coefficients: array_type
+    specified_wavenumber_transmission_thickness: array_type
+    thermal_coefficients: array_type
 
     def __init__(self, command: parser.Command):
         """
@@ -195,65 +228,90 @@ class AgfMixin:
         Each child node represents a line in the file. This mix-in provides the method adjust_refractive_index_function
         amongst other properties.
 
-        :param command: The command that describes this glass.
+        Args:
+            command: The command that describes this glass.
+
         """
         self.command = command
 
         self.name = self.command.words[0]
-        (formula_index, glass_code, self.__refractive_index_d, self.__constringence, exclude_sub, status_index,
-         self.production_frequency,
-         ) = to_length([as_float(_) for _ in self.command.words[1:]], 7, value=0)
+        (
+            _,
+            _,
+            self.__refractive_index_d,
+            self.__constringence,
+            _,
+            _,
+            self.production_frequency,
+        ) = to_length([as_float(_) for _ in self.command.words[1:]], 7, value=0)
         self.glass_code = self.command.words[1]
 
         # Extract the child-node arguments now
-        self.description = self.command['GC', 0].argument if 'GC' in self.command else ''
-        alpham3070, alpha20300, density_g_cm3, delta_relative_partial_dispersion_g_f, ignore_thermal_expansion = (
-            to_length(self.command['ED', 0].numbers if 'ED' in self.command else list[float](), 5, value=0)
+        self.description = self.command.command("GC").text if "GC" in self.command else ""
+        _, _, density_g_cm3, _, _ = to_length(
+            self.command.command("ED").numbers if "ED" in self.command else list[float](), 5, value=0
         )
         self.density = density_g_cm3 * 1e3
 
-        (relative_cost, climatic_resistance_index, stain_resistance_index, acid_resistance_index,
-         alkali_resistance_index, phosphate_resistance_index,
-         ) = to_length([int(_) for _ in self.command['OD', 0].numbers] if 'OD' in self.command else list[int](),
-                       6, value=-1,
-                       )  # Cost and chemical info
-        self.resistance = material.MaterialResistance(climate=climatic_resistance_index, stain=stain_resistance_index,
-                                                      acid=acid_resistance_index, alkali=alkali_resistance_index,
-                                                      phosphate=phosphate_resistance_index,
-                                                      )
+        (
+            _,
+            climatic_resistance_index,
+            stain_resistance_index,
+            acid_resistance_index,
+            alkali_resistance_index,
+            phosphate_resistance_index,
+        ) = to_length(
+            [int(_) for _ in self.command.command("OD").numbers] if "OD" in self.command else list[int](),
+            6,
+            value=-1,
+        )  # Cost and chemical info
+        self.resistance = material.MaterialResistance(
+            climate=climatic_resistance_index,
+            stain=stain_resistance_index,
+            acid=acid_resistance_index,
+            alkali=alkali_resistance_index,
+            phosphate=phosphate_resistance_index,
+        )
 
         # The permittivity formula coefficients for wavelengths in micrometers
-        self.permittivity_coefficients = asarray(self.command['CD', 0].numbers
-                                                 if 'CD' in self.command else list[float](),
-                                                 ).real
+        self.permittivity_coefficients = asarray(
+            self.command.command("CD").numbers if "CD" in self.command else list[float](),
+        ).real
 
         # Process extinction information
         specified_wavelength_transmission_thickness = sorted(
-            [to_length(_.numbers, 3, value=1.0).real for _ in command['IT']], key=lambda _: _[0].real,
+            [to_length(_.numbers, 3, value=1.0).real for _ in command.commands_of("IT")],
+            key=lambda _: _[0].real,
         )
-        self.specified_wavenumber_transmission_thickness = asarray([
-            (2 * np.pi / (w * 1e-6), tr, th * 1e-3)  # convert to m
-            for w, tr, th in specified_wavelength_transmission_thickness[::-1]
-        ]).real
+        self.specified_wavenumber_transmission_thickness = asarray(
+            [
+                (2 * np.pi / (w * 1e-6), tr, th * 1e-3)  # convert to m
+                for w, tr, th in specified_wavelength_transmission_thickness[::-1]
+            ]
+        ).real
 
         # Determine thermal correction factor for refractive index
         self.thermal_coefficients = to_length(
-            self.command['TD', 0].numbers if 'TD' in self.command else list[float](), 6, value=0,
+            self.command.command("TD").numbers if "TD" in self.command else list[float](),
+            6,
+            value=0,
         ).real
 
         # Extract the refractive index model validity limits
-        wavelength_limits = (np.sort(to_length(self.command['LD', 0].numbers, 2, value=0))[::-1] * 1e-6
-                             if 'CD' in self.command
-                             else asarray([np.inf, 0])
-                             )  # Convert micrometers to meters, in reverse order
+        wavelength_limits = (
+            np.sort(to_length(self.command.command("LD").numbers, 2, value=0))[::-1] * 1e-6
+            if "CD" in self.command
+            else asarray([np.inf, 0])
+        )  # Convert micrometers to meters, in reverse order
         self.wavenumber_limits = 2 * np.pi / wavelength_limits
 
     def adjust_refractive_index_function(
         self,
-        refractive_index_at_reference_function: Callable[[array_type[SCALAR_TYPEVAR]], array_type[SCALAR_TYPEVAR]],
-        wavenumber: array_type[SCALAR_TYPEVAR],
-        temperature: array_type[SCALAR_TYPEVAR], pressure: array_type[SCALAR_TYPEVAR],
-    ) -> array_type[SCALAR_TYPEVAR]:
+        refractive_index_at_reference_function: Callable[[array_type], array_type],
+        wavenumber: array_type,
+        temperature: array_type,
+        pressure: array_type,
+    ) -> array_type:
         """
         An auxiliary method that returns the complex refractive index function.
 
@@ -262,13 +320,15 @@ class AgfMixin:
 
         The method uses self.thermal_coefficients (in um), self.specified_wavenumber_transmission_thickness (in m)
 
-        :param refractive_index_at_reference_function: The refractive index at the reference temperature
-            and pressure conditions.
-        :param wavenumber: The wavenumber to calculate .
-        :param temperature: The temperature to compute the refractive index at.
-        :param pressure: The pressure to compute the refractive index at.
+        Args:
+            refractive_index_at_reference_function: The refractive index at the reference temperature and pressure conditions.
+            wavenumber: The wavenumber to calculate .
+            temperature: The temperature to compute the refractive index at.
+            pressure: The pressure to compute the refractive index at.
 
-        :return: The corrected complex refractive index.
+        Returns:
+            The corrected complex refractive index.
+
         """
         # Calculate the refractive index at the reference temperature and pressure
         refractive_index_at_reference = refractive_index_at_reference_function(wavenumber)
@@ -282,34 +342,48 @@ class AgfMixin:
 
         wavelength_um = 2 * np.pi / wavenumber.real / 1e-6
         thermal_correction = (
-            coeff_t[0] * d_temp + coeff_t[1] * d_temp**2 + coeff_t[2] * d_temp**3 +
-            (
-                (coeff_tw_um2[0] * d_temp + coeff_tw_um2[1] * d_temp**2) /
-                (wavelength_um**2 - reference_wavelength_um**2)
+            coeff_t[0] * d_temp
+            + coeff_t[1] * d_temp**2
+            + coeff_t[2] * d_temp**3
+            + (
+                (coeff_tw_um2[0] * d_temp + coeff_tw_um2[1] * d_temp**2)
+                / (wavelength_um**2 - reference_wavelength_um**2)
             )
         )
         refractive_index_at_reference_relative = refractive_index_at_reference
         # TODO?: / refractive_index_air_at_reference
         # from https://support.zemax.com/hc/en-us/articles/
         #            1500005576002-How-OpticStudio-calculates-refractive-index-at-arbitrary-temperatures-and-pressures
-        thermal_correction = (thermal_correction * 0.5 * (refractive_index_at_reference_relative ** 2 - 1) /
-                              refractive_index_at_reference_relative
-                              )
+        thermal_correction = (
+            thermal_correction
+            * 0.5
+            * (refractive_index_at_reference_relative**2 - 1)
+            / refractive_index_at_reference_relative
+        )
 
         # Calculate the extinction coefficient at a given wavenumber
-        if self.specified_wavenumber_transmission_thickness.shape[0] > 0:  # by interpolationv
+        if self.specified_wavenumber_transmission_thickness.shape[0] > 0:  # by interpolation
             specified_wavenumbers, specified_transmissions, specified_thicknesses = (
                 self.specified_wavenumber_transmission_thickness.transpose()
             )
-            transmission = lambda _: np.interp(_.real, specified_wavenumbers, specified_transmissions)
-            transmission_thickness = lambda _: np.interp(_.real, specified_wavenumbers, specified_thicknesses)
-        else:  # model as perfect transmission
-            transmission = lambda _: np.ones_like(_.real)
-            transmission_thickness = lambda _: np.ones_like(_.real)
 
-        def extinction_coefficient(k: array_like[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
+            def transmission(_):
+                return np.interp(_.real, specified_wavenumbers, specified_transmissions)
+
+            def transmission_thickness(_):
+                return np.interp(_.real, specified_wavenumbers, specified_thicknesses)
+        else:  # model as perfect transmission
+
+            def transmission(_):
+                return np.ones_like(_.real)
+
+            def transmission_thickness(_):
+                return np.ones_like(_.real)
+
+        def extinction_coefficient(k: array_like) -> array_type:
             """Determine the extinction coefficient from the wavenumber, transmission, and thickness."""
-            return -0.5 / k * np.log(transmission(k)) / transmission_thickness(k)
+            k_arr = asarray(k)
+            return -0.5 / k_arr * np.log(transmission(k_arr)) / transmission_thickness(k_arr)
 
         return refractive_index_at_reference + thermal_correction + 1j * extinction_coefficient(wavenumber)
 
@@ -322,16 +396,18 @@ class AgfMixin:
         return str(self.command)
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(commands={repr(self.command)})'
+        return f"{self.__class__.__name__}(commands={self.command!r})"
 
 
 class SchottAgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the Schott formula."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 1 with relative permittivity.
 
@@ -340,15 +416,21 @@ class SchottAgfMaterial(AgfMixin, material.PolynomialMaterial):
 
         where :math:`c_i` are the coefficient factors and :math:`\lambda^2` is the squared wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
-            factors_um=self.permittivity_coefficients, exponents=[0, 2, -2, -4, -6, -8],
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
+            factors_um=self.permittivity_coefficients,
+            exponents=[0, 2, -2, -4, -6, -8],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
         )
 
@@ -356,10 +438,12 @@ class SchottAgfMaterial(AgfMixin, material.PolynomialMaterial):
 class Sellmeier1AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the first Sellmeier formula."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 2 with relative permittivity.
 
@@ -369,14 +453,19 @@ class Sellmeier1AgfMaterial(AgfMixin, material.PolynomialMaterial):
         where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles, while `\lambda^2` is the squared
         wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
             factors_um=[1.0, *self.permittivity_coefficients[::2]],
             exponents=[0, *[2 for _ in range(1 + len(self.permittivity_coefficients) // 2)]],
             poles_um2=[np.nan, *self.permittivity_coefficients[1::2]],
@@ -387,10 +476,12 @@ class Sellmeier1AgfMaterial(AgfMixin, material.PolynomialMaterial):
 class Sellmeier2AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the 2nd Sellmeier formula."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 4 with relative permittivity.
 
@@ -403,17 +494,24 @@ class Sellmeier2AgfMaterial(AgfMixin, material.PolynomialMaterial):
         where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles, while `\lambda^2` is the squared
         wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
-            factors_um=[1.0, self.permittivity_coefficients[0],
-                        *self.permittivity_coefficients[1::2],
-                        ],
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
+            factors_um=[
+                1.0,
+                self.permittivity_coefficients[0],
+                *self.permittivity_coefficients[1::2],
+            ],
             exponents=[0, 0, 2, 0],
             poles_um2=[np.nan, np.nan, *(self.permittivity_coefficients[2::2] ** 2)],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
@@ -435,10 +533,12 @@ class Sellmeier3AgfMaterial(Sellmeier1AgfMaterial):
 class Sellmeier4AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the 4th Sellmeier formula."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 9 with relative permittivity.
 
@@ -448,18 +548,23 @@ class Sellmeier4AgfMaterial(AgfMixin, material.PolynomialMaterial):
         where :math:`c_i` are the coefficient factors and :math:`p_i` are the poles of $\lambda^2$, where $\lambda$ is
         the wavelength in :math:`\mu m`.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
             self,
-            name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
-            factors_um=[self.permittivity_coefficients[0],
-                        *self.permittivity_coefficients[1::2],
-                        ],
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
+            factors_um=[
+                self.permittivity_coefficients[0],
+                *self.permittivity_coefficients[1::2],
+            ],
             exponents=[0, *[2 for _ in range(len(self.permittivity_coefficients) // 2)]],
             poles_um2=[np.nan, *self.permittivity_coefficients[2::2]],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
@@ -473,10 +578,12 @@ class Sellmeier5AgfMaterial(Sellmeier1AgfMaterial):
 class HerzbergerAgfMaterial(AgfMixin, material.FunctionMaterial):
     """A class to represent materials that are described by the Herzberger formula."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 3 (Herzberger).
 
@@ -489,35 +596,49 @@ class HerzbergerAgfMaterial(AgfMixin, material.FunctionMaterial):
         where :math:`c_i` are the coefficient factors and :math:`l(\lambda)` is the shifted-squared wavelength in
         :math:`mu m^2`, while :math:`\lambda^2` is the squared wavelength in micrometers.
 
-        :param temperature: The temperature this material is at in degrees K.
-        :param pressure: The pressure this material is at in Pascals [Pa].
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature this material is at in degrees K.
+            pressure: The pressure this material is at in Pascals [Pa].
+
         """
         AgfMixin.__init__(self, command)
 
-        def refractive_index_at_reference_function(wavenumber: array_type[SCALAR_TYPEVAR],
-                                                   ) -> array_type[SCALAR_TYPEVAR]:
+        def refractive_index_at_reference_function(
+            wavenumber: array_type,
+        ) -> array_type:
             """The refractive index at the reference temperature and pressure, as a function of wavenumber."""
             wavelength_um = 2 * np.pi / wavenumber / 1e-6
-            wavelength_um2 = wavelength_um ** 2
+            wavelength_um2 = wavelength_um**2
             l_um2 = 1.0 / (wavelength_um2 - 0.028)
 
-            l_terms = sum((factor_um * (l_um2 ** exponent)
-                           for factor_um, exponent in zip(self.permittivity_coefficients[:3], range(3))
-                           ),
-                          start=np.zeros([]),
-                          )
-            w_terms = sum((factor_um * (wavelength_um2 ** exponent)
-                           for factor_um, exponent in zip(self.permittivity_coefficients[3:], range(1, 4))
-                           ),
-                          start=np.zeros([]),
-                          )
+            l_terms = sum(
+                (
+                    factor_um * (l_um2**exponent)
+                    for factor_um, exponent in zip(self.permittivity_coefficients[:3], range(3), strict=False)
+                ),
+                start=np.zeros([]),
+            )
+            w_terms = sum(
+                (
+                    factor_um * (wavelength_um2**exponent)
+                    for factor_um, exponent in zip(self.permittivity_coefficients[3:], range(1, 4), strict=False)
+                ),
+                start=np.zeros([]),
+            )
             return l_terms + w_terms
 
         material.FunctionMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
             complex_refractive_index_function=lambda k, t, p: self.adjust_refractive_index_function(
-                refractive_index_at_reference_function, k, t, p,
+                refractive_index_at_reference_function,
+                k,
+                t,
+                p,
             ),
         )
 
@@ -525,10 +646,12 @@ class HerzbergerAgfMaterial(AgfMixin, material.FunctionMaterial):
 class ConradyAgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are described by the Conrady formula."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 5 with reference refractive index.
 
@@ -537,16 +660,22 @@ class ConradyAgfMaterial(AgfMixin, material.PolynomialMaterial):
 
         where :math:`c_i` are the coefficient factors and :math:`\lambda` is the wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
             refractive_index_model=True,
-            factors_um=self.permittivity_coefficients, exponents=[0, -1, -3.5],
+            factors_um=self.permittivity_coefficients,
+            exponents=[0, -1, -3.5],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
         )
 
@@ -556,10 +685,12 @@ class HandbookOfOptics1AgfMaterial(AgfMixin, material.PolynomialMaterial):
     A class to represent materials that are defined by the equation of the first type given in the Handbook of Optics.
     """
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 7 with relative permittivity.
 
@@ -569,17 +700,23 @@ class HandbookOfOptics1AgfMaterial(AgfMixin, material.PolynomialMaterial):
         where :math:`c_i` are the coefficient factors, :math:`p_i` are the poles in :math:`\lambda^2`, and `\lambda` is
         wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
-            factors_um=[*self.permittivity_coefficients[:2],
-                        -self.permittivity_coefficients[3],
-                        ],
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
+            factors_um=[
+                *self.permittivity_coefficients[:2],
+                -self.permittivity_coefficients[3],
+            ],
             exponents=[0, 0, 2],
             poles_um2=[np.nan, self.permittivity_coefficients[2], np.nan],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
@@ -589,10 +726,12 @@ class HandbookOfOptics1AgfMaterial(AgfMixin, material.PolynomialMaterial):
 class HandbookOfOptics2AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the second equation given in the Handbook of Optics."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material using AGF formula 8 with relative permittivity.
 
@@ -602,17 +741,23 @@ class HandbookOfOptics2AgfMaterial(AgfMixin, material.PolynomialMaterial):
         where :math:`c_i` are the coefficient factors, :math:`p_i` are the poles in :math:`\lambda^2`, and `\lambda` is
         wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
-            factors_um=[*self.permittivity_coefficients[:2],
-                        -self.permittivity_coefficients[3],
-                        ],
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
+            factors_um=[
+                *self.permittivity_coefficients[:2],
+                -self.permittivity_coefficients[3],
+            ],
             exponents=[0, 2, 2],
             poles_um2=[np.nan, self.permittivity_coefficients[2], np.nan],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
@@ -622,10 +767,12 @@ class HandbookOfOptics2AgfMaterial(AgfMixin, material.PolynomialMaterial):
 class Extended1AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the Extended1 equation."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material with formula 10 with relative permittivity.
 
@@ -637,14 +784,19 @@ class Extended1AgfMaterial(AgfMixin, material.PolynomialMaterial):
         where :math:`c_i` are the coefficient factors, :math:`p_i` are the poles in :math:`\lambda^2`, and `\lambda` is
         wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
             factors_um=self.permittivity_coefficients,
             exponents=[0, 2, -2, -4, -6, -8, -10, -12],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
@@ -654,10 +806,12 @@ class Extended1AgfMaterial(AgfMixin, material.PolynomialMaterial):
 class Extended2AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the Extended2 equation."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material with formula 12 with relative permittivity.
 
@@ -667,14 +821,19 @@ class Extended2AgfMaterial(AgfMixin, material.PolynomialMaterial):
 
         where :math:`c_i` are the coefficient factors and `\lambda` is the wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
             factors_um=self.permittivity_coefficients,
             exponents=[0, 2, -2, -4, -6, -8, 4, 6],
             adjust_refractive_index_function=self.adjust_refractive_index_function,
@@ -684,10 +843,12 @@ class Extended2AgfMaterial(AgfMixin, material.PolynomialMaterial):
 class Extended3AgfMaterial(AgfMixin, material.PolynomialMaterial):
     """A class to represent materials that are defined by the Extended3 equation."""
 
-    def __init__(self, command: parser.Command,
-                 temperature: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 pressure: Optional[array_like[SCALAR_TYPEVAR]] = None,
-                 ):
+    def __init__(
+        self,
+        command: parser.Command,
+        temperature: array_like | None = None,
+        pressure: array_like | None = None,
+    ):
         r"""
         Construct a material with formula 13 with relative permittivity.
 
@@ -696,14 +857,19 @@ class Extended3AgfMaterial(AgfMixin, material.PolynomialMaterial):
 
         where :math:`c_i` are the coefficient factors and `\lambda` is the wavelength in micrometers.
 
-        :param command: The command dictionary to extract name and limits from.
-        :param temperature: The temperature of this material.
-        :param pressure: The pressure on this material.
+        Args:
+            command: The command dictionary to extract name and limits from.
+            temperature: The temperature of this material.
+            pressure: The pressure on this material.
+
         """
         AgfMixin.__init__(self, command)
         material.PolynomialMaterial.__init__(
-            self, name=self.name, wavenumber_limits=self.wavenumber_limits,
-            temperature=temperature, pressure=pressure,
+            self,
+            name=self.name,
+            wavenumber_limits=self.wavenumber_limits,
+            temperature=temperature,
+            pressure=pressure,
             factors_um=self.permittivity_coefficients,
             exponents=[0, 2, 4, -2, -4, -6, -8, -10, -12],
             adjust_refractive_index_function=self.adjust_refractive_index_function,

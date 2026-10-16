@@ -14,20 +14,22 @@ log = log.getChild(__name__)
 class BytesFile:
     """A class to represent bytes as a file stream without it coming from disk."""
 
-    def __init__(self, path: pathlib.Path | str, contents: typing.Optional[bytes] = None):
+    def __init__(self, path: pathlib.Path | str, contents: bytes | None = None):
         """
         Construct a ByteFile representation from a path and file contents.
 
-        :param path: The path of the file.
-        :param contents: The file's contents.
+        Args:
+            path: The path of the file.
+            contents: The file's contents.
+
         """
         if isinstance(path, str):
             path = pathlib.Path(path)
         if contents is None:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 contents = f.read()
         self.__content_bytes: bytes = contents
-        self.__content_stream: typing.Optional[io.BytesIO] = None
+        self.__content_stream: io.BytesIO | None = None
         self.__path: pathlib.Path = path
 
     @property

@@ -3,15 +3,20 @@ import numpy as np
 from zmxtools.utils.array import NP_FLOAT_TYPE, NP_INT_TYPE, array_like, array_type, asarray, to_length
 
 
-def factorial_fraction(numerator: array_like[NP_INT_TYPE] = 0,
-                       denominator: array_like[NP_INT_TYPE] = 0,
-                       ) -> array_type[NP_INT_TYPE]:
+def factorial_fraction(
+    numerator: array_like[NP_INT_TYPE] = 0,
+    denominator: array_like[NP_INT_TYPE] = 0,
+) -> array_type[NP_INT_TYPE]:
     """
     Calculates the quotient of two factorials, or arrays of factorials, attempting to avoid overflows.
 
-    :param numerator: An integer or array of integers.
-    :param denominator: An integer or array of integers.
-    :return: A number or array of numbers of the same shape as the inputs.
+    Args:
+        numerator: An integer or array of integers.
+        denominator: An integer or array of integers.
+
+    Returns:
+        A number or array of numbers of the same shape as the inputs.
+
     """
     numerator_arr = asarray(numerator, dtype=int)
     denominator_arr = asarray(denominator, dtype=int)
@@ -31,23 +36,27 @@ def factorial_fraction(numerator: array_like[NP_INT_TYPE] = 0,
     return result.reshape(data_shape)
 
 
-def factorial_product_fraction(numerators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
-                               denominators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
-                               ) -> array_type[NP_FLOAT_TYPE]:
+def factorial_product_fraction(
+    numerators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
+    denominators: tuple[array_like[NP_INT_TYPE], ...] | array_type[NP_INT_TYPE] | int = 1,
+) -> array_type[NP_FLOAT_TYPE]:
     """
     Calculates the quotient of two products of factorials, or arrays of factorials, attempting to avoid overflows.
 
     If either input argument is not a tuple, it is wrapped in one.
 
-    :param numerators: A tuple of integers or arrays of integers.
-    :param denominators: A tuple of integers or arrays of integers.
+    Args:
+        numerators: A tuple of integers or arrays of integers.
+        denominators: A tuple of integers or arrays of integers.
 
-    :return: A number or array of numbers of the same shape as the inputs.
+    Returns:
+        A number or array of numbers of the same shape as the inputs.
+
     """
     if not isinstance(numerators, tuple):
-        numerators = (numerators, )
+        numerators = (numerators,)
     if not isinstance(denominators, tuple):
-        denominators = (denominators, )
+        denominators = (denominators,)
 
     max_numerator = 1
     data_shape: array_type[NP_INT_TYPE] = asarray((), dtype=int)
@@ -82,7 +91,7 @@ def factorial_product_fraction(numerators: tuple[array_like[NP_INT_TYPE], ...] |
     for idx in np.arange(2, 1 + np.maximum(max_numerator, max_denominator)):
         # Iterate both the numerator and the denominator
         numerator_idx_factors = sum((idx <= np.asarray(_)) for _ in numerators)
-        numerator_idx_factors -= sum((idx <= np.asarray(_)) for _ in numerators)
+        numerator_idx_factors -= sum((idx <= np.asarray(_)) for _ in denominators)
         result *= np.array(idx, dtype=float) ** numerator_idx_factors
 
     result = result.reshape(tuple(data_shape))

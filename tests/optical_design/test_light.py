@@ -225,7 +225,7 @@ class TestOptic(unittest.TestCase):
                 k0=1.0,
             ),
         )
-        out = ce.transmit_into(lp, self.medium)
+        out = ce.transmit_to(lp, self.medium)
         npt.assert_equal(len(out.wavefronts) >= 3, True)
 
     def test_detector(self):
@@ -252,7 +252,7 @@ class TestHeader(unittest.TestCase):
         e = Element()
         lp = LightPath(make_wavefront())
         with self.assertRaises(NotImplementedError):
-            e.transmit_into(lp, HomogeneousMedium(VACUUM))
+            e.transmit_to(lp, HomogeneousMedium(VACUUM))
         with self.assertRaises(NotImplementedError):
             e.reflect(lp)
         with self.assertRaises(NotImplementedError):

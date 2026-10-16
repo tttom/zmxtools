@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Self, Sequence
+from collections.abc import Sequence
+from typing import Self
 
 import numpy as np
 
@@ -14,30 +15,36 @@ log = log.getChild(__name__)
 class Wavefront(Positionable):
     """A representation of a wavefront (or collection thereof) as a collection of rays."""
 
-    def __init__(self,
-                 electric_field: array_like[NP_COMPLEX_TYPE], magnetizing_field: array_like[NP_COMPLEX_TYPE],
-                 position: array_like[NP_FLOAT_TYPE] = 0,
-                 k: array_like[NP_FLOAT_TYPE] | None = None, direction: array_like[NP_FLOAT_TYPE] | None = None,
-                 k0: array_like[NP_FLOAT_TYPE] | None = None, ct: array_like[NP_FLOAT_TYPE] = 0,
-                 transform: Transform = IDENTITY,
-                 ):
+    def __init__(
+        self,
+        electric_field: array_like[NP_COMPLEX_TYPE],
+        magnetizing_field: array_like[NP_COMPLEX_TYPE],
+        position: array_like[NP_FLOAT_TYPE] = 0,
+        k: array_like[NP_FLOAT_TYPE] | None = None,
+        direction: array_like[NP_FLOAT_TYPE] | None = None,
+        k0: array_like[NP_FLOAT_TYPE] | None = None,
+        ct: array_like[NP_FLOAT_TYPE] = 0,
+        transform: Transform = IDENTITY,
+    ):
         """
         Construct a wavefront by defining its rays as arrays of points, directions, and values.
 
-        :param electric_field: The electric field at each ray's position, relative to the specified coordinate_system.
-        :param magnetizing_field: The magnetizing field at each ray's position, relative to the coordinate_system.
-        :param position: The ray position, relative to the coordinate_system if specified.
-        :param k: The wavevector of each ray at each ray's position, relative to the coordinate_system if specified.
-        :param direction: The direction of each ray, relative to the coordinate_system if specified.
-        :param k0: The wavenumber in vacuum of each ray.
-        :param ct: The equivalent optical path length along the ray in vacuum.
-        :param transform: The transform to (lazily) apply to the input arguments.
+        Args:
+            electric_field: The electric field at each ray's position, relative to the specified coordinate_system.
+            magnetizing_field: The magnetizing field at each ray's position, relative to the coordinate_system.
+            position: The ray position, relative to the coordinate_system if specified.
+            k: The wavevector of each ray at each ray's position, relative to the coordinate_system if specified.
+            direction: The direction of each ray, relative to the coordinate_system if specified.
+            k0: The wavenumber in vacuum of each ray.
+            ct: The equivalent optical path length along the ray in vacuum.
+            transform: The transform to (lazily) apply to the input arguments.
+
         """
         self.__E = asarray(electric_field, complex)
         self.__H = asarray(magnetizing_field, complex)
         self.__p = asarray(position, float)
         k = asarray(k, complex) if k is not None else asarray(k0, float)[..., np.newaxis] * asarray(direction, complex)
-        self.__k: array_like[NP_FLOAT_TYPE] | None = k
+        self.__k: array_type = k
         self.__d = asarray(direction, float) if direction is not None else k / np.linalg.norm(k)[..., np.newaxis]
         self.k0 = asarray(k0, float) if k0 is not None else np.linalg.norm(k)  # angular frequency in rad / m in vacuum
         self.ct = asarray(ct, float)  # Optical path difference in vacuum in meters
@@ -48,9 +55,12 @@ class Wavefront(Positionable):
         """
         Get a new wavefront representation, but relative to the specified coordinate system.
 
-        :param transform: The transform to apply to all points and vectors.
+        Args:
+            transform: The transform to apply to all points and vectors.
 
-        :return: The wavefront with the transformed properties.
+        Returns:
+            The wavefront with the transformed properties.
+
         """
         self.__transform = transform @ self.__transform
         return self
@@ -61,7 +71,7 @@ class Wavefront(Positionable):
         return self.__transform.point(position=self.__p, coordinate=self.__p)
 
     @property
-    def k(self) -> array_type[NP_FLOAT_TYPE]:
+    def k(self) -> array_type:
         """The relative local wavevector: ||k|| / k0 = n."""
         return self.__transform.vector(vector=self.__k, coordinate=self.__p)
 
@@ -91,12 +101,18 @@ class Wavefront(Positionable):
     @property
     def shape(self) -> array_type[NP_INT_TYPE]:
         """The shape of the ray bundle that makes up the wavefront."""
-        return asarray(np.broadcast_shapes(self.electric_field.shape[:-1], self.magnetizing_field.shape[:-1],
-                                           self.position.shape[:-1], self.k.shape[:-1], self.direction.shape[:-1],
-                                           self.k0.shape, self.ct.shape,
-                                           ),
-                       int,
-                       )
+        return asarray(
+            np.broadcast_shapes(
+                self.electric_field.shape[:-1],
+                self.magnetizing_field.shape[:-1],
+                self.position.shape[:-1],
+                self.k.shape[:-1],
+                self.direction.shape[:-1],
+                self.k0.shape,
+                self.ct.shape,
+            ),
+            int,
+        )
 
     @property
     def size(self) -> int:
@@ -114,7 +130,7 @@ class Wavefront(Positionable):
         return np.linalg.norm(self.k) / self.k0
 
 
-class LightPath(Positionable):
+class LightPath(Wavefront):
     """
     A representation of a lightpath (or collection thereof) as a collection of rays and their history.
 
@@ -125,15 +141,21 @@ class LightPath(Positionable):
         """
         Construct a wavefront by defining its rays as arrays of points, directions, and values.
 
-        :param wavefronts: The wavefronts of this light path.
+        Args:
+            wavefronts: The wavefronts of this light path.
+
         """
         self.__wavefronts = list(wavefronts)  # All the wavefronts from the start of the rays to the end.
-        self.__transform: Transform = IDENTITY
-        super().__init__(electric_field=self.wavefront.electric_field,
-                         magnetizing_field=self.wavefront.magnetizing_field,
-                         position=self.wavefront.position, k=self.wavefront.k, direction=self.wavefront.direction,
-                         k0=self.wavefront.k0, ct=self.wavefront.ct,
-                         )
+        w = self.wavefront
+        super().__init__(
+            electric_field=w.electric_field,
+            magnetizing_field=w.magnetizing_field,
+            position=w.position,
+            k=w.k,
+            direction=w.direction,
+            k0=w.k0,
+            ct=w.ct,
+        )
 
     def to(self, transform: Transform) -> Self:
         """Transform all the properties of all the wavefronts."""
@@ -159,45 +181,61 @@ class LightPath(Positionable):
         """
         Append a new wavefront that is propagated further by the specified distance (in units of  d ).
 
-        :param distance: The distance in units of self.wavefront.d.
+        Args:
+            distance: The distance in units of self.wavefront.d.
 
-        :return: The updated LightPath, one wavefront longer than the current.
+        Returns:
+            The updated LightPath, one wavefront longer than the current.
+
         """
         distance = asarray(distance, float)
         opd = distance * np.linalg.norm(self.wavefront.direction) * self.wavefront.refractive_index
         return self.append(
-            Wavefront(electric_field=self.wavefront.electric_field, magnetizing_field=self.wavefront.magnetizing_field,
-                      position=self.wavefront.position + self.wavefront.direction * distance,
-                      k=self.wavefront.k, direction=self.wavefront.direction,
-                      k0=self.wavefront.k0, ct=self.wavefront.ct + opd,
-                      ),
+            Wavefront(
+                electric_field=self.wavefront.electric_field,
+                magnetizing_field=self.wavefront.magnetizing_field,
+                position=self.wavefront.position + self.wavefront.direction * distance,
+                k=self.wavefront.k,
+                direction=self.wavefront.direction,
+                k0=self.wavefront.k0,
+                ct=self.wavefront.ct + opd,
+            ),
         )
 
-    def interact(self,
-                 electric_field: array_like[NP_COMPLEX_TYPE] | None = None,
-                 magnetizing_field: array_like[NP_COMPLEX_TYPE] | None = None,
-                 k: array_like[NP_FLOAT_TYPE] | None = None, direction: array_like[NP_FLOAT_TYPE] | None = None,
-                 ) -> LightPath:
+    def interact(
+        self,
+        electric_field: array_like[NP_COMPLEX_TYPE] | None = None,
+        magnetizing_field: array_like[NP_COMPLEX_TYPE] | None = None,
+        k: array_like[NP_FLOAT_TYPE] | None = None,
+        direction: array_like[NP_FLOAT_TYPE] | None = None,
+    ) -> LightPath:
         """
         Append a new wavefront at the same position, p, but with different k, E, and H vectors.
 
-        :param electric_field: The new electric-field vector.
-        :param magnetizing_field: The new magnetizing field vector.
-        :param k: The new wavevector.
-        :param direction: The new direction vector.
+        Args:
+            electric_field: The new electric-field vector.
+            magnetizing_field: The new magnetizing field vector.
+            k: The new wavevector.
+            direction: The new direction vector.
 
-        :return: The updated LightPath, one wavefront longer than the current.
+        Returns:
+            The updated LightPath, one wavefront longer than the current.
+
         """
         w = self.wavefront
         if k is None:
             if direction is None:
                 direction = w.direction
-            k = direction / np.linalg.norm(direction) * w.k0
+            direction_arr = asarray(direction)
+            k = direction_arr / np.linalg.norm(direction_arr) * w.k0
         return self.append(
-            Wavefront(electric_field=w.electric_field if electric_field is None else electric_field,
-                      magnetizing_field=w.magnetizing_field if magnetizing_field is None else magnetizing_field,
-                      position=self.wavefront.position,
-                      k=k, direction=direction,
-                      k0=self.wavefront.k0, ct=self.wavefront.ct,
-                      ),
+            Wavefront(
+                electric_field=w.electric_field if electric_field is None else electric_field,
+                magnetizing_field=w.magnetizing_field if magnetizing_field is None else magnetizing_field,
+                position=self.wavefront.position,
+                k=k,
+                direction=direction,
+                k0=self.wavefront.k0,
+                ct=self.wavefront.ct,
+            ),
         )

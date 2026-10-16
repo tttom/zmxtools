@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, Self, Sequence
+from collections.abc import Sequence
+from typing import Self
 
 import numpy as np
 
 from zmxtools.optical_design import log
 from zmxtools.utils import script
-from zmxtools.utils.array import SCALAR_TYPEVAR, array_like, array_type, asarray
+from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
 
 log = log.getChild(__name__)
 
@@ -14,31 +15,54 @@ log = log.getChild(__name__)
 class Transform:
     """A class to represent transforms."""
 
-    def homogeneous(self, vector: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-                    ) -> array_type[SCALAR_TYPEVAR]:
+    @property
+    def matrix(self) -> array_type:
+        """
+        The 4x4 homogeneous matrix corresponding to this transform, when it can be represented as one.
+
+        Returns:
+            The 4x4 homogeneous matrix.
+
+        """
+        raise NotImplementedError
+
+    def homogeneous(
+        self,
+        vector: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Apply this transform to a homogeneous vector or array of homogeneous vectors in the final (right-most) axis.
 
         The coordinate axis is -1 and the projective coordinate is element 0.
 
-        :param vector: The homogeneous 4-vector at each position.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            vector: The homogeneous 4-vector at each position.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed homogeneous 4-vector at each position.
+        Returns:
+            The transformed homogeneous 4-vector at each position.
+
         """
         raise NotImplementedError
 
-    def point(self, position: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-              ) -> array_type[SCALAR_TYPEVAR]:
+    def point(
+        self,
+        position: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Transform a 3D point, or array of points with the spatial dimension in the right-most axis.
 
         Rotations, Scalings, and Translations all affect points.
 
-        :param position: The 3D-point (array) to be transformed.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            position: The 3D-point (array) to be transformed.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed 3-point at each position.
+        Returns:
+            The transformed 3-point at each position.
+
         """
         position = asarray(position)
         result = self.homogeneous(
@@ -47,17 +71,23 @@ class Transform:
         )
         return result[..., 1:] / result[..., 0:1]
 
-    def vector(self, vector: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-               ) -> array_type[SCALAR_TYPEVAR]:
+    def vector(
+        self,
+        vector: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Transform a 3D vector, or array of vectors with the spatial dimension in the right-most axis.
 
         Rotations and scalings affect vectors. Translations do not affect vectors, only points.
 
-        :param vector: The 3-vector at each position.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            vector: The 3-vector at each position.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed 3-vector at each position.
+        Returns:
+            The transformed 3-vector at each position.
+
         """
         vector = asarray(vector)
         result = self.homogeneous(
@@ -83,9 +113,9 @@ class Transform:
         """
         return ~self
 
-    def __matmul__(self, right: Transform | SCALAR_TYPEVAR) -> Transform:
+    def __matmul__(self, right: Transform | SCALAR_TYPE) -> Transform:
         """Combine multiple transformations into one. Simplifications are allowed."""
-        if isinstance(right, SCALAR_TYPEVAR):
+        if not isinstance(right, Transform):
             right = Scaling(right)
         if self.inv == right or self == right.inv:
             return IDENTITY
@@ -93,17 +123,17 @@ class Transform:
 
     def __str__(self) -> str:
         """Return a string to display a transform."""
-        return 'T'
+        return "T"
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}()'
+        return f"{self.__class__.__name__}()"
 
     def __hash__(self) -> int:
         """A relatively unique integer that can be used to check if two objects are not the same."""
         return hash(repr(self))
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this transform with another, returning True when both transforms are numerically the same."""
         return repr(self) == repr(other)
 
@@ -115,9 +145,12 @@ class Positionable:
         """
         Transforms this object to a new position, or go from local to global coordinates.
 
-        :param transform: The transform to the new position, or coordinate_system.inv.
+        Args:
+            transform: The transform to the new position, or coordinate_system.inv.
 
-        :return: The current object, transformed.
+        Returns:
+            The current object, transformed.
+
         """
         raise NotImplementedError
 
@@ -126,7 +159,7 @@ class HomogeneousTransform(Transform):
     """A class to represent homogeneous transforms, i.e. those that can be represented by a 4x4 matrix."""
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """
         The 4x4 homogeneous matrix corresponding to this transform.
 
@@ -134,8 +167,11 @@ class HomogeneousTransform(Transform):
         """
         raise NotImplementedError
 
-    def homogeneous(self, vector: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-                    ) -> array_type[SCALAR_TYPEVAR]:
+    def homogeneous(
+        self,
+        vector: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Apply this transform to a homogeneous vector or array of homogeneous vectors in the final (right-most) axis.
 
@@ -143,7 +179,7 @@ class HomogeneousTransform(Transform):
         """
         return self * vector
 
-    def __mul__(self, homogeneous_vector: array_like[SCALAR_TYPEVAR]):
+    def __mul__(self, homogeneous_vector: array_like):
         """
         Apply this transform to a homogeneous vector or array of homogeneous vectors in the final (right-most) axis.
 
@@ -159,19 +195,24 @@ class HomogeneousTransform(Transform):
         """
         return LiteralTransform(np.linalg.inv(self.matrix))
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this transform with another, returning True when both transforms are numerically the same."""
-        return (isinstance(other, HomogeneousTransform) and np.all(self.matrix == other.matrix)) or super() == other
+        return bool(
+            (isinstance(other, HomogeneousTransform) and np.all(self.matrix == other.matrix))
+            or super().__eq__(other) is True
+        )
 
 
 class LiteralTransform(HomogeneousTransform):
     """A class to represent generic homogeneous transforms."""
 
-    def __init__(self, matrix: array_like[SCALAR_TYPEVAR]):
+    def __init__(self, matrix: array_like):
         """
         Construct a generic homogeneous transform using a 3D or 4D homogeneous matrix.
 
-        :param matrix: The 4D homogeneous or 3D matrix. The projective coordinate is element 0.
+        Args:
+            matrix: The 4D homogeneous or 3D matrix. The projective coordinate is element 0.
+
         """
         matrix = asarray(matrix)
         if all(_ == 4 for _ in matrix.shape):
@@ -181,21 +222,24 @@ class LiteralTransform(HomogeneousTransform):
             self.__matrix[1:, 1:] = matrix
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """Returns the transformation matrix as an array."""
         return self.__matrix
 
     def __str__(self) -> str:
         """Return a string to display this matrix."""
-        return f'M({self.matrix})'
+        return f"M({self.matrix})"
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}({self.matrix})'
+        return f"{self.__class__.__name__}({self.matrix})"
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this transform with another, returning True when both transforms are numerically the same."""
-        return (isinstance(other, LiteralTransform) and np.all(self.matrix == other.matrix)) or super() == other
+        return bool(
+            (isinstance(other, LiteralTransform) and np.all(self.matrix == other.matrix))
+            or super().__eq__(other) is True
+        )
 
 
 class CompoundTransform(Transform):
@@ -205,13 +249,15 @@ class CompoundTransform(Transform):
         """
         Construct a combination of transforms.
 
-        :param components: The component transforms are executed in order from right-to-left.
+        Args:
+            components: The component transforms are executed in order from right-to-left.
+
         """
         self.__components = components
 
     @property
     def components(self) -> Sequence[Transform]:
-        """The individual component :py:class:``Transform`s as a Sequence."""
+        """The individual component transforms, as a Sequence."""
         return self.__components
 
     @components.setter
@@ -219,16 +265,24 @@ class CompoundTransform(Transform):
         self.__components = new_components
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """The matrix corresponding to this transform."""
-        product = self.components[0].matrix
+        product = np.array(self.components[0].matrix)
         for _ in self.components[1:]:
-            product @= _.matrix
+            product = product @ _.matrix
         return product
 
-    def __matmul__(self, right: Transform | SCALAR_TYPEVAR) -> Transform:
+    def homogeneous(
+        self,
+        vector: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
+        """Apply this compound transform to a homogeneous vector or array of homogeneous vectors."""
+        return (self.matrix @ asarray(vector)[..., np.newaxis])[..., 0]
+
+    def __matmul__(self, right: Transform | SCALAR_TYPE) -> CompoundTransform:
         """Transforming a compound transform usually makes a larger composition."""
-        if isinstance(right, SCALAR_TYPEVAR):
+        if not isinstance(right, Transform):
             right = Scaling(right)
         self_components = self.components
         right_components = right.components if isinstance(right, CompoundTransform) else [right]
@@ -247,48 +301,52 @@ class CompoundTransform(Transform):
 
     def __str__(self) -> str:
         """Return a string to display this object."""
-        return ''.join(str(_) for _ in self.components)
+        return "".join(str(_) for _ in self.components)
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
         return f"{self.__class__.__name__}({', '.join(repr(_) for _ in self.components)})"
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this transform with another, returning True when both transforms are numerically the same."""
-        return (isinstance(other, CompoundTransform) and len(self.components) == len(other.components) and
-                all(s == o for s, o in zip(self.components, other.components))
-                )
+        return (
+            isinstance(other, CompoundTransform)
+            and len(self.components) == len(other.components)
+            and all(s == o for s, o in zip(self.components, other.components, strict=True))
+        )
 
 
 class Translation(HomogeneousTransform):
     """A class to represent translations using homogeneous transforms."""
 
-    def __init__(self, displacement: array_like[SCALAR_TYPEVAR] = (0, 0, 0)):
+    def __init__(self, displacement: array_like = (0, 0, 0)):
         """
         Construct a translation operation object.
 
-        :param displacement: The displacement of points after translation.
+        Args:
+            displacement: The displacement of points after translation.
+
         """
         self.__displacement = asarray((0, 0, 0), float)
         self.displacement = displacement
 
     @property
-    def displacement(self) -> array_type[SCALAR_TYPEVAR]:
+    def displacement(self) -> array_type:
         """The translation vector incurred by this transformation."""
         return self.__displacement
 
     @displacement.setter
-    def displacement(self, new_displacement: array_like[SCALAR_TYPEVAR]):
+    def displacement(self, new_displacement: array_like):
         self.__displacement = asarray(new_displacement, float)
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """The numerical representation of this transform as a 4x4 matrix."""
         m = np.eye(4)
         m[1:, 0] = self.displacement
         return m
 
-    def __matmul__(self, right: Transform | SCALAR_TYPEVAR) -> Transform:
+    def __matmul__(self, right: Transform | SCALAR_TYPE) -> Transform:
         """Translations applied to translations are still translations."""
         if not isinstance(right, Transform):
             right = Scaling(right)
@@ -310,45 +368,50 @@ class Translation(HomogeneousTransform):
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}({self.displacement})'
+        return f"{self.__class__.__name__}({self.displacement})"
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this translation with another transform."""
-        return (isinstance(other, Translation) and np.all(self.displacement == other.displacement)) or super() == other
+        return bool(
+            (isinstance(other, Translation) and np.all(self.displacement == other.displacement))
+            or super().__eq__(other) is True
+        )
 
 
 class Scaling(HomogeneousTransform):
     """A class to represent, isotropic or along the Cartesian axes."""
 
-    def __init__(self, scale: array_like[SCALAR_TYPEVAR] = 1.0):
+    def __init__(self, scale: array_like = 1.0):
         """
         Construct a scaling operator.
 
-        :param scale: A scalar scaling factor or a 3-vector, with a scale per dimension.
+        Args:
+            scale: A scalar scaling factor or a 3-vector, with a scale per dimension.
+
         """
         self.__scale = asarray((1.0, 1.0, 1.0), float)
         self.scale = scale
 
     @property
-    def scale(self) -> array_type[SCALAR_TYPEVAR]:
+    def scale(self) -> array_type:
         """The scaling in the 3 Cartesian dimensions incurred by this transformation."""
         return self.__scale
 
     @scale.setter
-    def scale(self, new_scale: array_like[SCALAR_TYPEVAR]):
+    def scale(self, new_scale: array_like):
         self.__scale[:] = new_scale
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """The numerical representation of this transform as a 4x4 matrix."""
         return np.diag((1.0, *self.scale))
 
-    def __matmul__(self, right: Transform | SCALAR_TYPEVAR) -> Transform:
+    def __matmul__(self, right: Transform | SCALAR_TYPE) -> Transform:
         """Scalings applied to Scalings are still Scalings."""
-        if isinstance(right, SCALAR_TYPEVAR):
+        if not isinstance(right, Transform):
             right = Scaling(right)
         if isinstance(right, Scaling):
-            return Scaling(scale=self.scale + right.scale)
+            return Scaling(scale=self.scale * right.scale)
         return super().__matmul__(right)
 
     def __invert__(self) -> Scaling:
@@ -365,34 +428,34 @@ class Scaling(HomogeneousTransform):
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}({self.scale})'
+        return f"{self.__class__.__name__}({self.scale})"
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this transform with another, returning True when both transforms are numerically the same."""
-        return (isinstance(other, Scaling) and np.all(self.scale == other.scale)) or super() == other
+        return bool((isinstance(other, Scaling) and np.all(self.scale == other.scale)) or super().__eq__(other) is True)
 
 
 class Identity(Scaling):
     """A class to represent the identity transform."""
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """The numerical representation of this transform as a 4x4 matrix."""
         return asarray(np.eye(4))
 
-    def __matmul__(self, right: Transform | SCALAR_TYPEVAR) -> Transform:
+    def __matmul__(self, right: Transform | SCALAR_TYPE) -> Transform:
         """The identity transform has no effect."""
         if not isinstance(right, Transform):
             right = Scaling(right)
         return right
 
-    def __rmatmul__(self, left: Transform | SCALAR_TYPEVAR) -> Transform:
+    def __rmatmul__(self, left: Transform | SCALAR_TYPE) -> Transform:
         """
         The identity transform has no effect.
 
         TODO: Is this ever called?
         """
-        if isinstance(left, SCALAR_TYPEVAR):
+        if not isinstance(left, Transform):
             left = Scaling(left)
         return left
 
@@ -402,15 +465,15 @@ class Identity(Scaling):
 
     def __str__(self) -> str:
         """Return a string to represent the identity."""
-        return 'I'
+        return "I"
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}()'
+        return f"{self.__class__.__name__}()"
 
-    def __eq__(self, other: Transform) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this transform with another, returning True when both transforms are numerically the same."""
-        return isinstance(other, Identity) or super() == other
+        return isinstance(other, Identity) or super().__eq__(other) is True
 
 
 IDENTITY = Identity()
@@ -423,39 +486,39 @@ class Quaternion:
     This class is used to implement RotationTransforms.
     """
 
-    def __init__(self, values: array_like[SCALAR_TYPEVAR] = (1, 0, 0, 0)):
+    def __init__(self, values: array_like = (1, 0, 0, 0)):
         """Default: identity quaternion."""
         self.values = asarray(values, float)
 
     @property
-    def scalar(self) -> array_type[SCALAR_TYPEVAR]:
+    def scalar(self) -> array_type:
         """The scalar component of this quaternion."""
         return self.values[..., 0]
 
     @property
-    def vector(self) -> array_type[SCALAR_TYPEVAR]:
+    def vector(self) -> array_type:
         """The 3-element vector component of this quaternion."""
         return self.values[..., 1:]
 
     @property
-    def norm(self) -> array_type[SCALAR_TYPEVAR]:
+    def norm(self) -> array_type:
         """The l2-norm of all values, scalar and vector."""
         return np.linalg.norm(self.values, axis=-1)
 
     @property
-    def norm2(self) -> array_type[SCALAR_TYPEVAR]:
+    def norm2(self) -> array_type:
         """The squared l2-norm of all values, scalar and vector."""
-        return self.norm ** 2
+        return self.norm**2
 
     @property
-    def vector_norm(self) -> array_type[SCALAR_TYPEVAR]:
+    def vector_norm(self) -> array_type:
         """The l2-norm of the vector values only."""
         return np.linalg.norm(self.vector, axis=-1)
 
     @property
-    def vector_norm2(self) -> array_type[SCALAR_TYPEVAR]:
+    def vector_norm2(self) -> array_type:
         """The squared l2-norm of the vector values only."""
-        return self.vector_norm ** 2
+        return self.vector_norm**2
 
     @property
     def unit(self) -> Quaternion:
@@ -463,7 +526,7 @@ class Quaternion:
         return self / self.norm
 
     @property
-    def angle(self) -> array_type[SCALAR_TYPEVAR]:
+    def angle(self) -> array_type:
         """The angle of this quaternion."""
         return np.arctan2(self.vector_norm, self.scalar)
 
@@ -472,7 +535,7 @@ class Quaternion:
         """Returns the complex conjugate of this quaternion."""
         return Quaternion(np.concatenate((self.scalar[..., np.newaxis], -self.vector), axis=-1))
 
-    def __getitem__(self, item) -> array_type[SCALAR_TYPEVAR]:
+    def __getitem__(self, item) -> array_type:
         """Returns the scalar components of the quaternion as indexed into an ndarray."""
         return self.values[item]
 
@@ -492,20 +555,31 @@ class Quaternion:
         """
         Multiplies this quaternion by another, or a simple scalar number.
 
-        :param right: The quaternion on the right, or a scalar.
+        Args:
+            right: The quaternion on the right, or a scalar.
 
-        :return: The product quaternion.
+        Returns:
+            The product quaternion.
+
         """
         if isinstance(right, Quaternion):
-            product = np.stack((
-                self.scalar * right.scalar - (self.vector @ right.vector[..., np.newaxis])[..., 0],
-                self.scalar * right[..., 1] +
-                self[..., 1] * right.scalar + self[..., 2] * right[..., 3] - self[..., 3] * right[..., 2],
-                self.scalar * right[..., 2] +
-                self[..., 2] * right.scalar - self[..., 3] * right[..., 1] + self[..., 1] * right[..., 3],
-                self.scalar * right[..., 3] +
-                self[..., 3] * right.scalar + self[..., 1] * right[..., 2] - self[..., 2] * right[..., 1],
-            ), axis=-1,
+            product = np.stack(
+                (
+                    self.scalar * right.scalar - (self.vector @ right.vector[..., np.newaxis])[..., 0],
+                    self.scalar * right[..., 1]
+                    + self[..., 1] * right.scalar
+                    + self[..., 2] * right[..., 3]
+                    - self[..., 3] * right[..., 2],
+                    self.scalar * right[..., 2]
+                    + self[..., 2] * right.scalar
+                    + self[..., 3] * right[..., 1]
+                    - self[..., 1] * right[..., 3],
+                    self.scalar * right[..., 3]
+                    + self[..., 3] * right.scalar
+                    + self[..., 1] * right[..., 2]
+                    - self[..., 2] * right[..., 1],
+                ),
+                axis=-1,
             )
             return Quaternion(product)
         return Quaternion(self.values * right)
@@ -527,9 +601,12 @@ class Quaternion:
         """
         Divides this quaternion by another, or a simple scalar number.
 
-        :param right: The quaternion on the right, or a scalar.
+        Args:
+            right: The quaternion on the right, or a scalar.
 
-        :return: The divided quaternion.
+        Returns:
+            The divided quaternion.
+
         """
         return self * (1 / right)
 
@@ -537,9 +614,12 @@ class Quaternion:
         """
         Returns the quaternion division of the value on the left by this quaternion.
 
-        :param left: The value on the left.
+        Args:
+            left: The value on the left.
 
-        :return: The quaternion of which the product with this equals the scalar value on the left.
+        Returns:
+            The quaternion of which the product with this equals the scalar value on the left.
+
         """
         return left * ~self
 
@@ -547,9 +627,12 @@ class Quaternion:
         """
         Returns the quaternion division of the value on the left by this quaternion.
 
-        :param left: The value on the left.
+        Args:
+            left: The value on the left.
 
-        :return: The quaternion of which the product with this equals the scalar value on the left.
+        Returns:
+            The quaternion of which the product with this equals the scalar value on the left.
+
         """
         return left * ~self
 
@@ -558,11 +641,15 @@ class Quaternion:
         """
         Compute the exponent of this quaternion, i.e. e-to-the-power-of-self.
 
-        :return: exp(self)
+        Returns:
+            exp(self)
+
         """
         norm_vector = self.vector_norm
-        values = np.exp(self.scalar) * asarray(
-            [np.cos(norm_vector), *(np.sin(norm_vector) * self.vector / norm_vector)],
+        safe_norm = np.where(norm_vector == 0, 1.0, norm_vector)
+        values = np.exp(self.scalar) * np.stack(
+            (np.cos(norm_vector), *(np.sin(norm_vector) * self.vector / safe_norm)),
+            axis=-1,
         )
         return Quaternion(values)
 
@@ -570,47 +657,59 @@ class Quaternion:
         """
         Exponentiate this quaternion.
 
-        :param power: The exponent, which can be fractional.
+        Args:
+            power: The exponent, which can be fractional.
 
-        :return: A new quaternion.
+        Returns:
+            A new quaternion.
+
         """
-        return Quaternion(self.norm ** power * asarray(
-            [np.cos(self.angle * power),
-             *(np.sin(self.angle * power) * self.vector / self.vector_norm),
-             ],
-        ))
+        safe_norm = np.where(self.vector_norm == 0, 1.0, self.vector_norm)
+        return Quaternion(
+            self.norm**power
+            * np.stack(
+                (
+                    np.cos(self.angle * power),
+                    *(np.sin(self.angle * power) * self.vector / safe_norm),
+                ),
+                axis=-1,
+            )
+        )
 
     def __str__(self) -> str:
         """Return a string to display this quaternion."""
-        description = ''.join(f'{c:+}{v}' for c, v in zip(self.values, 'ijk'))
-        if description.startswith('+'):
+        description = "".join(f"{v:+}{c}" for c, v in zip(("", "i", "j", "k"), self.values, strict=True))
+        if description.startswith("+"):
             description = description[1:]
         return description
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}({self.values})'
+        return f"{self.__class__.__name__}({self.values})"
 
-    def __eq__(self, other: Quaternion) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this quaternion with another one."""
-        return np.all(self.values == other.values)
+        return bool(isinstance(other, Quaternion) and np.all(self.values == other.values))
 
 
 class Rotation(HomogeneousTransform):
     """A class to represent homogeneous rotatations."""
 
-    def __init__(self, quaternion: Optional[Quaternion] | array_like[SCALAR_TYPEVAR] = None,
-                 rotation_axis: Optional[array_like[SCALAR_TYPEVAR]] = None, angle: Optional[float] = None,
-                 ):
+    def __init__(
+        self,
+        quaternion: Quaternion | array_like | None = None,
+        rotation_axis: array_like | None = None,
+        angle: float | None = None,
+    ):
         """
         Create a new rotation object.
 
-        :param quaternion: Four values, representing the scalar and vector part of a quaternion for half the rotation.
-        :param rotation_axis: The optional rotation axis.
-        :param angle: The optional rotation angle. If not specified, the length qof the axis is used as the angle in
-            radians.
+        Args:
+            quaternion: Four values, representing the scalar and vector part of a quaternion for half the rotation.
+            rotation_axis: The optional rotation axis.
+            angle: The optional rotation angle. If not specified, the length qof the axis is used as the angle in radians.
+
         """
-        self.__quaternion = None
         if quaternion is None:
             rotation_axis = asarray(rotation_axis, float)
             if angle is None:
@@ -625,7 +724,7 @@ class Rotation(HomogeneousTransform):
         return self.__quaternion
 
     @quaternion.setter
-    def quaternion(self, new_quaternion: Quaternion | array_like[SCALAR_TYPEVAR]):
+    def quaternion(self, new_quaternion: Quaternion | array_like):
         if not isinstance(new_quaternion, Quaternion):
             new_quaternion = Quaternion(new_quaternion)
         self.__quaternion = new_quaternion.unit
@@ -638,32 +737,36 @@ class Rotation(HomogeneousTransform):
     @angle.setter
     def angle(self, new_angle: float):
         self.quaternion = Quaternion(
-            (np.cos(new_angle / 2.0),
-             *(self.rotation_axis * np.sin(new_angle / 2.0)),
-             ),
+            (
+                np.cos(new_angle / 2.0),
+                *(self.rotation_axis * np.sin(new_angle / 2.0)),
+            ),
         )
 
     @property
-    def rotation_axis(self) -> array_type[SCALAR_TYPEVAR]:
+    def rotation_axis(self) -> array_type:
         """The axis of rotation as a unit vector."""
-        with np.errstate(invalid='ignore'):
+        with np.errstate(invalid="ignore"):
             return self.quaternion.vector / self.quaternion.vector_norm
 
     @rotation_axis.setter
-    def rotation_axis(self, new_axis: float):
-        new_axis = asarray(new_axis, float)
-        new_axis /= np.linalg.norm(new_axis)
-        self.quaternion = (self.quaternion[0],
-                           *(new_axis * self.quaternion.vector_norm),
-                           )
+    def rotation_axis(self, new_axis: array_like):
+        new_axis_arr = asarray(new_axis, float)
+        new_axis_arr /= np.linalg.norm(new_axis_arr)
+        self.quaternion = asarray(
+            (self.quaternion[0], *(new_axis_arr * self.quaternion.vector_norm)),
+        )
 
-    def __mul__(self, homogeneous_vector: array_like[SCALAR_TYPEVAR]) -> array_type[SCALAR_TYPEVAR]:
+    def __mul__(self, homogeneous_vector: array_like) -> array_type:
         """
         Apply this transform to the specified vector and return a new, rotated vector.
 
-        :param homogeneous_vector: The vector to rotate.
+        Args:
+            homogeneous_vector: The vector to rotate.
 
-        :return: The rotated homogeneous vector.
+        Returns:
+            The rotated homogeneous vector.
+
         """
         homogeneous_vector = asarray(homogeneous_vector, float)
         v = Quaternion(homogeneous_vector)
@@ -671,13 +774,13 @@ class Rotation(HomogeneousTransform):
         return product.values
 
     @property
-    def matrix(self) -> array_type[SCALAR_TYPEVAR]:
+    def matrix(self) -> array_type:
         """The numerical representation of this transform as a matrix."""
-        return self * np.eye(4)
+        return (self * np.eye(4)).T
 
-    def __matmul__(self, right: Transform | SCALAR_TYPEVAR) -> CompoundTransform | Rotation | Identity:
+    def __matmul__(self, right: Transform | SCALAR_TYPE) -> CompoundTransform | Rotation | Identity:
         """Combine multiple transformations into one. Simplifications are allowed."""
-        if isinstance(right, SCALAR_TYPEVAR):
+        if not isinstance(right, Transform):
             right = Scaling(right)
         if isinstance(right, Rotation):
             new_quaternion = self.quaternion * right.quaternion
@@ -696,38 +799,42 @@ class Rotation(HomogeneousTransform):
 
     def __str__(self) -> str:
         """Return a string to display this object."""
-        return f'H{script.sup(str(self.quaternion))}'
+        return f"H{script.sup(str(self.quaternion))}"
 
     def __repr__(self) -> str:
         """Returns a string that is a complete description of this object."""
-        return f'{self.__class__.__name__}({repr(self.quaternion)})'
+        return f"{self.__class__.__name__}({self.quaternion!r})"
 
-    def __eq__(self, other: Rotation) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares this rotation with another transform."""
-        return (isinstance(other, Rotation) and self.quaternion == other.quaternion) or super() == other
+        return bool(
+            (isinstance(other, Rotation) and self.quaternion == other.quaternion) or super().__eq__(other) is True
+        )
 
 
 class EulerRotation(Rotation):
     """A class to represent rotations around the Cartesian axes."""
 
-    def __init__(self, angles: array_like[SCALAR_TYPEVAR], axes: Sequence[int] = (0, 1, 2)):
+    def __init__(self, angles: array_like, axes: Sequence[int] = (0, 1, 2)):
         """
         Construct a rotation from a set of Euler angles in radians.
 
-        :param angles: The consecutive rotation angles (in radians) around the Cartesian axes specified as  axes .
-        :param axes: The order of the rotation axes, default (0, 1, 2): x, than y, than z.
+        Args:
+            angles: The consecutive rotation angles (in radians) around the Cartesian axes specified as  axes .
+            axes: The order of the rotation axes, default (0, 1, 2): x, than y, than z.
+
         """
         self.__angles = asarray(angles, float)
         self.__axes = tuple(axes)
 
         half_angles = self.angles / 2.0
         q = Quaternion()
-        for ha, axis in zip(half_angles, axes):
+        for ha, axis in zip(half_angles, axes, strict=False):
             q = q * Quaternion((np.cos(ha), *(0 for _ in range(axis)), np.sin(ha), *(0 for _ in range(2 - axis))))
         super().__init__(q)
 
     @property
-    def angles(self) -> array_type[SCALAR_TYPEVAR]:
+    def angles(self) -> array_type:
         """The angles by which to rotate around up to 3 axes, default: 0."""
         return self.__angles
 
@@ -752,71 +859,93 @@ class SphericalTransform(Transform):
     The spherical manifold passes through the origin with its normal along the z-axis and with the given curvature.
     """
 
-    def __init__(self, curvature: array_like[SCALAR_TYPEVAR]):
+    def __init__(self, curvature: array_like):
         """
         Construct a transform from Cartesian coordinates to coordinates on a spherical manifold.
 
-        :param curvature: The curvature of the manifold.
+        Args:
+            curvature: The curvature of the manifold.
+
         """
         self.curvature = asarray(curvature, float)
 
-    def point(self, position: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-              ) -> array_type[SCALAR_TYPEVAR]:
+    def point(
+        self,
+        position: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Transform a 3D point, or array of points with the spatial dimension in the right-most axis.
 
         Rotations, Scalings, and Translations all affect points.
 
-        :param position: The to-be-transformed 3D-point at each position.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            position: The to-be-transformed 3D-point at each position.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed 3-point at each position.
+        Returns:
+            The transformed 3-point at each position.
+
         """
         position = asarray(position, float)
 
         transverse_radius = np.linalg.norm(position * asarray([1, 1, 0], float))
-        radius_curv = np.sqrt((transverse_radius * self.curvature) ** 2 + (position[2] * self.curvature - 1.0) ** 2,
-                              )  # always around self.curvature
-        polar_distance_curv = np.arctan2(transverse_radius * self.curvature, position[2] * self.curvature - 1.0,
-                                         ) * radius_curv  # always same sign as self.curvature
+        radius_curv = np.sqrt(
+            (transverse_radius * self.curvature) ** 2 + (position[2] * self.curvature - 1.0) ** 2,
+        )  # always around self.curvature
+        polar_distance_curv = (
+            np.arctan2(
+                transverse_radius * self.curvature,
+                position[2] * self.curvature - 1.0,
+            )
+            * radius_curv
+        )  # always same sign as self.curvature
         azimuthal_angle = np.arctan2(position[1], position[0])  # in [-pi, pi)
         azimuthal_distance_curv = azimuthal_angle * polar_distance_curv
         delta_radius_curv = radius_curv - 1
         delta_radius_curv *= 2 * (position[2] * self.curvature - 1 >= 0) - 1  # positive is always in forward direction
         zero_curvature = self.curvature == 0  # Handle also planar interfaces
 
-        return (np.stack(polar_distance_curv, azimuthal_distance_curv, delta_radius_curv,
-                         ) / (self.curvature + zero_curvature) +
-                zero_curvature * np.stack(transverse_radius, azimuthal_angle * transverse_radius, position[..., 2])
-                )
+        return np.stack((polar_distance_curv, azimuthal_distance_curv, delta_radius_curv), axis=-1) / (
+            self.curvature + zero_curvature
+        ) + zero_curvature * np.stack(
+            (transverse_radius, azimuthal_angle * transverse_radius, position[..., 2]), axis=-1
+        )
 
-    def vector(self, vector: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-               ) -> array_type[SCALAR_TYPEVAR]:
+    def vector(
+        self,
+        vector: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Transform a 3D vector, or array of vectors with the spatial dimension in the right-most axis.
 
         Rotations and scalings affect vectors. Translations do not affect vectors, only points.
 
-        :param vector: The to-be-transformed 3-vector at each position.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            vector: The to-be-transformed 3-vector at each position.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed 3-vector at each position.
+        Returns:
+            The transformed 3-vector at each position.
+
         """
         # build the coordinate systems on the manifold
+        coordinate = asarray(coordinate, float)
         radial_curv = coordinate * self.curvature - asarray([0, 0, 1], float)
         radial_curv *= 2 * (coordinate[2] * self.curvature - 1 >= 0) - 1  # positive is always in forward direction
         radial = radial_curv / np.linalg.norm(radial_curv)
         transverse = coordinate * asarray([1, 1, 0], float)
         transverse -= np.dot(transverse, radial) * radial
         zero_transverse = transverse == 0
-        polar = transverse / (
-            np.linalg.norm(transverse) + zero_transverse,
-        ) + zero_transverse * asarray([1, 0, 0], float)
+        polar = transverse / (np.linalg.norm(transverse) + zero_transverse) + zero_transverse * asarray(
+            [1, 0, 0], float
+        )
         azimuthal = np.cross(radial, polar)
 
         transformation_matrix = asarray([polar, azimuthal, radial], float)
 
-        return np.einsum('i...j,...i->...j', transformation_matrix, vector)
+        return np.einsum("i...j,...i->...j", transformation_matrix, asarray(vector))
 
     def __invert__(self) -> InverseSphericalTransform:
         """Returns the transform to which this one is the inverse, i.e. the inverse of this one."""
@@ -826,25 +955,33 @@ class SphericalTransform(Transform):
 class InverseSphericalTransform(Transform):
     """A class to represent a transform from the spherical manifold back to Cartesian coordinates."""
 
-    def __init__(self, curvature: array_type[SCALAR_TYPEVAR]):
+    def __init__(self, curvature: array_like):
         """
         Construct a spatially variant transform to go from coordinates on a spherical surface to Cartesian coordinates.
 
-        :param curvature: The curvature of the manifold.
+        Args:
+            curvature: The curvature of the manifold.
+
         """
         self.curvature = asarray(curvature, float)
 
-    def point(self, position: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-              ) -> array_type[SCALAR_TYPEVAR]:
+    def point(
+        self,
+        position: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Transform a 3D point, or array of points with the spatial dimension in the right-most axis.
 
         Rotations, Scalings, and Translations all affect points.
 
-        :param position: The to-be-transformed 3D-point at each position.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            position: The to-be-transformed 3D-point at each position.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed 3-point at each position.
+        Returns:
+            The transformed 3-point at each position.
+
         """
         position = asarray(position, float)
 
@@ -857,23 +994,36 @@ class InverseSphericalTransform(Transform):
         azimuthal_angle = azimuthal_distance / polar_distance
 
         sin_polar_angle = np.sin(polar_angle)
-        return (np.stack(np.cos(azimuthal_angle) * sin_polar_angle,
-                         np.sin(azimuthal_angle) * sin_polar_angle,
-                         np.cos(polar_angle),
-                         ) * radius_curv - asarray([0, 0, 1], float)
-                ) / self.curvature
+        return (
+            np.stack(
+                (
+                    np.cos(azimuthal_angle) * sin_polar_angle,
+                    np.sin(azimuthal_angle) * sin_polar_angle,
+                    np.cos(polar_angle),
+                ),
+                axis=-1,
+            )
+            * radius_curv
+            + asarray([0, 0, 1], float)
+        ) / self.curvature
 
-    def vector(self, vector: array_like[SCALAR_TYPEVAR], coordinate: array_like[SCALAR_TYPEVAR] = 0,
-               ) -> array_type[SCALAR_TYPEVAR]:
+    def vector(
+        self,
+        vector: array_like,
+        coordinate: array_like = 0,
+    ) -> array_type:
         """
         Transform a 3D vector, or array of vectors with the spatial dimension in the right-most axis.
 
         Rotations and scalings affect vectors. Translations do not affect vectors, only points.
 
-        :param vector: The to-be-transformed 3-vector at each position.
-        :param coordinate: The position in the homogeneous vector field.
+        Args:
+            vector: The to-be-transformed 3-vector at each position.
+            coordinate: The position in the homogeneous vector field.
 
-        :return: The transformed 3-vector at each position.
+        Returns:
+            The transformed 3-vector at each position.
+
         """
         new_p = self.point(coordinate, coordinate)
         # build the coordinate systems on the manifold
@@ -888,7 +1038,7 @@ class InverseSphericalTransform(Transform):
 
         transformation_matrix = asarray([polar, azimuthal, radial])
 
-        return np.einsum('j...i,...i->...j', transformation_matrix, vector)
+        return np.einsum("j...i,...i->...j", transformation_matrix, asarray(vector))
 
     def __invert__(self) -> SphericalTransform:
         """Returns a new transform that is the inverse if this one."""

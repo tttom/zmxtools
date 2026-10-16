@@ -1,7 +1,7 @@
 from zmxtools import log
 from zmxtools.utils.factorial_fraction import factorial_fraction
 
-__all__ = ['log', 'const_c', 'factorial_fraction']
+__all__ = ["const_c", "factorial_fraction", "log"]
 
 
 log = log.getChild(__name__)
