@@ -5,10 +5,10 @@ from collections import defaultdict
 from collections.abc import Iterator, Sequence
 from typing import Self
 
-from zmxtools import log
+import zmxtools
 from zmxtools.utils.io import FileLike, PathLike
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 
 class OrderedCommandDict:

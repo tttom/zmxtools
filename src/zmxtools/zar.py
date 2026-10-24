@@ -3,13 +3,12 @@ from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import BinaryIO
 
-from zmxtools import log
+import zmxtools
 from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.utils.io import BinaryFileLike, BytesFile, PathLike
 from zmxtools.zmx import ZmxOpticalDesign
 
-log = log.getChild(__name__)
-
+log = zmxtools.config_logger(__name__)
 
 __all__ = ["extract", "load", "repack", "unpack"]
 
@@ -74,7 +73,7 @@ def _decompress_lzw(compressed: bytes) -> bytes:
     return b"".join(decompressed)  # convert to bytes
 
 
-def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFile, None, None]:
+def unpack(input_path_or_stream: BinaryFileLike | PathLike) -> Generator[BytesFile]:
     """
     Unpacks a zar archive file and returns a generator of :py:class:`BytesFile` objects.
 

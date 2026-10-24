@@ -1,18 +1,15 @@
-import logging
-
+import zmxtools
 from tests.zar import (
     MIN_FILES_IN_ARCHIVE,
     check_dir_and_remove,
     check_zip_and_remove,
-    log,
     test_directory,
     test_zar_files,
 )
 from tests.zmx.test_zmx import check_optical_design
 from zmxtools import cli, zar
 
-log = log.getChild(__name__)
-log.level = logging.DEBUG
+log = zmxtools.config_logger(__name__)
 
 paired_test_files = {zar_path: zmx_path for zar_path, zmx_path in test_zar_files.items() if zmx_path is not None}
 
@@ -82,12 +79,12 @@ def test_repack():
 
 def test_unzar_basic():
     """Do some basic tests on the code that is called as a script."""
-    no_argv: list[str] = []
-    test_args: list[list[str]] = [["-vv"], no_argv, ["-qq"], ["-q"], ["-v"], ["-vv"], ["-vvv"], ["-V"], ["--FATAL"]]
-    for argv in test_args:
+    test_args: tuple[list[str]] = ["-vv"], [], ["-qq"], ["-q"], ["-v"], ["-vv"], ["-vvv"], ["-V"], ["--FATAL"]
+    test_codes: tuple[int] = 2, 2, 2, 2, 2, 2, 2, 0, 2
+    for argv, code in zip(test_args, test_codes):
         log.info(f"checking unzar{tuple(argv)}...")
         exit_code = cli.unzar(argv)
-        assert exit_code == 2, f"cli.unzar{tuple(argv)} returned error code {exit_code}, though 2 expected."
+        assert exit_code == code, f"unzar{tuple(argv)} returned error code {exit_code}, though {code} expected."
 
 
 def test_unzar_full():

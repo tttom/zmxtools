@@ -17,35 +17,82 @@ import argparse
 import importlib.resources
 import itertools
 import json
+import logging
 import math
+import re
 import threading
 import time
 import webbrowser
 import zipfile
 from collections.abc import Sequence
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, cast
 
 import numpy as np
 
-from zmxtools import log, zar
+import zmxtools
+from zmxtools import zar
 from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.optical_design import material as material_module
 from zmxtools.utils.array import array_type, asarray
 from zmxtools.utils.io import BytesFile
-from zmxtools.zmx import ZmxOpticalDesign, ZmxSurface
+from zmxtools.zmx import ZmxOpticalDesign, ZmxSource, ZmxSurface
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 __all__ = ["build_scene", "load_design", "oshow", "render_html", "scene_json", "serve"]
 
-PALETTE = ("#4fc3f7", "#ff8a65", "#aed581", "#ba68c8", "#4db6ac", "#f06292", "#fff176", "#90a4ae")
-RAY_PALETTE = ("#ffeb3b", "#ff5252", "#40c4ff", "#69f0ae", "#e040fb", "#ffd740")
-
 D_LINE_WAVENUMBER = 2 * np.pi / 587.5618e-9
 
-BACKGROUND_MATERIAL_NAMES = {"vacuum", "air", "water"}
+_CSS_VARIABLE = re.compile(r"--([A-Za-z0-9_-]+)\s*:\s*([^;]+);")
+
+
+@lru_cache(maxsize=1)
+def _style_constants() -> dict[str, str]:
+    """The design constants declared in ``oshow.css``."""
+    css = importlib.resources.files("zmxtools.gui").joinpath("oshow.css").read_text(encoding="utf-8")
+    constants = dict[str, str]()
+    for match in _CSS_VARIABLE.finditer(css):
+        constants.setdefault(match.group(1), match.group(2).strip())
+    return constants
+
+
+def _style_value(name: str, default: str = "") -> str:
+    """The value of a custom CSS property, with an optional fallback."""
+    return _style_constants().get(name, default)
+
+
+def _style_number(name: str, default: float) -> float:
+    """The numeric value of a custom CSS property, with a fallback."""
+    try:
+        return float(_style_value(name))
+    except ValueError:
+        return default
+
+
+def _lens_colors() -> tuple[str, ...]:
+    """The alternating lens surface and rim colors, from ``oshow.css``."""
+    colors = list[str]()
+    index = 0
+    while color := _style_value(f"lens-color-{index}"):
+        colors.append(color)
+        index += 1
+    return tuple(colors) or ("#22d3ee", "#4ade80")
+
+
+def _ray_colors() -> tuple[str, ...]:
+    """The ray colors, from ``oshow.css``."""
+    colors = list[str]()
+    index = 0
+    while color := _style_value(f"ray-color-{index}"):
+        colors.append(color)
+        index += 1
+    return tuple(colors) or ("#ffeb3b", "#ff5252", "#40c4ff", "#69f0ae", "#e040fb", "#ffd740")
+
+
+BACKGROUND_MATERIAL_NAMES = {"vacuum", "air", "water", "__blank", "blank"}
 
 
 def _design_from_named_files(
@@ -179,7 +226,7 @@ def _sample_sag(surface: ZmxSurface, radius: float, nb_r: int = 12, nb_theta: in
     return np.stack((x, y, sag), axis=-1)
 
 
-def _cap_mesh(points: array_type, z_offset: float) -> tuple[list[list[float]], list[list[int]]]:
+def _cap_mesh(points: array_type, z_offset: float, reverse: bool = False) -> tuple[list[list[float]], list[list[int]]]:
     """Triangulated mesh of a sampled cap, lifted to z_offset."""
     nb_r, nb_theta, _ = points.shape
     vertices = [
@@ -195,8 +242,12 @@ def _cap_mesh(points: array_type, z_offset: float) -> tuple[list[list[float]], l
             b = i * nb_theta + jn
             c = (i + 1) * nb_theta + jn
             d = (i + 1) * nb_theta + j
-            triangles.append([a, b, c])
-            triangles.append([a, c, d])
+            if reverse:
+                triangles.append([a, c, b])
+                triangles.append([a, d, c])
+            else:
+                triangles.append([a, b, c])
+                triangles.append([a, c, d])
     return vertices, triangles
 
 
@@ -224,36 +275,52 @@ def _is_glass(mat: material_module.Material) -> bool:
     """Whether a material is a lens glass, as opposed to a background medium."""
     if mat is material_module.VACUUM:
         return False
-    if str(mat.name).lower() in BACKGROUND_MATERIAL_NAMES:
-        return False
-    try:
-        refractive_index = float(np.real(mat.complex_refractive_index(wavenumber=D_LINE_WAVENUMBER)))
-    except Exception:
-        return True  # Unknown optical properties: draw it.
-    return refractive_index > 1.001  # Excludes vacuum and air.
+    return str(mat.name).strip().lower() not in BACKGROUND_MATERIAL_NAMES
 
 
 def _group_lenses(surfaces: Sequence[ZmxSurface]) -> list[list[int]]:
     """Group surface indices into lens elements: consecutive surfaces sharing a glass."""
     lenses = list[list[int]]()
-    current = list[int]()
-    for idx in range(1, len(surfaces) - 1):
-        mat = surfaces[idx].material
-        is_glass = _is_glass(mat) and not getattr(surfaces[idx], "is_mirror", False)
-        if is_glass and len(current) > 0 and surfaces[current[-1]].material.name == mat.name:
-            current.append(idx)
+    last = len(surfaces) - 1
+    index = 1
+    while index < last:
+        surface = surfaces[index]
+        mat = surface.material
+        if getattr(surface, "type", "") == "COORDBRK" or not (
+            _is_glass(mat) and not getattr(surface, "is_mirror", False)
+        ):
+            index += 1
             continue
-        if is_glass:
-            if len(current) > 0:
-                lenses.append(current)
-            current = [idx]
-        elif len(current) > 0:
-            current.append(idx)
-            lenses.append(current)
-            current = []
-    if len(current) > 0:
-        lenses.append(current)
+        indices = [index]
+        while index + 1 < last:
+            next_surface = surfaces[index + 1]
+            next_mat = next_surface.material
+            if getattr(next_surface, "type", "") == "COORDBRK":
+                break
+            if not (_is_glass(next_mat) and not getattr(next_surface, "is_mirror", False)):
+                break
+            if str(next_mat.name) != str(mat.name):
+                break
+            index += 1
+            indices.append(index)
+        indices.append(index + 1)
+        lenses.append(indices)
+        index = indices[-1]
     return lenses
+
+
+def _lens_regions(
+    surfaces: Sequence[ZmxSurface], zs: Sequence[float], radius: float
+) -> list[tuple[int, list[int], float]]:
+    """The visible lens elements with their drawing index, surfaces, and radius."""
+    regions = list[tuple[int, list[int], float]]()
+    for indices in _group_lenses(surfaces):
+        lens_radius = _lens_radius(surfaces, zs, indices, radius)
+        if lens_radius <= 0:
+            log.debug(f"Skipping degenerate lens at surfaces {indices}.")
+            continue
+        regions.append((len(regions), indices, lens_radius))
+    return regions
 
 
 def _sag_profile(surface: ZmxSurface, radii: array_type) -> array_type:
@@ -287,7 +354,7 @@ def _lens_radius(surfaces: Sequence[ZmxSurface], zs: Sequence[float], indices: S
     r_clip = r_max
     for i, j in itertools.pairwise(indices):
         thickness = (zs[j] - zs[i]) + _sag_profile(surfaces[j], radii) - _sag_profile(surfaces[i], radii)
-        crossings = np.flatnonzero(thickness <= 0)
+        crossings = np.flatnonzero(thickness < 0)
         if len(crossings) > 0:
             r_clip = min(r_clip, float(radii[crossings[0]]))
     return r_clip
@@ -388,6 +455,7 @@ def _trace_bundle(
     stop_idx = next((i for i, s in enumerate(surfaces) if s.stop), len(surfaces) // 2)
     stop_radius = float(surfaces[stop_idx].radius) if np.isfinite(surfaces[stop_idx].radius) else _max_radius(surfaces)
     entrance_radius = min(stop_radius, _max_radius(surfaces))
+    ray_palette = _ray_colors()
     rays = list[dict]()
     if _infinity_flags(surfaces)[0]:
         # Source at infinity: parallel rays filling the entrance pupil, colored per ring.
@@ -398,7 +466,7 @@ def _trace_bundle(
             nb = 6 * ring_idx
             groups.append([(r * math.cos(2 * math.pi * k / nb), r * math.sin(2 * math.pi * k / nb)) for k in range(nb)])
         for color_idx, group in enumerate(groups):
-            color = RAY_PALETTE[color_idx % len(RAY_PALETTE)]
+            color = ray_palette[color_idx % len(ray_palette)]
             for sx, sy in group:
                 polyline = _trace_ray(
                     np.array([sx, sy, float(zs[0])]),
@@ -428,7 +496,7 @@ def _trace_bundle(
         targets += [(r * math.cos(2 * math.pi * k / nb), r * math.sin(2 * math.pi * k / nb)) for k in range(nb)]
     rays = list[dict]()
     for color_idx, (sx, sy) in enumerate(source_points):
-        color = RAY_PALETTE[color_idx % len(RAY_PALETTE)]
+        color = ray_palette[color_idx % len(ray_palette)]
         for tx, ty in targets[:per_source]:  # Rays from the same source point share the color.
             polyline = _trace_ray(
                 np.array([sx, sy, float(zs[0])]),
@@ -481,6 +549,329 @@ def _extend_parallel_rays(
             points.insert(0, [points[0][0], points[0][1], points[0][2] - reach])  # Parallel to the axis.
 
 
+def _surface_type_name(surface: ZmxSurface) -> str:
+    """Human-readable surface type name."""
+    names = {
+        "STANDARD": "Standard",
+        "EVENASPH": "Even asphere",
+        "ODDASPH": "Odd asphere",
+        "PARAXIAL": "Paraxial",
+        "COORDBRK": "Coordinate break",
+        "TILTSURF": "Tilted surface",
+        "TOROIDAL": "Toroidal",
+        "SZERNSAG": "Zernike Standard Sag",
+        "FZERNSAG": "Zernike Fringe Sag",
+        "SZERNPHA": "Zernike Standard Phase",
+        "FZERNPHA": "Zernike Fringe Phase",
+        "XPOLYNOM": "Extended polynomial",
+        "IRREGULA": "Irregular",
+        "BICONICX": "Biconic X",
+        "BLACKBOX": "Black box",
+        "GRID_SAG": "Grid sag",
+    }
+    surface_type = str(getattr(surface, "type", "STANDARD")).upper()
+    return names.get(surface_type, surface_type.replace("_", " ").title())
+
+
+_LENGTH_PREFIXES = (
+    (1e-9, "nm", "/ nm"),
+    (1e-6, "µm", "/ µm"),
+    (1e-3, "mm", "/ mm"),
+    (1e-2, "cm", "/ cm"),
+    (1e-1, "dm", "/ dm"),
+    (1.0, "m", "/ m"),
+    (1e3, "km", "/ km"),
+)
+
+
+def _length_prefix(design: ZmxOpticalDesign) -> tuple[float, str, str]:
+    """The length scale, suffix, and inverse suffix used by a design."""
+    unit = float(getattr(design, "unit", 1.0))
+    for scale, suffix, inverse in _LENGTH_PREFIXES:
+        if math.isclose(unit, scale, rel_tol=1e-9, abs_tol=0.0):
+            return scale, suffix, inverse
+    if unit < 1e-6:
+        return _LENGTH_PREFIXES[0]
+    if unit < 1e-3:
+        return _LENGTH_PREFIXES[1]
+    if unit < 1.0:
+        return _LENGTH_PREFIXES[2]
+    return _LENGTH_PREFIXES[5]
+
+
+def _format_length(value: float, prefix: tuple[float, str, str]) -> str:
+    """Format a length in the design's consistent SI prefix."""
+    scale, suffix, _ = prefix
+    if value is None or not np.isfinite(value):
+        return "Infinity"
+    if abs(value) < 1e-15:
+        return f"0 {suffix}"
+    return f"{value / scale:.6g} {suffix}"
+
+
+def _surface_curvature(surface: ZmxSurface, prefix: tuple[float, str, str]) -> tuple[str, str | None]:
+    """The formatted curvature and radius of a surface."""
+    _, _, inverse = prefix
+    curvature = float(getattr(surface, "curvature", 0.0))
+    if not np.isfinite(curvature) or abs(curvature) < 1e-18:
+        return f"0 {inverse}", None
+    radius = 1.0 / curvature
+    return f"{curvature * prefix[0]:.4g} {inverse}", _format_length(radius, prefix)
+
+
+def _surface_summary(
+    surface: ZmxSurface,
+    prefix: tuple[float, str, str],
+    label: str | None = None,
+) -> str:
+    """A concise one-line surface description."""
+    curvature, radius = _surface_curvature(surface, prefix)
+    name = label if label is not None else _surface_type_name(surface)
+    summary = f"{name} surface: κ = {curvature}"
+    if radius is not None:
+        summary += f", r = {radius}"
+    return summary
+
+
+def _refractive_index_at_wavelength(mat: material_module.Material, wavelength: float) -> float:
+    """Refractive index at a given wavelength, with fallbacks."""
+    try:
+        wavenumber = 2.0 * np.pi / wavelength
+        n = mat.complex_refractive_index(wavenumber=wavenumber)
+        real = float(np.real(n))
+        if np.isfinite(real) and real > 0.0:
+            return real
+    except Exception:
+        pass
+    try:
+        real = float(np.real(mat.refractive_index(wavelength=wavelength)))
+        if np.isfinite(real) and real > 0.0:
+            return real
+    except Exception:
+        pass
+    try:
+        real = float(np.real(mat.refractive_index_d))
+        if np.isfinite(real) and real > 0.0:
+            return real
+    except Exception:
+        pass
+    return 1.0
+
+
+def _middle_wavelength(wavelengths: Sequence[float]) -> float:
+    """The middle modeled wavelength, falling back to the d-line."""
+    finite = sorted(float(w) for w in wavelengths if np.isfinite(w) and w > 0.0)
+    if not finite:
+        return 587.5618e-9
+    return finite[len(finite) // 2]
+
+
+def _abbe_number(mat: material_module.Material) -> float | None:
+    """The Abbe number of a glass, if it has one."""
+    try:
+        value = float(np.real(mat.constringence))
+    except Exception:
+        return None
+    if not np.isfinite(value) or value <= 0.0:
+        return None
+    return value
+
+
+def _command_numbers(design: ZmxOpticalDesign, *names: str) -> list[float]:
+    """The numbers of the first available command among names."""
+    commands = design.commands
+    for name in names:
+        if name in commands:
+            return [float(value) for value in commands.command(name).numbers]
+    return []
+
+
+def _field_positions(
+    design: ZmxOpticalDesign,
+    prefix: tuple[float, str, str],
+) -> tuple[str, list[str]]:
+    """The field type and field positions, formatted for display."""
+    xs = _command_numbers(design, "XFLD", "XFLN")
+    ys = _command_numbers(design, "YFLD", "YFLN")
+    count = max(len(xs), len(ys))
+    if count == 0:
+        return "", []
+    xs = [*xs, *(0.0 for _ in range(count - len(xs)))]
+    ys = [*ys, *(0.0 for _ in range(count - len(ys)))]
+    ftyp = _command_numbers(design, "FTYP")
+    field_type = int(ftyp[0]) if len(ftyp) > 0 else 0
+    field_count = int(ftyp[-1]) if len(ftyp) > 0 and ftyp[-1] > 0 else 0
+    used = max(
+        [field_count]
+        + [index + 1 for index, (x, y) in enumerate(zip(xs, ys, strict=True)) if abs(x) > 1e-15 or abs(y) > 1e-15],
+    )
+    used = min(max(used, 0), count)
+    if used == 0:
+        return "", []
+    units = {0: "deg", 1: prefix[1], 2: "image height", 3: "image height"}
+    unit = units.get(field_type, "")
+    type_names = {0: "Angles", 1: "Object heights", 2: "Paraxial image heights", 3: "Real image heights"}
+    type_name = type_names.get(field_type, "Fields")
+    positions = []
+    for x, y in zip(xs[:used], ys[:used], strict=True):
+        if field_type == 0:
+            positions.append(f"x={x:g}°, y={y:g}°")
+        else:
+            scale = float(getattr(design, "unit", 1.0))
+            x_str = _format_length(x * scale, prefix)
+            y_str = _format_length(y * scale, prefix)
+            positions.append(f"x={x_str}, y={y_str}")
+    return f"{type_name} ({unit})" if unit else type_name, positions
+
+
+def _material_name(mat: material_module.Material) -> str:
+    """The display name of a material."""
+    name = str(getattr(mat, "name", "")).strip()
+    if not name:
+        return "Air"
+    if name.lower() == "vacuum":
+        return "Vacuum"
+    if name.lower() == "air":
+        return "Air"
+    if name.lower() == "water":
+        return "Water"
+    if name.lower() in {"__blank", "blank"}:
+        return "Vacuum"
+    return name
+
+
+def _build_table(design: ZmxOpticalDesign, surfaces: Sequence[ZmxSurface]) -> list[dict]:
+    """Build the description table for the left panel."""
+    table = list[dict]()
+    prefix = _length_prefix(design)
+    zs = _surface_zs(surfaces)
+    radius = _max_radius(surfaces)
+    lens_by_surface = dict[int, int]()
+    for lens_index, indices, _ in _lens_regions(surfaces, zs, radius):
+        for surface_index in indices:
+            lens_by_surface[surface_index] = lens_index
+    lens_colors = _lens_colors()
+    source = cast("ZmxSource", design.source)
+    wavelengths = []
+    try:
+        wavelengths = [float(w) for w in np.asarray(source.wavelengths).flatten()]
+    except Exception:
+        pass
+    weights = []
+    try:
+        weights = [float(w) for w in np.asarray(source.wavelength_weights).flatten()]
+    except Exception:
+        pass
+    weights = [*weights, *(1.0 for _ in range(len(wavelengths) - len(weights)))][: len(wavelengths)]
+    wave_strs = []
+    for wavelength, weight in zip(wavelengths, weights, strict=True):
+        if not np.isfinite(wavelength):
+            continue
+        weight_str = f" ({weight:g})" if abs(weight - 1.0) > 1e-12 else ""
+        wave_strs.append(f"{wavelength / 1e-9:.1f} nm{weight_str}")
+    source_details = [(chr(955), ", ".join(wave_strs) if wave_strs else "d-line")]
+    field_label, field_positions = _field_positions(design, prefix)
+    if field_positions:
+        source_details.append((field_label or "Fields", "; ".join(field_positions)))
+    else:
+        source_details.append(("Fields", "On-axis"))
+    object_at_infinity, _ = _infinity_flags(surfaces)
+    if object_at_infinity:
+        source_details.append(("Δz", "Infinity"))
+    elif len(surfaces) > 1 and np.isfinite(float(surfaces[0].spacing)):
+        source_details.append(("Δz", _format_length(float(surfaces[0].spacing), prefix)))
+    table.append(
+        {
+            "type": "medium",
+            "title": "",
+            "details": source_details,
+            "target": {"kind": "rays"},
+        }
+    )
+
+    middle_wavelength = _middle_wavelength(wavelengths)
+    for surface_index in range(1, len(surfaces) - 1):
+        surface = surfaces[surface_index]
+        if getattr(surface, "type", "") == "COORDBRK":
+            continue
+        curvature, radius_str = _surface_curvature(surface, prefix)
+        surface_details = [("Type", _surface_type_name(surface)), ("Curvature", f"κ = {curvature}")]
+        if radius_str is not None:
+            surface_details.append(("Radius", f"r = {radius_str}"))
+        if getattr(surface, "stop", False):
+            surface_details.append(("Stop", "Yes"))
+        if getattr(surface, "conic_constant", 0.0) != 0.0:
+            surface_details.append(("Conic", f"{surface.conic_constant:g}"))
+        if getattr(surface, "type", "") == "PARAXIAL" and getattr(surface, "focal_length", None) is not None:
+            surface_details.append(("Focal length", _format_length(float(surface.focal_length), prefix)))
+        parameters = getattr(surface, "parameters", None)
+        if parameters is not None and len(parameters) > 0:
+            visible = [f"{value:g}" for value in parameters if abs(float(value)) > 1e-18]
+            if visible:
+                surface_details.append(("Parameters", ", ".join(visible)))
+        extra_data = getattr(surface, "extra_data", None)
+        if extra_data is not None and len(extra_data) > 0:
+            visible = [f"{value:g}" for value in extra_data if abs(float(value)) > 1e-18]
+            if visible:
+                surface_details.append(("Extra data", ", ".join(visible)))
+        table.append(
+            {
+                "type": "surface",
+                "title": "",
+                "summary": _surface_summary(surface, prefix),
+                "details": surface_details,
+                "stop": bool(getattr(surface, "stop", False)),
+                "target": {"kind": "surface", "id": f"surf-{surface_index}"},
+            }
+        )
+
+        mat = surface.material
+        is_glass = _is_glass(mat) and not getattr(surface, "is_mirror", False)
+        thickness = (
+            _format_length(float(surface.spacing), prefix)
+            if surface_index < len(surfaces) - 1 and np.isfinite(float(surface.spacing))
+            else "Infinity"
+        )
+        material_name = _material_name(mat)
+        index = _refractive_index_at_wavelength(mat, middle_wavelength)
+        abbe = _abbe_number(mat) if is_glass else None
+        summary = f"{material_name}: Δz = {thickness}, n = {index:.4g}"
+        if abbe is not None:
+            summary += f", V<sub>d</sub> = {abbe:.3f}"
+        material_block = {
+            "type": "material",
+            "title": "",
+            "summary": summary,
+            "details": [],
+        }
+        lens_index = lens_by_surface.get(surface_index) if is_glass else None
+        if lens_index is not None:
+            material_block["color"] = lens_colors[lens_index % len(lens_colors)]
+            material_block["target"] = {"kind": "rim", "id": f"lens-{lens_index}"}
+        elif material_name in {"Vacuum", "Air", "Water"} or not is_glass:
+            material_block["type"] = "medium"
+        table.append(material_block)
+
+    image_surface = surfaces[-1]
+    image_curvature, image_radius = _surface_curvature(image_surface, prefix)
+    image_details = [("Type", _surface_type_name(image_surface)), ("Curvature", f"κ = {image_curvature}")]
+    if image_radius is not None:
+        image_details.append(("Radius", f"r = {image_radius}"))
+    _, image_at_infinity = _infinity_flags(surfaces)
+    if image_at_infinity:
+        image_details.append(("Image", "At infinity"))
+    table.append(
+        {
+            "type": "image",
+            "title": "",
+            "summary": _surface_summary(image_surface, prefix, label="Image"),
+            "details": image_details,
+            "target": {"kind": "image"},
+        }
+    )
+    return table
+
+
 def build_scene(design: ZmxOpticalDesign, nb_rays: int = 13) -> dict:
     """
     Build the viewer scene from an optical design.
@@ -498,29 +889,46 @@ def build_scene(design: ZmxOpticalDesign, nb_rays: int = 13) -> dict:
     z_stop = zs[stop_idx]
     radius = _max_radius(surfaces)
 
+    lens_colors = _lens_colors()
     lenses = list[dict]()
-    for element_idx, indices in enumerate(_group_lenses(surfaces)):
-        lens_radius = _lens_radius(surfaces, zs, indices, radius)
-        if lens_radius <= 0:
-            log.debug(f"Skipping degenerate lens at surfaces {indices}.")
-            continue
-        color = PALETTE[element_idx % len(PALETTE)]
+    for element_idx, indices, lens_radius in _lens_regions(surfaces, zs, radius):
+        color = lens_colors[element_idx % len(lens_colors)]
         meshes = list[dict]()
-        rims = list[list[float]]()
-        caps = list[tuple[list[list[float]], list[list[int]]]]()
-        sampled = list[list[list[float]]]()
-        for idx in indices:
-            cap_points = _sample_sag(surfaces[idx], lens_radius)
-            caps.append(_cap_mesh(cap_points, zs[idx] - z_stop))
-            sampled.append(_rim(cap_points, zs[idx] - z_stop))
-        for a, b in itertools.pairwise(sampled):
-            side_vertices, side_triangles = _side_mesh(a, b)
-            meshes.append({"vertices": side_vertices, "triangles": side_triangles})
-        for vertices, triangles in caps:
-            meshes.append({"vertices": vertices, "triangles": triangles})
-        for rim in sampled:
-            rims += rim
-        lenses.append({"color": color, "opacity": 0.5, "meshes": meshes, "rim_lines": rims})
+        front_index, back_index = indices[0], indices[-1]
+        front_points = _sample_sag(surfaces[front_index], lens_radius)
+        back_points = _sample_sag(surfaces[back_index], lens_radius)
+        front_rim = _rim(front_points, zs[front_index] - z_stop)
+        back_rim = _rim(back_points, zs[back_index] - z_stop)
+        side_vertices, side_triangles = _side_mesh(front_rim, back_rim)
+        meshes.append({"vertices": side_vertices, "triangles": side_triangles, "surface_id": f"rim-{element_idx}"})
+        front_vertices, front_triangles = _cap_mesh(front_points, zs[front_index] - z_stop)
+        meshes.append(
+            {
+                "vertices": front_vertices,
+                "triangles": front_triangles,
+                "surface_id": f"surf-{front_index}",
+            },
+        )
+        back_vertices, back_triangles = _cap_mesh(back_points, zs[back_index] - z_stop, reverse=True)
+        meshes.append(
+            {
+                "vertices": back_vertices,
+                "triangles": back_triangles,
+                "surface_id": f"surf-{back_index}",
+            },
+        )
+        rims = [*front_rim, *back_rim]
+        lenses.append(
+            {
+                "id": f"lens-{element_idx}",
+                "color": color,
+                "opacity": _style_number("lens-opacity", 0.5),
+                "meshes": meshes,
+                "rim_lines": rims,
+                "rims": [front_rim, back_rim],
+                "surfaces": [front_index, back_index],
+            },
+        )
 
     object_at_infinity, image_at_infinity = _infinity_flags(surfaces)
     rays = _trace_bundle(surfaces, zs, z_stop, nb_rays)
@@ -535,6 +943,7 @@ def build_scene(design: ZmxOpticalDesign, nb_rays: int = 13) -> dict:
     z_min = min([zs[0] - z_stop, *traced_zs])
     z_max = max([zs[-1] - z_stop, *traced_zs])
     extent = max(z_max - z_min, 4 * radius)
+    table = _build_table(design, surfaces)
     return {
         "version": 2,
         "name": design.name,
@@ -546,13 +955,17 @@ def build_scene(design: ZmxOpticalDesign, nb_rays: int = 13) -> dict:
             "center": [0.0, 0.0, 0.0],
             "inner_radius": stop_radius,
             "outer_radius": 2.0 * stop_radius,
+            "color": _style_value("aperture-color", "#808088"),
+            "opacity": _style_number("aperture-opacity", 0.5),
         },
         "image_plane": {"center": [0.0, 0.0, z_max], "radius": image_radius},
         "camera": {
-            "position": [1.2 * extent, -1.6 * extent, 0.9 * extent],
+            "position": [extent, 0.0, 0.5 * (z_min + z_max)],
             "target": [0.0, 0.0, 0.5 * (z_min + z_max)],
+            "up": [0.0, 0.0, -1.0],
         },
         "bounds": {"radius": radius, "zmin": z_min, "zmax": z_max},
+        "table": table,
     }
 
 
@@ -572,9 +985,13 @@ def render_html(scene: dict, served: bool = False) -> str:
     Returns:
         The HTML page string.
     """
-    template = importlib.resources.files("zmxtools").joinpath("oshow_template.html").read_text(encoding="utf-8")
+    package = importlib.resources.files("zmxtools.gui")
+    template = package.joinpath("oshow_template.html").read_text(encoding="utf-8")
+    css = package.joinpath("oshow.css").read_text(encoding="utf-8")
+    js = package.joinpath("oshow.js").read_text(encoding="utf-8")
+    html = template.replace("__CSS__", css).replace("__JS__", js)
     return (
-        template.replace("__TITLE__", str(scene.get("name", "optical design")))
+        html.replace("__TITLE__", str(scene.get("name", "optical design")))
         .replace("__SCENE__", json.dumps(scene))
         .replace("__SERVED__", "true" if served else "false")
     )
@@ -629,6 +1046,8 @@ def serve(
             browser. The page is self-contained, so it keeps working; only live
             reload stops.
     """
+    server = ThreadingHTTPServer(("127.0.0.1", port), _ViewerHandler)
+    server.timeout = 0.5
     _ViewerHandler.state = {
         "html": render_html(scene, served=True),
         "scene": scene_json(scene),
@@ -664,8 +1083,6 @@ def serve(
                     log.warning(f"Could not rebuild scene: {err}")
 
     threading.Thread(target=rebuild_loop, daemon=True).start()
-    server = ThreadingHTTPServer(("127.0.0.1", port), _ViewerHandler)
-    server.timeout = 0.5
     url = f"http://127.0.0.1:{port}/"
     log.info(f"Serving oshow on {url} (Ctrl+C to stop)...")
     if open_browser:
@@ -694,11 +1111,18 @@ def _make_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "input_file", type=str, nargs="?", help="the input file or directory (alternative to -i, e.g. unzar output)"
     )
-    parser.add_argument("-l", "--library", type=str, nargs="*", default=[], help="optional .agf glass catalog files")
+    parser.add_argument(
+        "-m",
+        "--materials",
+        type=str,
+        nargs="*",
+        default=[],
+        help="extra materials in, for instance, .agf glass catalog files",
+    )
     parser.add_argument("-o", "--output", type=str, help="write the HTML page to this file")
-    parser.add_argument("-s", "--save-scene", type=str, help="write the scene JSON to this file")
-    parser.add_argument("--rays", type=int, default=13, help="approximate number of rays to trace (default: 13)")
-    parser.add_argument("--port", type=int, default=8010, help="port for the viewer server (default: 8010)")
+    parser.add_argument("-j", "--save-json", type=str, help="write the reandering in JSON format to this file")
+    parser.add_argument("--rays", type=int, default=13, help="approximate number of rays to trace (default: %(default))")
+    parser.add_argument("--port", type=int, default=8010, help="port for the viewer server (default: %(default))")
     parser.add_argument("--no-serve", action="store_true", help="do not start the viewer server")
     parser.add_argument("--no-open", action="store_true", help="do not open a browser window")
     parser.add_argument(
@@ -710,6 +1134,20 @@ def _make_argument_parser() -> argparse.ArgumentParser:
         "--watch", action="store_true", help="rebuild the scene when the input file changes (keeps the server running)"
     )
     parser.add_argument("-V", "--version", action="store_true", help="show version information")
+    parser.add_argument(
+        "-v",
+        "--verbosity",
+        help="the level of verbosity",
+        default=0,
+        action="count",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        help="suppress output partially or completely (-qqqq)",
+        default=0,
+        action="count",
+    )
     return parser
 
 
@@ -725,30 +1163,39 @@ def oshow(argv: Sequence[str] | None = None) -> int:
     """
     parser = _make_argument_parser()
     args = parser.parse_args(argv)
-    if args.version:
-        from zmxtools import __version__
 
-        print(__version__)
-        return 0
+    verbosity_level: int = args.verbosity - args.quiet
+    log_levels = logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG, logging.NOTSET
+    DEFAULT_VERBOSITY: int = 2
+    zmxtools.console_log_handler.level = log_levels[max(0, min(len(log_levels) - 1, DEFAULT_VERBOSITY + verbosity_level))]  # Default to WARNING
+
+    version_message: str = f"Running zmxtools oshow version {zmxtools.__version__}."
+    log.debug(version_message)
+    if args.version and verbosity_level >= -DEFAULT_VERBOSITY:
+        print(version_message)
+        if args.input is None and args.input_file is None:
+            return 0
     if args.input is not None and args.input_file is not None:
-        log.error("Specify the input file with -i or as a positional argument, not both.")
-        parser.print_usage()
+        log.error("Specify the input file with -i or as the first argument, not both.")
+        if verbosity_level >= -DEFAULT_VERBOSITY:
+            parser.print_usage()
         return 2
     input_path = args.input if args.input is not None else args.input_file
     if input_path is None:
         log.error("No input file specified.")
-        parser.print_usage()
+        if verbosity_level >= -DEFAULT_VERBOSITY:
+            parser.print_usage()
         return 2
     try:
-        design = load_design(input_path, args.library)
+        design = load_design(input_path, args.materials)
     except (OSError, ValueError) as err:
         log.error(f"Could not load optical design: {err}")
         return 1
     scene = build_scene(design, nb_rays=args.rays)
     log.info(f"Built scene for '{scene['name']}': {len(scene['lenses'])} lenses, {len(scene['rays'])} rays.")
-    if args.save_scene:
-        Path(args.save_scene).write_text(scene_json(scene), encoding="utf-8")
-        log.info(f"Saved scene to {args.save_scene}.")
+    if args.save_json:
+        Path(args.save_json).write_text(scene_json(scene), encoding="utf-8")
+        log.info(f"Saved scene to {args.save_json}.")
     if args.output:
         Path(args.output).write_text(render_html(scene, served=False), encoding="utf-8")
         log.info(f"Wrote viewer page to {args.output}.")

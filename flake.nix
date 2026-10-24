@@ -32,7 +32,7 @@
             pythonWithDeps
             pkgs.uv
             pkgs.git
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             # Runtime library required by manylinux wheels (numpy et al.):
             # stdenv.cc.cc.lib provides libstdc++.so.6. Never add glibc to
             # LD_LIBRARY_PATH on NixOS: it must match the system's glibc.
@@ -52,7 +52,7 @@
             else
               echo "zmxtools: updating .venv with uv..."
             fi
-            uv sync
+            uv sync --group docs
             uv-update() { uv lock --upgrade && uv sync --upgrade; }
             uv-lock() { uv lock --upgrade; }
             echo "uv-update: upgrade all locked packages, then resync the venv"

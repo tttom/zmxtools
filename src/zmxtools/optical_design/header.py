@@ -6,13 +6,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.optical_design.geometry import IDENTITY, Transform
 from zmxtools.optical_design.light import LightPath, Wavefront
 from zmxtools.utils.array import array_like, array_type
 
-log = log.getChild(__name__)
-
+log = zmxtools.config_logger(__name__)
 
 class Element:
     """An abstract base class for all optical elements."""

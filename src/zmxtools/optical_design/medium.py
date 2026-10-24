@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.optical_design.geometry import IDENTITY, Transform
 from zmxtools.optical_design.header import Element, Medium
 from zmxtools.optical_design.light import LightPath
@@ -9,8 +9,7 @@ from zmxtools.utils.array import array_like, array_type
 
 __all__ = ["HomogeneousMedium", "InhomogeneousMedium", "log"]
 
-log = log.getChild(__name__)
-
+log = zmxtools.config_logger(__name__)
 
 class HomogeneousMedium(Medium):
     """A class to represent a homogeneous medium."""

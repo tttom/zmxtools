@@ -13,7 +13,7 @@
 [![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/pypi/zmxtools)](https://libraries.io/pypi/zmxtools)
 [![codecov](https://codecov.io/gh/tttom/zmxtools/branch/main/graph/badge.svg)](https://codecov.io/gh/tttom/zmxtools)
 
-### A toolkit to read Zemax files.
+## A toolkit to read Zemax files.
 
 This provides a command line tool to unpack Zemax ZAR archives into its constituent files, or repack it as standard zip 
 files. A Python API is provided to integrate this into your own projects. Further processing of the archive's contents, 
@@ -32,15 +32,21 @@ experimental. You may find the [list of related software](#related-software) bel
 ## Installation
 ### Prerequisites
 - Python 3.13 or higher
-- pip, the Python package manager
+- Either [astral-uv](https://docs.astral.sh/uv/) or [pip](https://pypi.org/project/pip/) as a package manager
 
+## Installing
 To install `zmxtools`, just run the following command in a command shell:
-```bash
+```console
 pip install zmxtools
+```
+or add it as a dependency to your `pyproject.toml` with
+```console
+uv add zmxtools
+uv sync
 ```
 
 For development, use [uv](https://docs.astral.sh/uv/) to set up the environment:
-```bash
+```console
 uv sync
 ```
 
@@ -58,7 +64,7 @@ Repacking the same zar-archive as a standard zip-archive `mylens.zip` is done wi
 ```console
 unzar mylens.zar -z
 ```
-The `--show` option (`-s`) displays the unpacked module in the `oshow` 3D viewer:
+The `--show` option (`-s`) displays the unpacked module in the [oshow 3D viewer](oshow.md):
 ```console
 unzar mylens.zar --show
 ```
@@ -99,8 +105,23 @@ for surface in optical_design.surfaces:
           f' n={surface.material.complex_refractive_index(wavelength=wavelength)}' +
           f' @ {wavelength / 1e-9:0.1f}nm.')
 ```
-Note that `surface.material` are glass objects that model the optical properties over a range of wavelengths, not just 
-those of the optical model.
+Note that `surface.material` are glass objects that model the optical properties over a range of wavelengths, 
+not just those of the optical model.
+
+### Viewing a lens design
+The [oshow](oshow.md) command renders an optical design interactively in a browser window:
+```console
+oshow -i mylens.zar
+oshow -i mylens.zmx -m schott.agf --watch
+oshow -i mylens/
+oshow -i mylens.zip
+unzar -s mylens.zar
+```
+Lenses and rays are rendered as a 3D model that can be manupulated by touch, mouse, and keyboard.
+The left-hand table lists the source characteristics, followed by the surfaces between the source and image. 
+The properties of the material between each pair of consecutive surfaces is shown in blocks with corresponding 
+colors in the 3D rendering. Select anything to locate it in the rendering.
+See the [oshow documentation](oshow.md) for details and other options.
 
 ### Zernike polynomials
 The `zmxtools.utils.zernike` sub-module provides the Zernike polynomial basis with OSA/ANSI, Noll, and Fringe
@@ -116,18 +137,6 @@ fit = zernike.Fit(rho=rho, phi=phi, z=values, order=10)
 print(fit.coefficients, fit.error)
 ```
 
-### Viewing a design in 3D
-The `oshow` command renders an optical design interactively in a browser window:
-```console
-oshow -i mylens.zar
-oshow -i mylens.zmx -l schott.agf --watch
-```
-Lenses are drawn as colored semi-transparent solids with spherical shell caps, the
-aperture stop center is at the origin with x/y/z axes, and a ray bundle is traced
-from the source to the image plane. Drag to orbit, wheel to zoom, arrows to pan,
-`Home`/`End`/`PageUp`/`PageDown` to navigate. See the oshow documentation for the
-JSON scene format, model saving, and planned 2D slices.
-
 ## Online documentation
 The latest version of the API Documentation is published on https://zmxtools.readthedocs.io/.
 The documentation is generated automatically in the [docs/ directory](docs) from the source code. 
@@ -138,12 +147,11 @@ Check out [Contributing](CONTRIBUTING.md) for details.
 
 ## License
 This code is distributed under the
-[agpl3: GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.en.html)
+[agpl3: GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.en.html).
 
 ## Credits
 - [Wouter Vermaelen](https://github.com/m9710797) for decoding the ZAR header and finding LZW compressed contents.
 - [Bertrand Bordage](https://github.com/BertrandBordage) for sharing this [gist](https://gist.github.com/BertrandBordage/611a915e034c47aa5d38911fc0bc7df9).
-- This project was generated with [`wemake-python-package`](https://github.com/wemake-services/wemake-python-package). Current template version is: [cfbc9ea21c725ba5b14c33c1f52d886cfde94416](https://github.com/wemake-services/wemake-python-package/tree/cfbc9ea21c725ba5b14c33c1f52d886cfde94416). See what is [updated](https://github.com/wemake-services/wemake-python-package/compare/cfbc9ea21c725ba5b14c33c1f52d886cfde94416...master) since then.
 
 ## Related Software
 - [Optical ToolKit](https://github.com/draustin/otk) reads Zemax .zmx files.

@@ -1,5 +1,4 @@
 import itertools
-import logging
 import pathlib
 from collections import defaultdict
 
@@ -7,15 +6,11 @@ import numpy as np
 from numpy import testing as npt
 
 from tests.agf import test_agf_files, test_directory
-from tests.zmx import log
-from zmxtools import agf
+from zmxtools import agf, config_logger
 from zmxtools.optical_design.material import CiddorAir, SimpleAir, Vacuum
 from zmxtools.utils import const_c
 
-log = log.getChild(__name__)
-
-log.level = logging.DEBUG
-agf.log.level = logging.DEBUG
+log = config_logger(__name__)
 
 
 def test_vacuum():

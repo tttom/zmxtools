@@ -5,12 +5,11 @@ from typing import Self
 
 import numpy as np
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.utils import script
 from zmxtools.utils.array import SCALAR_TYPE, array_like, array_type, asarray
 
-log = log.getChild(__name__)
-
+log = zmxtools.config_logger(__name__)
 
 class Transform:
     """A class to represent transforms."""

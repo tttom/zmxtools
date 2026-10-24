@@ -7,7 +7,7 @@ from typing import cast
 
 import numpy as np
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.utils import const_c
 from zmxtools.utils.array import array_like, array_type, asarray
 
@@ -25,8 +25,7 @@ __all__ = [
     "log",
 ]
 
-log = log.getChild(__name__)
-
+log = zmxtools.config_logger(__name__)
 
 @dataclass
 class MaterialResistanceValue:

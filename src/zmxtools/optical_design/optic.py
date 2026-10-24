@@ -4,7 +4,7 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.optical_design.geometry import IDENTITY, Transform
 from zmxtools.optical_design.header import Element, Medium
 from zmxtools.optical_design.light import LightPath, Wavefront
@@ -12,7 +12,7 @@ from zmxtools.optical_design.source import Source
 from zmxtools.optical_design.surface import Surface
 from zmxtools.utils.array import array_type
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 
 class CompoundElement(Element):

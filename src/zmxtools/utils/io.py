@@ -6,9 +6,9 @@ import typing
 
 import typing_extensions
 
-from zmxtools import log
+import zmxtools
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 
 class BytesFile:

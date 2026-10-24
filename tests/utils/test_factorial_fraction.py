@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import testing as npt
 
-from zmxtools.utils import factorial_fraction
+from zmxtools.utils.factorial_fraction import factorial_fraction
 
 
 class TestFactorialFraction:

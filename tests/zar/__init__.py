@@ -1,14 +1,13 @@
 from pathlib import Path
 
-from tests import log
+import zmxtools
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 __all__ = (
     "MIN_FILES_IN_ARCHIVE",
     "check_dir_and_remove",
     "check_zip_and_remove",
-    "log",
     "test_directory",
     "test_zar_files",
 )

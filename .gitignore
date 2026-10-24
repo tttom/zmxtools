@@ -218,3 +218,5 @@ fabric.properties
 
 docs/src/api/
 
+*.log
+*.log.*

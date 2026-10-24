@@ -5,12 +5,11 @@ from typing import Self
 
 import numpy as np
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.optical_design.geometry import IDENTITY, Positionable, Transform
 from zmxtools.utils.array import NP_COMPLEX_TYPE, NP_FLOAT_TYPE, NP_INT_TYPE, array_like, array_type, asarray
 
-log = log.getChild(__name__)
-
+log = zmxtools.config_logger(__name__)
 
 class Wavefront(Positionable):
     """A representation of a wavefront (or collection thereof) as a collection of rays."""

@@ -3,13 +3,13 @@ Parse Zemax Glass AGF files.
 
 The following projects have been useful references:
 
- - RefractiveIndex.info, https://github.com/polyanskiy/refractiveindex.info-database
+    - RefractiveIndex.info, https://github.com/polyanskiy/refractiveindex.info-database
 
- - The ZemaxGlass project, https://github.com/nzhagen/zemaxglass
+    - The ZemaxGlass project, https://github.com/nzhagen/zemaxglass
 
- - RayOpt: https://github.com/quartiq/rayopt
+    - RayOpt: https://github.com/quartiq/rayopt
 
- - Optical ToolKit, OTK: https://github.com/draustin/otk
+    - Optical ToolKit, OTK: https://github.com/draustin/otk
 
 """
 
@@ -21,10 +21,12 @@ from pathlib import Path
 
 import numpy as np
 
-from zmxtools import log, parser
+from zmxtools import config_logger, parser
 from zmxtools.optical_design import material
 from zmxtools.utils.array import array_like, array_type, asarray, to_length
 from zmxtools.utils.io import FileLike, PathLike
+
+log = config_logger(__name__)
 
 __all__ = [
     "AgfMaterialLibrary",

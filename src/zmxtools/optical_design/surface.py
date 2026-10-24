@@ -4,13 +4,13 @@ from typing import Self
 
 import numpy as np
 
-from zmxtools.optical_design import log
+import zmxtools
 from zmxtools.optical_design.geometry import IDENTITY, Positionable, SphericalTransform, Transform
 from zmxtools.optical_design.header import Element, Medium
 from zmxtools.optical_design.light import LightPath, Wavefront
 from zmxtools.utils.array import array_like, array_type, asarray
 
-log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 
 class Transformed(Positionable):

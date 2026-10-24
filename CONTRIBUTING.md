@@ -6,32 +6,37 @@
 into a small number of cohesive sub-packages.
 
 ```
-zmxtools/
-  __init__.py          Package version + shared colored logging setup (log, console_log_handler)
-  cli.py               The `unzar` command-line entry point (argparse wrapper)
-  parser.py            OrderedCommandDict / Command: an ordered, indexable parse tree
-  zar.py               ZAR archive reader: unpack / extract / repack / load
-  zmx.py               ZMX reader: ZmxOrderedCommandDict, ZmxOpticalDesign, ZmxSurface, ZmxSource
-  agf.py               AGF glass-catalog reader: AgfMaterialLibrary + dispersion formulas
+src/zmxtools/
+  __init__.py               Package version + shared colored logging setup (log, console_log_handler)
+  cli.py                    The `unzar` command-line entry point (argparse wrapper)
+  gui/
+    - __init__.py           The Python code to serve the web-based gui.
+    - oshow_template.py     The html template for the graphical user interface.
+    - oshow.css             The colors and styles for the interface.
+    - oshow.js              The javascript code for the interactivity of the display.
+  parser.py                 OrderedCommandDict / Command: an ordered, indexable parse tree
+  zar.py                    ZAR archive reader: unpack / extract / repack / load
+  zmx.py                    ZMX reader: ZmxOrderedCommandDict, ZmxOpticalDesign, ZmxSurface, ZmxSource
+  agf.py                    AGF glass-catalog reader: AgfMaterialLibrary + dispersion formulas
   utils/
-    __init__.py        Shared constants (const_c) and re-exports
-    array.py           numpy typing helpers (array_like / array_type) and array utilities
-    io.py              BytesFile + FileLike / PathLike type aliases
-    polar.py           cart2pol / pol2cart coordinate conversion
-    script.py          Unicode superscript / subscript formatting (sup / sub)
-    factorial_fraction.py  Overflow-safe factorial ratios
-    multivariate.py    Generic (Laurent) multivariate polynomials + PolarPolynomial
-    zernike.py         Zernike basis polynomials, index conversions, and least-squares fit
+    __init__.py             Shared constants (const_c) and re-exports
+    array.py                NumPy typing helpers (array_like / array_type) and array utilities
+    io.py                   BytesFile + FileLike / PathLike type aliases
+    polar.py                cart2pol / pol2cart coordinate conversion
+    script.py               Unicode superscript / subscript formatting (sup / sub)
+    factorial_fraction.py   Overflow-safe factorial ratios
+    multivariate.py         Generic (Laurent) multivariate polynomials + PolarPolynomial
+    zernike.py              Zernike basis polynomials, index conversions, and least-squares fit
   optical_design/
-    __init__.py        Sub-package logger
-    header.py          Abstract Element / Medium base classes (import-cycle breakers)
-    geometry.py        Transforms: Translation, Scaling, Rotation, Quaternion, Spherical...
-    light.py           Wavefront and LightPath ray bookkeeping
-    material.py        Material model: Vacuum, air, ModelGlass, Polynomial/Function materials
-    medium.py          HomogeneousMedium / InhomogeneousMedium
-    surface.py         Interface, SnellInterface, Aperture, Surface
-    optic.py           CompoundElement, Detector, SurfaceDetector, OpticalDesign
-    source.py          Light Source base class
+    __init__.py             Sub-package logger
+    header.py               Abstract Element / Medium base classes (import-cycle breakers)
+    geometry.py             Transforms: Translation, Scaling, Rotation, Quaternion, Spherical...
+    light.py                Wavefront and LightPath ray bookkeeping
+    material.py             Material model: Vacuum, air, ModelGlass, Polynomial/Function materials
+    medium.py               HomogeneousMedium / InhomogeneousMedium
+    surface.py              Interface, SnellInterface, Aperture, Surface
+    optic.py                CompoundElement, Detector, SurfaceDetector, OpticalDesign
+    source.py               Light Source base class
 ```
 
 The data flow is: `zar.unpack` yields in-memory `BytesFile`s; `zmx.ZmxOpticalDesign`
@@ -165,7 +170,7 @@ Before submitting your code:
 2. Include or update the inline documentation (Google-style docstrings, no types).
 3. Update [README.md](README.md) as necessary.
 4. Increase the version number in `pyproject.toml` under the `[project]` header
-5. Update [CHANGELOG.md](CHANGELOG.md) with a quick summary of your changes
+5. Update the change log, [CHANGES.md](CHANGES.md), with a brief summary of your changes
 6. Run `make test` to:
    1. check code behaviour with `pytest`
    2. ensure that types are correct with `ty`

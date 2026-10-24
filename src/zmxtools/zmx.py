@@ -7,7 +7,7 @@ from typing import cast
 
 import numpy as np
 
-from zmxtools import log
+import zmxtools
 from zmxtools.agf import AgfMaterialLibrary
 from zmxtools.optical_design import material
 from zmxtools.optical_design.geometry import SphericalTransform, Translation
@@ -21,7 +21,7 @@ from zmxtools.utils import zernike
 from zmxtools.utils.array import array_like, array_type, asarray, norm
 from zmxtools.utils.io import FileLike, PathLike
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 __all__ = ["ZmxOpticalDesign", "ZmxSource", "ZmxSurface"]
 

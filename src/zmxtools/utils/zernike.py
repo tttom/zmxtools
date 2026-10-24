@@ -17,10 +17,11 @@ indices using :py:func:`orders2noll` and :py:func:`noll2orders`. Convert directl
 using :py:func:`index2noll` and :py:func:`noll2index`. Similar functions are provided for Fringe (a.k.a. University
 of Arizona) indices.
 
-Commonly used Zernike polynomials have named implementations: :py:func:`piston`, :py:func:`tip`, :py:func:`tilt`,
-           :py:func:`oblique_astigmatism`, :py:func:`defocus`, :py:func:`vertical_astigmatism`,
-           :py:func:`vertical_trefoil`, :py:func:`vertical_coma`, :py:func:`horizontal_coma`,
-           :py:func:`oblique_trefoil`, and :py:func:`primary_spherical`.
+Commonly used Zernike polynomials have named implementations: 
+    :py:func:`piston`, :py:func:`tip`, :py:func:`tilt`,
+    :py:func:`oblique_astigmatism`, :py:func:`defocus`, :py:func:`vertical_astigmatism`,
+    :py:func:`vertical_trefoil`, :py:func:`vertical_coma`, :py:func:`horizontal_coma`,
+    :py:func:`oblique_trefoil`, and :py:func:`primary_spherical`.
 """
 
 from __future__ import annotations
@@ -31,7 +32,8 @@ from typing import assert_type
 
 import numpy as np
 
-from zmxtools.utils import log, script
+import zmxtools
+from zmxtools.utils import script
 from zmxtools.utils.array import (
     FLOAT_TYPE,
     INT_TYPE,
@@ -45,7 +47,7 @@ from zmxtools.utils.array import (
 from zmxtools.utils.factorial_fraction import factorial_product_fraction
 from zmxtools.utils.polar import cart2pol
 
-log = log.getChild(__name__)
+log = zmxtools.config_logger(__name__)
 
 __all__ = [
     "Fit",

@@ -1,10 +1,11 @@
 import numpy as np
 from numpy import testing as npt
 
-from tests.utils import log
+import zmxtools
 from zmxtools.utils.array import array_like
 from zmxtools.utils.multivariate import Polynomial
 
+log = zmxtools.config_logger(__name__)
 
 class TestPolynomial:
     def check_eq(self, p0, p1):

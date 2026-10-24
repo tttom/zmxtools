@@ -1,16 +1,13 @@
-import logging
 import math
 from typing import cast
 
 from numpy import testing as npt
 
-from tests.zmx import log, test_agf_files, test_directory, test_zmx_files
-from zmxtools import zmx
+from tests.zmx import test_agf_files, test_directory, test_zmx_files
+from zmxtools import config_logger, zmx
 from zmxtools.optical_design.material import Vacuum
 
-log = log.getChild(__name__)
-log.level = logging.DEBUG
-zmx.log.level = logging.WARNING
+log = config_logger(__name__)
 
 vacuum = Vacuum()
 

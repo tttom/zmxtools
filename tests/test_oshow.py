@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,8 @@ from numpy import testing as npt
 
 from tests.zmx import test_directory
 from zmxtools import gui as oshow
+
+IN_GITHUB_ACTION = os.getenv("GITHUB_ACTIONS") == "true"
 
 ZMX_FILE = test_directory / "LA1116-Zemax.zmx"
 ZAR_FILE = test_directory / "352240-1064-Zemax.zar"
@@ -352,6 +355,55 @@ class TestScene:
         npt.assert_allclose(self.scene["image_plane"]["center"][2], self.scene["bounds"]["zmax"])
 
 
+class TestViewerDescription:
+    def setup_method(self):
+        self.scene = oshow.build_scene(synthetic_design(), nb_rays=1)
+
+    def test_css_design_constants(self):
+        npt.assert_equal([lens["color"] for lens in self.scene["lenses"]], ["#008000", "#008080"])
+        npt.assert_equal(all(lens["opacity"] == 0.5 for lens in self.scene["lenses"]), True)
+        npt.assert_equal(self.scene["aperture_stop"]["opacity"], 0.5)
+
+    def test_lenses_have_two_ends_and_rims(self):
+        for lens in self.scene["lenses"]:
+            npt.assert_equal(len(lens["surfaces"]), 2)
+            npt.assert_equal(len(lens["rims"]), 2)
+            surface_ids = [mesh.get("surface_id") for mesh in lens["meshes"] if mesh.get("surface_id")]
+            expected = [f"surf-{lens['surfaces'][0]}", f"surf-{lens['surfaces'][1]}", f"rim-{lens['id'].split('-')[-1]}"]
+            npt.assert_equal(sorted(surface_ids), sorted(expected))
+
+    def test_table_block_order(self):
+        types = [block["type"] for block in self.scene["table"]]
+        npt.assert_equal(
+            types,
+            ["medium", "surface", "material", "surface", "material", "surface", "medium", "image"],
+        )
+        npt.assert_equal(self.scene["table"][0]["target"], {"kind": "rays"})
+        npt.assert_equal(self.scene["table"][-1]["target"], {"kind": "image"})
+
+    def test_surface_targets_have_caps(self):
+        surface_ids = {
+            mesh["surface_id"] for lens in self.scene["lenses"] for mesh in lens["meshes"] if mesh.get("surface_id")
+        }
+        for block in self.scene["table"]:
+            target = block.get("target", {})
+            if target.get("kind") == "surface":
+                npt.assert_equal(target["id"] in surface_ids, True)
+                npt.assert_equal(len(block["details"]) >= 2, True)
+
+    def test_material_colors_match_rims(self):
+        lens_colors = {lens["id"]: lens["color"] for lens in self.scene["lenses"]}
+        for block in self.scene["table"]:
+            target = block.get("target", {})
+            if block["type"] == "material" and target.get("kind") == "rim":
+                npt.assert_equal(block["color"], lens_colors[target["id"]])
+
+    def test_stop_surface_is_marked(self):
+        stops = [block for block in self.scene["table"] if block.get("stop")]
+        npt.assert_equal(len(stops), 1)
+        npt.assert_equal(stops[0]["stop"], True)
+
+
 class TestRender:
     def test_html_contains_scene(self):
         scene = oshow.build_scene(synthetic_design(), nb_rays=1)
@@ -381,14 +433,14 @@ class TestCli:
 
         with tempfile.TemporaryDirectory() as tmp:
             html_path = Path(tmp) / "view.html"
-            scene_path = Path(tmp) / "scene.json"
+            json_output_path = Path(tmp) / "scene.json"
             code = oshow.oshow(
-                ["-i", str(ZMX_FILE), "--no-serve", "-o", str(html_path), "-s", str(scene_path), "--no-open"],
+                ["-i", str(ZMX_FILE), "--no-serve", "-o", str(html_path), "-j", str(json_output_path), "--no-open"],
             )
             npt.assert_equal(code, 0)
             npt.assert_equal(html_path.exists(), True)
-            npt.assert_equal(scene_path.exists(), True)
-            json.loads(scene_path.read_text(encoding="utf-8"))
+            npt.assert_equal(json_output_path.exists(), True)
+            json.loads(json_output_path.read_text(encoding="utf-8"))
 
     def test_missing_input(self):
         code = oshow.oshow(["-i", "definitely/missing.zmx", "--no-serve"])
@@ -435,6 +487,7 @@ class TestServe:
             thread.join(timeout=5)
         npt.assert_equal(thread.is_alive(), False)
 
+    @pytest.mark.skipif(IN_GITHUB_ACTION, reason="Accessing URLs does not work in GitHub workflow.")
     def test_serve_exit_after_open(self):
         import threading
         import time
