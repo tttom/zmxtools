@@ -462,7 +462,7 @@ def test_from_file():
                     material.extinction_coefficient(wavelength=633e-9),
                     1.0084e-8,
                     decimal=12,
-                    err_msg="extinction coefficient κ is incorrect.",
+                    err_msg=f"extinction coefficient κ is incorrect for {material.name} in {agf_file_path}.",
                 )
                 npt.assert_almost_equal(
                     material.transmittance(10e-3, wavelength=633e-9),
@@ -580,13 +580,13 @@ def test_from_file():
                     material.refractive_index_d,
                     1.48749,
                     decimal=6,
-                    err_msg=f"{material.name} n is returned incorrectly.",
+                    err_msg=f"{material.name} from {material_library.name}: n is returned incorrectly.",
                 )
                 npt.assert_almost_equal(
                     material.transmittance(10e-3, wavelength=500e-9),
                     0.997,
                     decimal=4,
-                    err_msg=f"{material.name} absorption coefficient incorrect",
+                    err_msg=f"{material.name} from {material_library.name}: absorption coefficient incorrect",
                 )
 
             if material.name == "E-LASFH6":

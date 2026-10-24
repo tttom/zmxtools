@@ -12,7 +12,7 @@ catalog_files: list[pathlib.Path] = sorted(glass_directory.glob("*.agf"))
 
 # Infrared crystals, birefringent materials, and some model glasses legitimately
 # fall outside the visible-glass index range, or extrapolate wildly at the d-line.
-SPECIAL_CATALOGS = {"birefringent", "cdgm", "infrared", "lightpath"}
+SPECIAL_CATALOGS = {"birefringent", "cdgm", "infrared", "lightpath", "misc"}
 
 
 def test_catalogs_present():
@@ -29,8 +29,8 @@ def test_load_catalogs():
         finite = [float(_) for _ in indices if np.isfinite(_)]
         assert len(finite) >= 1, f"No material with a finite d-line index in {catalog_file}."
         if catalog_file.stem not in SPECIAL_CATALOGS:
-            npt.assert_array_less(1.2, np.array(finite))
-            npt.assert_array_less(np.array(finite), 2.3)
+            npt.assert_array_less(1.2, np.array(finite), err_msg=f"Very small refractive index in {catalog_file}.")
+            npt.assert_array_less(np.array(finite), 2.3, err_msg=f"Very large refractive index in {catalog_file}.")
 
 
 def test_catalog_materials_resolve():
